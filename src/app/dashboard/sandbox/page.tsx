@@ -14,6 +14,7 @@ import {
   Check,
   X,
   Loader2,
+  RotateCcw,
 } from "lucide-react"
 
 export default function SandboxPage() {
@@ -32,7 +33,9 @@ export default function SandboxPage() {
   const { mutateWithAuth: updateMember } = useAuthMutation(
     api.members.mutations.update
   )
+  const resetMember = useMutation(api.engine.sandbox.resetMember)
   const [isSeeding, setIsSeeding] = useState(false)
+  const [resettingMemberId, setResettingMemberId] = useState<string | null>(null)
 
   // Form state
   const [selectedFlowId, setSelectedFlowId] = useState<string>("")
@@ -147,6 +150,7 @@ export default function SandboxPage() {
                   <th className="px-3 py-2 text-left font-medium">Name</th>
                   <th className="px-3 py-2 text-left font-medium">WhatsApp ID</th>
                   <th className="px-3 py-2 text-left font-medium">Profile Link</th>
+                  <th className="px-3 py-2 text-left font-medium"></th>
                 </tr>
               </thead>
               <tbody>
@@ -227,10 +231,36 @@ export default function SandboxPage() {
                         </div>
                       )}
                     </td>
+                    {/* Reset button */}
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        title="Reset member — clears all matches, flows, payments, feedback, and messages"
+                        disabled={resettingMemberId === m._id}
+                        onClick={async () => {
+                          if (!confirm(`Reset ${m.firstName} ${m.lastName || ""}? This deletes all their matches, flows, payments, feedback, and messages.`)) return
+                          setResettingMemberId(m._id)
+                          try {
+                            await resetMember({ memberId: m._id as Id<"members"> })
+                          } catch (err: any) {
+                            console.error("Reset failed:", err)
+                          } finally {
+                            setResettingMemberId(null)
+                          }
+                        }}
+                        className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      >
+                        {resettingMemberId === m._id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="size-3.5" />
+                        )}
+                      </button>
+                    </td>
                   </tr>
                 )) ?? (
                   <tr>
-                    <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
+                    <td colSpan={4} className="px-3 py-4 text-center text-muted-foreground">
                       Loading members...
                     </td>
                   </tr>

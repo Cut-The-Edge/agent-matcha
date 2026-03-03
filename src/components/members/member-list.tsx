@@ -69,7 +69,7 @@ function MemberTableSkeleton() {
       <Table>
         <TableHeader className="bg-muted">
           <TableRow>
-            {["Name", "Email", "Phone", "Tier", "Status", "Rejections", "Profile", "Last Synced"].map(
+            {["Name", "Email", "Phone", "Tier", "Status", "Match Status", "Rejections", "Profile", "Last Synced"].map(
               (header) => (
                 <TableHead key={header}>{header}</TableHead>
               )
@@ -90,6 +90,9 @@ function MemberTableSkeleton() {
               </TableCell>
               <TableCell>
                 <Skeleton className="h-5 w-16 rounded-full" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-20 rounded-full" />
               </TableCell>
               <TableCell>
                 <Skeleton className="h-5 w-20 rounded-full" />

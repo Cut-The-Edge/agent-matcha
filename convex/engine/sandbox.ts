@@ -56,12 +56,12 @@ export const startSandboxFlow = mutation({
 
     const now = Date.now();
 
-    // Create the match record
+    // Create the match record (§7.1: "Active Introductions" — match sent, awaiting response)
     const matchId = await ctx.db.insert("matches", {
       smaIntroId: `sandbox-${now}`,
       memberAId: args.memberAId,
       memberBId: args.memberBId ?? args.memberAId,
-      status: "pending",
+      status: "active",
       triggeredBy: admin._id,
       createdAt: now,
       updatedAt: now,
@@ -172,5 +172,111 @@ export const startSandboxFlow = mutation({
     }
 
     return { matchId, instanceIds };
+  },
+});
+
+/**
+ * Reset a member to a clean state for sandbox testing.
+ * Deletes all their matches, flow instances, execution logs,
+ * payments, feedback, and whatsapp messages.
+ * Resets rejectionCount to 0 and status to "active".
+ */
+export const resetMember = mutation({
+  args: {
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) {
+      throw new Error(`Member not found: ${args.memberId}`);
+    }
+
+    // 1. Find all matches involving this member
+    const matchesA = await ctx.db
+      .query("matches")
+      .withIndex("by_memberA", (q) => q.eq("memberAId", args.memberId))
+      .collect();
+    const matchesB = await ctx.db
+      .query("matches")
+      .withIndex("by_memberB", (q) => q.eq("memberBId", args.memberId))
+      .collect();
+    // Deduplicate — sandbox uses same member for A and B
+    const seen = new Set<string>();
+    const allMatches = [...matchesA, ...matchesB].filter((m) => {
+      if (seen.has(m._id)) return false;
+      seen.add(m._id);
+      return true;
+    });
+
+    // 2. Find all flow instances for this member
+    const instances = await ctx.db
+      .query("flowInstances")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+
+    // 3. Delete execution logs for each instance
+    for (const inst of instances) {
+      const logs = await ctx.db
+        .query("flowExecutionLogs")
+        .withIndex("by_instance", (q) => q.eq("instanceId", inst._id))
+        .collect();
+      for (const log of logs) {
+        await ctx.db.delete(log._id);
+      }
+    }
+
+    // 4. Delete flow instances
+    for (const inst of instances) {
+      await ctx.db.delete(inst._id);
+    }
+
+    // 5. Delete payments for this member
+    const payments = await ctx.db
+      .query("payments")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    for (const p of payments) {
+      await ctx.db.delete(p._id);
+    }
+
+    // 6. Delete feedback for this member
+    const feedback = await ctx.db
+      .query("feedback")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    for (const f of feedback) {
+      await ctx.db.delete(f._id);
+    }
+
+    // 7. Delete whatsapp messages for this member
+    const messages = await ctx.db
+      .query("whatsappMessages")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    for (const msg of messages) {
+      await ctx.db.delete(msg._id);
+    }
+
+    // 8. Delete all matches
+    for (const match of allMatches) {
+      await ctx.db.delete(match._id);
+    }
+
+    // 9. Reset member to clean state
+    await ctx.db.patch(args.memberId, {
+      rejectionCount: 0,
+      status: "active",
+      updatedAt: Date.now(),
+    });
+
+    return {
+      deleted: {
+        matches: allMatches.length,
+        instances: instances.length,
+        payments: payments.length,
+        feedback: feedback.length,
+        messages: messages.length,
+      },
+    };
   },
 });

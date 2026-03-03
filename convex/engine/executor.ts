@@ -300,12 +300,26 @@ export const executeActionNode = internalMutation({
           );
         }
 
-        // 3. Update match status
+        // 3. Update match status (§4.4: Active → Rejected Introductions)
+        //    and write match notes (§7.2)
         if (instance.matchId) {
-          const matchSide = context.metadata?.side || "A";
-          const newMatchStatus = matchSide === "A" ? "a_declined" : "b_declined";
           await ctx.db.patch(instance.matchId, {
-            status: newMatchStatus,
+            status: "rejected",
+            responseType: "not_interested",
+            matchNotes: {
+              member_id: instance.memberId,
+              response_type: "not_interested",
+              rejection_reasons: primaryCategories.map((cat) => ({
+                primary: cat,
+                secondary: subCategories[cat] || null,
+                free_text: cat === "other" ? freeText : null,
+              })),
+              upsell_offered: false,
+              upsell_accepted: false,
+              payment_status: null,
+              final_status: "rejected",
+              timestamp: new Date().toISOString(),
+            },
             updatedAt: Date.now(),
           });
         }
@@ -348,21 +362,36 @@ export const executeActionNode = internalMutation({
       }
 
       case "update_match_status": {
-        // Update the match status if we have a matchId
+        // Update match status + responseType + matchNotes per §7.1 / §7.2
         if (instance.matchId) {
-          const newStatus = args.params?.status;
-          if (newStatus) {
-            await ctx.db.patch(instance.matchId, {
-              status: newStatus,
-              updatedAt: Date.now(),
-            });
-            actionResult = {
-              type: "update_match_status",
-              matchId: instance.matchId,
-              newStatus,
-              status: "completed",
+          const finalStatus = args.params?.final_status;
+          const responseType = args.params?.response_type;
+          const note = args.params?.note;
+
+          const patch: Record<string, any> = { updatedAt: Date.now() };
+
+          if (finalStatus) patch.status = finalStatus;
+          if (responseType) patch.responseType = responseType;
+          if (note) {
+            patch.matchNotes = {
+              member_id: instance.memberId,
+              response_type: responseType || finalStatus,
+              note,
+              upsell_offered: args.params?.upsell_offered ?? false,
+              upsell_accepted: args.params?.upsell_accepted ?? false,
+              final_status: finalStatus,
+              timestamp: new Date().toISOString(),
             };
           }
+
+          await ctx.db.patch(instance.matchId, patch);
+          actionResult = {
+            type: "update_match_status",
+            matchId: instance.matchId,
+            newStatus: finalStatus,
+            responseType,
+            status: "completed",
+          };
         }
         break;
       }
@@ -465,15 +494,22 @@ export const executeActionNode = internalMutation({
       }
     }
 
+    // Re-read the instance to pick up any context changes made during the
+    // switch (e.g., create_stripe_link sets waitingForInput: true).
+    // Without this, we'd overwrite those changes with the stale `context`.
+    const freshInstance = await ctx.db.get(args.flowInstanceId);
+    if (!freshInstance) return;
+    const latestContext = freshInstance.context as FlowContext;
+
     // Update context metadata with action result
     const updatedContext: FlowContext = {
-      ...context,
+      ...latestContext,
       metadata: {
-        ...context.metadata,
+        ...latestContext.metadata,
         [`action_${args.nodeId}`]: actionResult,
       },
       timestamps: {
-        ...context.timestamps,
+        ...latestContext.timestamps,
         [`action_${args.nodeId}`]: Date.now(),
       },
     };
@@ -592,6 +628,8 @@ export const executeFeedbackCollectNode = internalMutation({
     allowFreeText: v.boolean(),
     feedbackType: v.string(),
     prompt: v.optional(v.string()),
+    timeout: v.optional(v.number()),
+    timeoutMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
@@ -650,9 +688,23 @@ export const executeFeedbackCollectNode = internalMutation({
       waitingNodeId: args.nodeId,
     };
 
+    // Schedule timeout if configured
+    let schedulerJobId: string | undefined;
+    if (args.timeout && args.timeout > 0) {
+      schedulerJobId = await ctx.scheduler.runAfter(
+        args.timeout,
+        internal.engine.transitions.handleFeedbackCollectTimeout,
+        {
+          flowInstanceId: args.flowInstanceId,
+          nodeId: args.nodeId,
+        }
+      );
+    }
+
     await ctx.db.patch(args.flowInstanceId, {
       context: updatedContext,
       lastTransitionAt: Date.now(),
+      ...(schedulerJobId ? { schedulerJobId } : {}),
     });
 
     const duration = Date.now() - startTime;
@@ -666,7 +718,7 @@ export const executeFeedbackCollectNode = internalMutation({
         categories: args.categories,
         feedbackType: args.feedbackType,
       }),
-      output: JSON.stringify({ waitingForFeedback: true, messageId }),
+      output: JSON.stringify({ waitingForFeedback: true, messageId, timeoutMs: args.timeout || null }),
       duration,
       timestamp: Date.now(),
     });

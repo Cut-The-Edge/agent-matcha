@@ -28,9 +28,19 @@ export const createCheckoutAndNotify = internalAction({
   handler: async (ctx, args) => {
     const stripe = createStripeClient();
 
-    const baseUrl = process.env.CONVEX_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.cluballenby.com";
+    // Use the Next.js app URL for Stripe redirect pages (NOT the Convex backend URL)
+    const baseUrl = process.env.APP_URL || "http://localhost:3000";
 
-    // Create Stripe Checkout Session
+    // Look up member details for tracking + WhatsApp delivery
+    const member = await ctx.runQuery(
+      internal.integrations.twilio.lookups.findMemberById,
+      { memberId: args.memberId }
+    );
+
+    const memberPhone = member?.whatsappId || member?.phone || "";
+    const memberName = [member?.firstName, member?.lastName].filter(Boolean).join(" ") || "Unknown";
+
+    // Create Stripe Checkout Session with full tracking metadata
     const { sessionId, url } = await stripe.createCheckoutSession(ctx, {
       priceId: process.env.STRIPE_PERSONAL_OUTREACH_PRICE_ID!,
       mode: "payment",
@@ -41,9 +51,15 @@ export const createCheckoutAndNotify = internalAction({
         matchId: args.matchId,
         memberId: args.memberId,
         paymentId: args.paymentId,
+        memberPhone,
+        memberName,
         type: "personal_outreach",
       },
     });
+
+    console.log(
+      `[stripe] Checkout session created: ${sessionId} for member ${memberName} (${memberPhone})`
+    );
 
     // Update payment record with Stripe session ID
     await ctx.runMutation(
@@ -55,24 +71,16 @@ export const createCheckoutAndNotify = internalAction({
     );
 
     // Send payment link to member via WhatsApp
-    if (url) {
-      // Look up member phone
-      const member = await ctx.runQuery(
-        internal.integrations.twilio.lookups.findMemberById,
-        { memberId: args.memberId }
-      );
-
-      if (member) {
-        const phone = member.whatsappId || member.phone;
-        if (phone) {
-          await ctx.runAction(
-            internal.integrations.twilio.whatsapp.sendTextMessage,
-            {
-              to: phone,
-              body: `Here's your secure payment link for the Personal Outreach service:\n\n${url}\n\nThis is a one-time payment of $${(args.amount / 100).toFixed(2)}. Once confirmed, we'll connect you personally!`,
-            }
-          );
-        }
+    if (url && member) {
+      const phone = member.whatsappId || member.phone;
+      if (phone) {
+        await ctx.runAction(
+          internal.integrations.twilio.whatsapp.sendTextMessage,
+          {
+            to: phone,
+            body: `Great, I'll initiate the outreach on your behalf! To get started, please complete the first payment below.\n\n${url}\n\nThis is a one-time payment of $${(args.amount / 100).toFixed(2)}.`,
+          }
+        );
       }
     }
 

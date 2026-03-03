@@ -3,21 +3,12 @@ import { mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "../auth/authz";
 
-/** All valid match statuses, matching the schema. */
+/** All valid match statuses per §7.1. */
 const matchStatusValidator = v.union(
+  v.literal("active"),
+  v.literal("rejected"),
+  v.literal("past"),
   v.literal("pending"),
-  v.literal("sent_a"),
-  v.literal("sent_b"),
-  v.literal("a_interested"),
-  v.literal("b_interested"),
-  v.literal("mutual_interest"),
-  v.literal("group_created"),
-  v.literal("a_declined"),
-  v.literal("b_declined"),
-  v.literal("a_passed"),
-  v.literal("b_passed"),
-  v.literal("personal_outreach_a"),
-  v.literal("personal_outreach_b"),
   v.literal("completed"),
   v.literal("expired")
 );
@@ -29,14 +20,13 @@ const matchStatusValidator = v.union(
 const TERMINAL_STATUSES = new Set([
   "completed",
   "expired",
-  "a_declined",
-  "b_declined",
+  "rejected",
+  "past",
 ]);
 
 /**
  * Create a new match between two members.
- * Sets status="pending", createdAt, updatedAt.
- * triggeredBy is the admin who initiated the match.
+ * Sets status="active" (Active Introductions — §7.1).
  */
 export const create = mutation({
   args: {
@@ -48,7 +38,6 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAuth(ctx, args.sessionToken);
 
-    // Validate both members exist
     const memberA = await ctx.db.get(args.memberAId);
     if (!memberA) {
       throw new Error(`Member A not found: ${args.memberAId}`);
@@ -58,7 +47,6 @@ export const create = mutation({
       throw new Error(`Member B not found: ${args.memberBId}`);
     }
 
-    // Prevent matching a member with themselves
     if (args.memberAId === args.memberBId) {
       throw new Error("Cannot create a match between a member and themselves");
     }
@@ -69,7 +57,7 @@ export const create = mutation({
       memberAId: args.memberAId,
       memberBId: args.memberBId,
       smaIntroId: args.smaIntroId,
-      status: "pending",
+      status: "active",
       triggeredBy: admin._id,
       createdAt: now,
       updatedAt: now,
@@ -82,8 +70,6 @@ export const create = mutation({
 /**
  * Update match status + updatedAt.
  * Validates the transition is allowed (not from a terminal state).
- * If both parties have expressed interest (status moving to mutual_interest),
- * this is handled explicitly by the caller or by updateMemberResponse logic.
  */
 export const updateStatus = mutation({
   args: {
@@ -115,15 +101,11 @@ export const updateStatus = mutation({
 });
 
 /**
- * Record a member's response to a match (interested, declined, passed).
- * Creates a feedback record and advances match status accordingly.
- *
- * Logic:
- * - If member A responds "interested" -> status becomes "a_interested"
- *   (unless B already interested, then "mutual_interest")
- * - If member A responds "not_interested" -> status becomes "a_declined"
- * - If member A responds "passed" -> status becomes "a_passed"
- * - Same logic symmetrically for member B.
+ * Record a member's response to a match.
+ * Creates a feedback record and updates match status per §7.1:
+ *  - not_interested → "rejected"
+ *  - passed → "past"
+ *  - interested → stays "active" (Flow A TBD)
  */
 export const updateMemberResponse = mutation({
   args: {
@@ -135,20 +117,7 @@ export const updateMemberResponse = mutation({
       v.literal("not_interested"),
       v.literal("passed")
     ),
-    categories: v.optional(
-      v.array(
-        v.union(
-          v.literal("physical_attraction"),
-          v.literal("photos_only"),
-          v.literal("chemistry"),
-          v.literal("willingness_to_meet"),
-          v.literal("age_preference"),
-          v.literal("location"),
-          v.literal("career_income"),
-          v.literal("something_specific")
-        )
-      )
-    ),
+    categories: v.optional(v.array(v.string())),
     freeText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -165,7 +134,6 @@ export const updateMemberResponse = mutation({
       );
     }
 
-    // Determine which side this member is
     const isA = match.memberAId === args.memberId;
     const isB = match.memberBId === args.memberId;
     if (!isA && !isB) {
@@ -174,11 +142,8 @@ export const updateMemberResponse = mutation({
       );
     }
 
-    const side = isA ? "a" : "b";
-    const otherSide = isA ? "b" : "a";
     const now = Date.now();
 
-    // Record the feedback
     await ctx.db.insert("feedback", {
       matchId: args.matchId,
       memberId: args.memberId,
@@ -189,26 +154,24 @@ export const updateMemberResponse = mutation({
       createdAt: now,
     });
 
-    // Determine new match status
-    let newStatus: string;
+    // §7.1 status mapping
+    let newStatus: string = match.status;
+    let responseType: string | undefined;
 
     if (args.decision === "not_interested") {
-      newStatus = `${side}_declined`;
+      newStatus = "rejected";
+      responseType = "not_interested";
     } else if (args.decision === "passed") {
-      newStatus = `${side}_passed`;
+      newStatus = "past";
+      responseType = "upsell_no_pass";
     } else {
-      // interested
-      // Check if the other side is already interested
-      const otherInterestedStatus = `${otherSide}_interested`;
-      if (match.status === otherInterestedStatus) {
-        newStatus = "mutual_interest";
-      } else {
-        newStatus = `${side}_interested`;
-      }
+      // interested — stays active (Flow A TBD)
+      responseType = "interested";
     }
 
     await ctx.db.patch(args.matchId, {
       status: newStatus,
+      responseType,
       updatedAt: now,
     });
 
@@ -231,12 +194,12 @@ export const expire = internalMutation({
     }
 
     if (TERMINAL_STATUSES.has(match.status)) {
-      // Already in a terminal state, nothing to do
       return { matchId: args.matchId, alreadyTerminal: true };
     }
 
     await ctx.db.patch(args.matchId, {
       status: "expired",
+      responseType: "no_response",
       updatedAt: Date.now(),
     });
 
@@ -288,7 +251,7 @@ export const setGroupChat = mutation({
 
     await ctx.db.patch(args.matchId, {
       groupChatId: args.groupChatId,
-      status: "group_created",
+      status: "completed",
       updatedAt: Date.now(),
     });
 

@@ -16,6 +16,7 @@ import type {
   FlowEdge,
   FlowContext,
   TransitionResult,
+  ActionNodeConfig,
   DecisionNodeConfig,
   ConditionNodeConfig,
   DelayNodeConfig,
@@ -71,6 +72,15 @@ export const advanceFlow = internalMutation({
 
     const context: FlowContext = instance.context as FlowContext;
     const inputData = args.input ? args.input : undefined;
+
+    // If the flow is waiting for external input (e.g., Stripe payment webhook)
+    // and no input was provided, don't advance — stay paused.
+    if (context.waitingForInput && !inputData) {
+      console.log(
+        `[interpreter] Flow ${args.flowInstanceId} is waiting for input at node ${instance.currentNodeId}, skipping advance`
+      );
+      return;
+    }
 
     // Evaluate the current node and get the transition result
     const result = evaluateNode(
@@ -148,15 +158,25 @@ export const advanceFlow = internalMutation({
         ];
 
         if (autoAdvanceTypes.includes(nextNode.type as any)) {
-          // Schedule the next advance immediately
-          await ctx.scheduler.runAfter(
-            0,
-            internal.engine.interpreter.advanceFlow,
-            {
-              flowInstanceId: args.flowInstanceId,
-              input: undefined,
-            }
-          );
+          // Don't auto-advance into blocking action nodes — they wait for
+          // external input (e.g., Stripe webhook) before the flow should proceed.
+          const isBlocking =
+            nextNode.type === NODE_TYPES.ACTION &&
+            isBlockingAction(
+              (nextNode.config as ActionNodeConfig)?.actionType
+            );
+
+          if (!isBlocking) {
+            // Schedule the next advance immediately
+            await ctx.scheduler.runAfter(
+              0,
+              internal.engine.interpreter.advanceFlow,
+              {
+                flowInstanceId: args.flowInstanceId,
+                input: undefined,
+              }
+            );
+          }
         }
 
         // For delay nodes, schedule after the delay duration
@@ -342,7 +362,9 @@ function evaluateNode(
     }
 
     case NODE_TYPES.ACTION: {
-      // Action nodes execute and advance
+      // Action nodes execute and advance.
+      // Clear waitingForInput so blocking actions (e.g., create_stripe_link)
+      // don't leave the flag set after the webhook resumes the flow.
       const nextEdge = nodeEdges[0];
       if (!nextEdge) {
         // Action nodes at the end of a branch may not have outgoing edges
@@ -359,6 +381,8 @@ function evaluateNode(
         edgeId: nextEdge.edgeId,
         updatedContext: {
           ...context,
+          waitingForInput: false,
+          waitingNodeId: undefined,
           timestamps: {
             ...context.timestamps,
             [`action_executed_${node.nodeId}`]: Date.now(),
@@ -693,6 +717,15 @@ function normalize(text: string): string {
     .replace(/[^a-z0-9\s]/g, "")    // strip punctuation
     .replace(/\s+/g, " ")           // collapse whitespace
     .trim();
+}
+
+/**
+ * Check if an action type is "blocking" — meaning the flow should pause
+ * at this node and wait for external input (e.g., a webhook) before advancing.
+ */
+function isBlockingAction(actionType: string | undefined): boolean {
+  const blockingTypes = ["create_stripe_link"];
+  return !!actionType && blockingTypes.includes(actionType);
 }
 
 /**

@@ -103,9 +103,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="/dashboard">
-                <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold">
-                  AM
-                </div>
+                <span className="text-2xl leading-none" role="img" aria-label="matcha">🍵</span>
                 <span className="text-base font-semibold">Agent Matcha</span>
               </a>
             </SidebarMenuButton>

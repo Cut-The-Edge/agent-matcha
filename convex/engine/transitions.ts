@@ -595,6 +595,121 @@ export const handleDecisionTimeout = internalMutation({
 });
 
 // ============================================================================
+// handleFeedbackCollectTimeout — Fired when a feedback_collect node timeout expires
+// ============================================================================
+
+export const handleFeedbackCollectTimeout = internalMutation({
+  args: {
+    flowInstanceId: v.id("flowInstances"),
+    nodeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const instance = await ctx.db.get(args.flowInstanceId);
+    if (!instance) return;
+
+    // Only fire if instance is still active AND still on this node
+    if (
+      instance.status !== INSTANCE_STATUS.ACTIVE ||
+      instance.currentNodeId !== args.nodeId
+    ) {
+      return;
+    }
+
+    const context = instance.context as FlowContext;
+    // Only fire if still waiting for input on this node
+    if (!context.waitingForInput || context.waitingNodeId !== args.nodeId) {
+      return;
+    }
+
+    const flowDef = await ctx.db.get(instance.flowDefinitionId);
+    if (!flowDef) return;
+
+    const currentNode = flowDef.nodes.find(
+      (n: FlowNode) => n.nodeId === args.nodeId
+    );
+    if (!currentNode) return;
+
+    const config = currentNode.config as FeedbackCollectNodeConfig;
+
+    // Send the nudge message inline (no separate nudge node needed)
+    const nudgeTemplate =
+      config.timeoutMessage ||
+      "Hey {{memberFirstName}}, still here whenever you're ready to share!";
+
+    // Resolve template variables
+    let resolvedNudge = nudgeTemplate;
+    const variablePattern = /\{\{(\w+)\}\}/g;
+    resolvedNudge = resolvedNudge.replace(variablePattern, (match, key) => {
+      if (key in (context.metadata || {})) {
+        return String(context.metadata[key]);
+      }
+      if (key in context) {
+        return String((context as any)[key]);
+      }
+      return match;
+    });
+
+    if (instance.memberId) {
+      const member = await ctx.db.get(instance.memberId);
+      const phone = member?.whatsappId || member?.phone || null;
+
+      const messageId = await ctx.db.insert("whatsappMessages", {
+        matchId: instance.matchId || undefined,
+        memberId: instance.memberId,
+        direction: "outbound",
+        messageType: "text",
+        content: resolvedNudge,
+        status: "sent",
+        createdAt: Date.now(),
+      });
+
+      if (phone) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.integrations.twilio.whatsapp.sendTextMessage,
+          {
+            to: phone,
+            body: resolvedNudge,
+            whatsappMessageId: messageId,
+          }
+        );
+      }
+    }
+
+    // Clear the scheduler job ID
+    await ctx.db.patch(args.flowInstanceId, {
+      schedulerJobId: undefined,
+    });
+
+    // Log timeout event
+    await ctx.db.insert("flowExecutionLogs", {
+      instanceId: args.flowInstanceId,
+      nodeId: args.nodeId,
+      nodeType: NODE_TYPES.FEEDBACK_COLLECT,
+      action: "timeout_fired",
+      output: JSON.stringify({ nudgeMessage: resolvedNudge }),
+      timestamp: Date.now(),
+    });
+
+    // Re-execute the same feedback collect node (re-sends the question + sets a new timeout)
+    await ctx.scheduler.runAfter(
+      0,
+      internal.engine.executor.executeFeedbackCollectNode,
+      {
+        flowInstanceId: args.flowInstanceId,
+        nodeId: args.nodeId,
+        categories: config.categories,
+        allowFreeText: config.allowFreeText,
+        feedbackType: config.feedbackType,
+        prompt: config.prompt,
+        timeout: config.timeout,
+        timeoutMessage: config.timeoutMessage,
+      }
+    );
+  },
+});
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -724,6 +839,8 @@ async function executeNodeSideEffects(
           allowFreeText: config.allowFreeText,
           feedbackType: config.feedbackType,
           prompt: config.prompt,
+          timeout: config.timeout,
+          timeoutMessage: config.timeoutMessage,
         }
       );
       break;

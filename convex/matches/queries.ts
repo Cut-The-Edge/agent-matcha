@@ -172,7 +172,7 @@ export const getByMembers = query({
 
 /**
  * Get all active (non-terminal) matches.
- * Terminal statuses: completed, expired, a_declined, b_declined.
+ * Terminal statuses: completed, expired, rejected, past.
  */
 export const getActive = query({
   args: {
@@ -186,8 +186,8 @@ export const getActive = query({
     const terminalStatuses = new Set([
       "completed",
       "expired",
-      "a_declined",
-      "b_declined",
+      "rejected",
+      "past",
     ]);
 
     const allMatches = await ctx.db.query("matches").order("desc").collect();
@@ -237,16 +237,9 @@ export const getStats = query({
     const responseTimes: number[] = [];
 
     const respondedStatuses = new Set([
-      "a_interested",
-      "b_interested",
-      "mutual_interest",
-      "group_created",
-      "a_declined",
-      "b_declined",
-      "a_passed",
-      "b_passed",
-      "personal_outreach_a",
-      "personal_outreach_b",
+      "rejected",
+      "past",
+      "pending",
       "completed",
     ]);
 

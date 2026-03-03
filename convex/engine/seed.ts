@@ -219,7 +219,7 @@ export const seedDefaultFlow = internalMutation({
         position: { x: X_LEFT - 100, y: Y_START + Y_STEP * 9 },
         config: {
           actionType: "update_match_status",
-          params: { status: "mutual_interest" },
+          params: { final_status: "active", response_type: "interested" },
         },
       },
 
@@ -255,7 +255,7 @@ export const seedDefaultFlow = internalMutation({
         position: { x: X_LEFT + 150, y: Y_START + Y_STEP * 7 },
         config: {
           actionType: "update_match_status",
-          params: { status: "a_passed" },
+          params: { final_status: "past", response_type: "upsell_no_pass" },
         },
       },
 
@@ -342,7 +342,7 @@ export const seedDefaultFlow = internalMutation({
         position: { x: X_CENTER_LEFT, y: Y_START + Y_STEP * 7 },
         config: {
           actionType: "update_match_status",
-          params: { status: "a_declined" },
+          params: { final_status: "rejected", response_type: "not_interested" },
         },
       },
 
@@ -597,7 +597,7 @@ export const seedDefaultFlow = internalMutation({
         position: { x: X_RIGHT - 100, y: Y_START + Y_STEP * 11 },
         config: {
           actionType: "update_match_status",
-          params: { status: "personal_outreach_a" },
+          params: { final_status: "pending", response_type: "upsell_yes" },
         },
       },
 

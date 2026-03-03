@@ -246,42 +246,43 @@ export const seed = internalMutation({
       updatedAt: daysAgo(1),
     });
 
-    // Match 2: sent_a — Sarah notified about match with Jonathan
+    // Match 2: active — Sarah notified about match with Jonathan, awaiting response
     const match2Id = await ctx.db.insert("matches", {
       memberAId: memberIds[0], // Sarah Levinson
       memberBId: memberIds[3], // Jonathan Abrams
-      status: "sent_a",
+      status: "active",
       triggeredBy: adminId,
       createdAt: daysAgo(5),
       updatedAt: daysAgo(4),
     });
 
-    // Match 3: a_interested — Rebecca expressed interest, waiting on Ethan
+    // Match 3: active — Rebecca expressed interest, still active
     const match3Id = await ctx.db.insert("matches", {
       memberAId: memberIds[2], // Rebecca Goldstein
       memberBId: memberIds[5], // Ethan Rosen
-      status: "a_interested",
+      status: "active",
+      responseType: "interested",
       triggeredBy: adminId,
       createdAt: daysAgo(10),
       updatedAt: daysAgo(7),
     });
 
-    // Match 4: mutual_interest — both Ariella and David are interested
+    // Match 4: pending — upsell activated, awaiting outreach outcome
     const match4Id = await ctx.db.insert("matches", {
       memberAId: memberIds[6], // Ariella Mizrachi
       memberBId: memberIds[1], // David Cohen
-      status: "mutual_interest",
+      status: "pending",
+      responseType: "upsell_yes",
       triggeredBy: adminId,
-      groupChatId: "wa_group_chat_001",
       createdAt: daysAgo(12),
       updatedAt: daysAgo(8),
     });
 
-    // Match 5: group_created — intro sent, group chat active
+    // Match 5: completed — intro sent, group chat active
     const match5Id = await ctx.db.insert("matches", {
       memberAId: memberIds[9], // Michael Katz
       memberBId: memberIds[2], // Rebecca Goldstein
-      status: "group_created",
+      status: "completed",
       triggeredBy: adminId,
       groupChatId: "wa_group_chat_002",
       createdAt: daysAgo(18),
@@ -415,7 +416,7 @@ export const seed = internalMutation({
         createdAt: daysAgo(1) + 3600000,
       },
 
-      // --- Match 2: Sarah + Jonathan (sent_a) ---
+      // --- Match 2: Sarah + Jonathan (active) ---
       {
         matchId: match2Id,
         memberId: memberIds[0], // Sarah
@@ -444,7 +445,7 @@ export const seed = internalMutation({
         createdAt: daysAgo(4) + 14400000,
       },
 
-      // --- Match 3: Rebecca + Ethan (a_interested) ---
+      // --- Match 3: Rebecca + Ethan (active, interested) ---
       {
         matchId: match3Id,
         memberId: memberIds[2], // Rebecca
@@ -500,7 +501,7 @@ export const seed = internalMutation({
         createdAt: daysAgo(6) + 7200000,
       },
 
-      // --- Match 4: Ariella + David (mutual_interest) ---
+      // --- Match 4: Ariella + David (pending, upsell_yes) ---
       {
         matchId: match4Id,
         memberId: memberIds[6], // Ariella
@@ -529,7 +530,7 @@ export const seed = internalMutation({
         createdAt: daysAgo(8) + 3600000,
       },
 
-      // --- Match 5: Michael + Rebecca (group_created) ---
+      // --- Match 5: Michael + Rebecca (completed) ---
       {
         matchId: match5Id,
         memberId: memberIds[9], // Michael

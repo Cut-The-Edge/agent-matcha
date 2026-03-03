@@ -61,7 +61,51 @@ export const list = query({
     }
 
     // Apply limit
-    return members.slice(0, limit);
+    members = members.slice(0, limit);
+
+    // Enrich with latest match status
+    const enriched = await Promise.all(
+      members.map(async (member) => {
+        const matchAsA = await ctx.db
+          .query("matches")
+          .withIndex("by_memberA", (q) => q.eq("memberAId", member._id))
+          .order("desc")
+          .first();
+        const matchAsB = await ctx.db
+          .query("matches")
+          .withIndex("by_memberB", (q) => q.eq("memberBId", member._id))
+          .order("desc")
+          .first();
+
+        // Pick the most recent match
+        let latestMatch = null;
+        if (matchAsA && matchAsB) {
+          latestMatch =
+            matchAsA.createdAt >= matchAsB.createdAt ? matchAsA : matchAsB;
+        } else {
+          latestMatch = matchAsA ?? matchAsB;
+        }
+
+        if (!latestMatch) return { ...member, latestMatchStatus: null, latestMatchPartner: null };
+
+        // Resolve partner name
+        const partnerId =
+          latestMatch.memberAId === member._id
+            ? latestMatch.memberBId
+            : latestMatch.memberAId;
+        const partner = await ctx.db.get(partnerId);
+
+        return {
+          ...member,
+          latestMatchStatus: latestMatch.status,
+          latestMatchPartner: partner
+            ? `${partner.firstName}${partner.lastName ? ` ${partner.lastName}` : ""}`
+            : null,
+        };
+      })
+    );
+
+    return enriched;
   },
 });
 

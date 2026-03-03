@@ -24,7 +24,7 @@ export const nodes = [
     nodeId: "start_1",
     type: "start",
     label: "New Match Assigned",
-    position: { x: 1075, y: 50 },
+    position: { x: 2000, y: 0 },
     config: { triggerType: "webhook" },
   },
   // §2 — Intro text + 3 buttons as one WhatsApp interactive message
@@ -33,7 +33,7 @@ export const nodes = [
     nodeId: "decision_response",
     type: "decision",
     label: "Member Response",
-    position: { x: 1075, y: 300 },
+    position: { x: 2000, y: 500 },
     config: {
       question:
         "Hi {{memberFirstName}}!\n\nI'm Matcha, reaching out on behalf of Club Allenby.\n\nWe've found a new match for you - Its waiting for you in your email! 🎉\n\nHere is a link to their profile: {{profileLink}}\n\nOnce you've reviewed, let us know — what's your take?",
@@ -53,17 +53,21 @@ export const nodes = [
     nodeId: "action_interested",
     type: "action",
     label: "Flow A: Interested (TBD)",
-    position: { x: 350, y: 600 },
+    position: { x: 500, y: 1200 },
     config: {
-      actionType: "notify_admin",
-      params: { placeholder: true, note: "PLACEHOLDER — Full interested flow TBD." },
+      actionType: "update_match_status",
+      params: {
+        final_status: "active",
+        response_type: "interested",
+        note: "Member is interested. PLACEHOLDER — Full interested flow TBD.",
+      },
     },
   },
   {
     nodeId: "end_interested",
     type: "end",
     label: "End (Placeholder)",
-    position: { x: 360, y: 800 },
+    position: { x: 500, y: 1700 },
     config: { endType: "completed" },
   },
 
@@ -73,7 +77,7 @@ export const nodes = [
     nodeId: "decision_why_not",
     type: "decision",
     label: "Why Not Interested?",
-    position: { x: 1075, y: 600 },
+    position: { x: 2000, y: 1200 },
     config: {
       question:
         "Totally understand. To help us refine your future matches, would you mind sharing what didn't feel right?",
@@ -87,6 +91,8 @@ export const nodes = [
         { value: "gut_feeling", label: "Can't explain it", edgeId: "edge_gut_feeling" },
         { value: "other", label: "Something else", edgeId: "edge_other" },
       ],
+      timeout: 86400000,
+      timeoutEdgeId: "edge_nudge_why_not",
     },
   },
 
@@ -95,31 +101,35 @@ export const nodes = [
     nodeId: "fb_physical",
     type: "feedback_collect",
     label: "Physical Attraction",
-    position: { x: 200, y: 950 },
+    position: { x: -400, y: 2000 },
     config: {
       feedbackType: "physical",
       prompt: "Is this person outside your physical type?",
       categories: ["Yes", "Somewhat", "No"],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_bio",
     type: "feedback_collect",
     label: "Bio Didn't Resonate",
-    position: { x: 450, y: 950 },
+    position: { x: 100, y: 2000 },
     config: {
       feedbackType: "bio",
       prompt: "Based on what you read, what felt misaligned?",
       categories: ["Values didn't feel aligned", "Didn't feel depth", "Hard to picture compatibility from the bio"],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_career",
     type: "feedback_collect",
     label: "Career Mismatch",
-    position: { x: 700, y: 950 },
+    position: { x: 600, y: 2000 },
     config: {
       feedbackType: "career",
       prompt: "Based on the career description, what felt off?",
@@ -131,13 +141,15 @@ export const nodes = [
         "Work-life balance concerns",
       ],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_religious",
     type: "feedback_collect",
     label: "Religious Mismatch",
-    position: { x: 950, y: 950 },
+    position: { x: 1100, y: 2000 },
     config: {
       feedbackType: "religious",
       prompt: "Based on how they describe their observance, what felt off?",
@@ -147,13 +159,15 @@ export const nodes = [
         "Practice style felt different than mine",
       ],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_age",
     type: "feedback_collect",
     label: "Age / Life Stage",
-    position: { x: 1200, y: 950 },
+    position: { x: 1600, y: 2000 },
     config: {
       feedbackType: "age",
       prompt: "What felt misaligned about that life stage?",
@@ -166,13 +180,15 @@ export const nodes = [
         "Divorce / prior marriage hesitation",
       ],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_location",
     type: "feedback_collect",
     label: "Location",
-    position: { x: 1450, y: 950 },
+    position: { x: 2100, y: 2000 },
     config: {
       feedbackType: "location",
       prompt: "Based on location, what felt misaligned?",
@@ -184,13 +200,15 @@ export const nodes = [
         "I want to relocate, but only for the right fit",
       ],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_gut_feeling",
     type: "feedback_collect",
     label: "Can't Explain It",
-    position: { x: 1700, y: 950 },
+    position: { x: 2600, y: 2000 },
     config: {
       feedbackType: "gut_feeling",
       prompt: "If you had to categorize it, what was it more?",
@@ -202,18 +220,22 @@ export const nodes = [
         "Just no initial excitement",
       ],
       allowFreeText: false,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
   {
     nodeId: "fb_other",
     type: "feedback_collect",
     label: "Something Else (Free Text)",
-    position: { x: 1950, y: 950 },
+    position: { x: 3100, y: 2000 },
     config: {
       feedbackType: "other",
       prompt: "No problem — feel free to type it out or send a voice note, and we'll take it from here.",
       categories: [],
       allowFreeText: true,
+      timeout: 86400000,
+      timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
 
@@ -222,13 +244,15 @@ export const nodes = [
     nodeId: "decision_more_reasons",
     type: "decision",
     label: "Anything Else?",
-    position: { x: 1075, y: 1250 },
+    position: { x: 2000, y: 2800 },
     config: {
       question: "Got it, thank you. Is there anything else that didn't feel right?",
       options: [
         { value: "more_reasons_yes", label: "Yes", edgeId: "edge_more_yes" },
         { value: "more_reasons_no", label: "No", edgeId: "edge_more_no" },
       ],
+      timeout: 86400000,
+      timeoutEdgeId: "edge_nudge_more_reasons",
     },
   },
 
@@ -237,7 +261,7 @@ export const nodes = [
     nodeId: "msg_closing",
     type: "message",
     label: "Closing — Thanks",
-    position: { x: 1075, y: 1500 },
+    position: { x: 2000, y: 3500 },
     config: {
       template:
         "Thanks for sharing — this really helps us dial in your matches. We'll use this to refine who we send your way next. Talk soon!",
@@ -248,7 +272,7 @@ export const nodes = [
     nodeId: "action_reject",
     type: "action",
     label: "Reject + Write Notes",
-    position: { x: 1075, y: 1700 },
+    position: { x: 2000, y: 4100 },
     config: {
       actionType: "sync_to_sma",
       params: {
@@ -264,7 +288,7 @@ export const nodes = [
     nodeId: "end_rejected",
     type: "end",
     label: "End (Rejected)",
-    position: { x: 1075, y: 1900 },
+    position: { x: 2000, y: 4700 },
     config: { endType: "completed" },
   },
 
@@ -273,7 +297,7 @@ export const nodes = [
     nodeId: "decision_upsell",
     type: "decision",
     label: "Upsell: Curated Outreach",
-    position: { x: 2300, y: 600 },
+    position: { x: 4500, y: 1200 },
     config: {
       question:
         "Great question! What you received is the full profile we're able to share at this stage.\n\nIf you'd like to go deeper, we can personally reach out to this person on your behalf and represent you. This is an additional concierge service.\n\nHow it works:\n- Total cost: $250\n- $125 upfront to initiate outreach\n- $125 only if the other party agrees to connect\n\nThere are no guarantees — but we always try our best. Would you like to activate this?",
@@ -281,31 +305,48 @@ export const nodes = [
         { value: "upsell_yes", label: "Yes, activate", edgeId: "edge_upsell_yes" },
         { value: "upsell_no", label: "No, I'll pass", edgeId: "edge_upsell_no" },
       ],
+      timeout: 86400000,
+      timeoutEdgeId: "edge_nudge_upsell",
     },
   },
+  // §5.2 — Upsell Accepted → Create Stripe checkout + send link via WhatsApp
   {
-    nodeId: "msg_upsell_yes",
+    nodeId: "action_create_payment",
+    type: "action",
+    label: "Create Payment Link",
+    position: { x: 4200, y: 2000 },
+    config: {
+      actionType: "create_stripe_link",
+      params: {
+        amount: 12500, // $125 in cents
+        phase: "initial",
+      },
+    },
+  },
+  // §5.2 — Post-payment confirmation message
+  {
+    nodeId: "msg_payment_confirmed",
     type: "message",
-    label: "Payment Link Sent",
-    position: { x: 2150, y: 900 },
+    label: "Payment Confirmed",
+    position: { x: 4200, y: 2600 },
     config: {
       template:
-        "Great, I'll initiate the outreach on your behalf! To get started, please complete the first payment below.\n\n{{paymentLink}}",
+        "Payment received — thank you, {{memberFirstName}}! 🎉\n\nWe're now reaching out to your match on your behalf. We'll keep you updated right here on WhatsApp as soon as we hear back.",
       channel: "whatsapp",
     },
   },
   {
     nodeId: "end_upsell_yes",
     type: "end",
-    label: "End (Pending — Post-payment TBD)",
-    position: { x: 2150, y: 1120 },
+    label: "End (Pending — Outreach Initiated)",
+    position: { x: 4200, y: 3200 },
     config: { endType: "completed" },
   },
   {
     nodeId: "decision_upsell_followup",
     type: "decision",
     label: "Still Interested?",
-    position: { x: 2450, y: 900 },
+    position: { x: 5200, y: 2000 },
     config: {
       question:
         "No problem at all! Based on the profile, are you still interested in this match, or would you like to pass?",
@@ -313,20 +354,15 @@ export const nodes = [
         { value: "upsell_pass_interested", label: "I'm interested", edgeId: "edge_upsell_pass_interested" },
         { value: "upsell_pass_not_interested", label: "Not interested", edgeId: "edge_upsell_pass_not_interested" },
       ],
+      timeout: 86400000,
+      timeoutEdgeId: "edge_nudge_followup",
     },
-  },
-  {
-    nodeId: "end_upsell_interested",
-    type: "end",
-    label: "End (Placeholder — Flow A TBD)",
-    position: { x: 2300, y: 1120 },
-    config: { endType: "completed" },
   },
   {
     nodeId: "msg_upsell_pass",
     type: "message",
     label: "Pass Closing",
-    position: { x: 2600, y: 1120 },
+    position: { x: 5600, y: 2700 },
     config: {
       template:
         "No problem. If something shifts or you'd like to reach out later, just let us know. We're always here.",
@@ -337,15 +373,15 @@ export const nodes = [
     nodeId: "action_upsell_pass",
     type: "action",
     label: "Move to Past Introductions",
-    position: { x: 2600, y: 1350 },
+    position: { x: 5600, y: 3300 },
     config: {
       actionType: "update_match_status",
       params: {
         final_status: "past",
-        actions: [
-          "Move match: Active Introductions → Past Introductions",
-          "Write all collected info to Match Notes (declined upsell, passed on match)",
-        ],
+        response_type: "upsell_no_pass",
+        upsell_offered: true,
+        upsell_accepted: false,
+        note: "Member declined upsell and passed on the match. Moved from Active → Past Introductions.",
       },
     },
   },
@@ -353,30 +389,68 @@ export const nodes = [
     nodeId: "end_upsell_pass",
     type: "end",
     label: "End (Past Introductions)",
-    position: { x: 2600, y: 1550 },
+    position: { x: 5600, y: 3900 },
     config: { endType: "completed" },
   },
 
-  // §6 — FLOW D: NO RESPONSE (PLACEHOLDER)
+  // ── Decision Nudge Nodes ─────────────────────────────────────────────────
+  // Sent after 24h timeout on each decision node, then loop back to re-ask.
   {
-    nodeId: "action_no_response",
-    type: "action",
-    label: "Flow D: No Response (TBD)",
-    position: { x: 0, y: 600 },
+    nodeId: "msg_nudge_why_not",
+    type: "message",
+    label: "Nudge — Why Not?",
+    position: { x: 2700, y: 1200 },
     config: {
-      actionType: "sync_to_sma",
-      params: {
-        placeholder: true,
-        note: "PLACEHOLDER — Follow-up cadence and escalation logic TBD.",
-      },
+      template:
+        "Hey {{memberFirstName}}, just checking in — take your time, but we'd love to hear your thoughts when you're ready.",
+      channel: "whatsapp",
     },
   },
   {
-    nodeId: "end_no_response",
-    type: "end",
-    label: "End (Placeholder)",
-    position: { x: 10, y: 800 },
-    config: { endType: "completed" },
+    nodeId: "msg_nudge_more_reasons",
+    type: "message",
+    label: "Nudge — More Reasons?",
+    position: { x: 2700, y: 2800 },
+    config: {
+      template:
+        "Hey {{memberFirstName}}, just checking in — no rush!",
+      channel: "whatsapp",
+    },
+  },
+  {
+    nodeId: "msg_nudge_upsell",
+    type: "message",
+    label: "Nudge — Upsell",
+    position: { x: 5200, y: 1200 },
+    config: {
+      template:
+        "Hey {{memberFirstName}}, just checking in — take your time with this, no pressure at all.",
+      channel: "whatsapp",
+    },
+  },
+  {
+    nodeId: "msg_nudge_followup",
+    type: "message",
+    label: "Nudge — Followup",
+    position: { x: 5900, y: 2000 },
+    config: {
+      template:
+        "Hey {{memberFirstName}}, still here whenever you're ready!",
+      channel: "whatsapp",
+    },
+  },
+
+  // §6 — FLOW D: NO RESPONSE — Send a nudge, then re-ask
+  {
+    nodeId: "msg_no_response_nudge",
+    type: "message",
+    label: "Nudge — No Response",
+    position: { x: -400, y: 1200 },
+    config: {
+      template:
+        "Hey {{memberFirstName}}, just checking in! Did you get a chance to review the profile we sent? We'd love to hear your thoughts whenever you're ready.",
+      channel: "whatsapp",
+    },
   },
 ];
 
@@ -388,13 +462,13 @@ export const edges = [
   { edgeId: "edge_interested", source: "decision_response", target: "action_interested", label: "I'm interested" },
   { edgeId: "edge_not_interested", source: "decision_response", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_upsell_intro", source: "decision_response", target: "decision_upsell", label: "More info / intro" },
-  { edgeId: "edge_no_resp", source: "decision_response", target: "action_no_response", label: "No response (timeout)" },
+  { edgeId: "edge_no_resp", source: "decision_response", target: "msg_no_response_nudge", label: "No response (timeout)" },
 
   // §3 Interested → End
   { edgeId: "e_interested_end", source: "action_interested", target: "end_interested" },
 
-  // §6 No Response → End
-  { edgeId: "e_no_resp_end", source: "action_no_response", target: "end_no_response" },
+  // §6 No Response nudge → loop back to decision (re-send the question)
+  { edgeId: "e_nudge_loop", source: "msg_no_response_nudge", target: "decision_response" },
 
   // §4.1 Why Not → 8 feedback nodes
   { edgeId: "edge_physical", source: "decision_why_not", target: "fb_physical", label: "Physical" },
@@ -427,17 +501,28 @@ export const edges = [
   { edgeId: "e_reject_end", source: "action_reject", target: "end_rejected" },
 
   // §5.1 Upsell → Yes / No
-  { edgeId: "edge_upsell_yes", source: "decision_upsell", target: "msg_upsell_yes", label: "Yes, activate" },
+  { edgeId: "edge_upsell_yes", source: "decision_upsell", target: "action_create_payment", label: "Yes, activate" },
   { edgeId: "edge_upsell_no", source: "decision_upsell", target: "decision_upsell_followup", label: "No, I'll pass" },
 
-  // §5.2 Upsell Yes → End
-  { edgeId: "e_upsell_yes_end", source: "msg_upsell_yes", target: "end_upsell_yes" },
+  // §5.2 Upsell Yes → Payment confirmed message → End
+  { edgeId: "e_payment_confirmed", source: "action_create_payment", target: "msg_payment_confirmed" },
+  { edgeId: "e_upsell_yes_end", source: "msg_payment_confirmed", target: "end_upsell_yes" },
 
   // §5.3 Still interested?
-  { edgeId: "edge_upsell_pass_interested", source: "decision_upsell_followup", target: "end_upsell_interested", label: "I'm interested" },
+  { edgeId: "edge_upsell_pass_interested", source: "decision_upsell_followup", target: "action_create_payment", label: "I'm interested" },
   { edgeId: "edge_upsell_pass_not_interested", source: "decision_upsell_followup", target: "msg_upsell_pass", label: "Not interested" },
 
   // §5.3.2 Pass → Action → End
   { edgeId: "e_upsell_pass_action", source: "msg_upsell_pass", target: "action_upsell_pass" },
   { edgeId: "e_upsell_pass_end", source: "action_upsell_pass", target: "end_upsell_pass" },
+
+  // Decision nudge timeout edges (timeout → nudge → loop back)
+  { edgeId: "edge_nudge_why_not", source: "decision_why_not", target: "msg_nudge_why_not", label: "Timeout nudge" },
+  { edgeId: "e_nudge_why_not_loop", source: "msg_nudge_why_not", target: "decision_why_not" },
+  { edgeId: "edge_nudge_more_reasons", source: "decision_more_reasons", target: "msg_nudge_more_reasons", label: "Timeout nudge" },
+  { edgeId: "e_nudge_more_reasons_loop", source: "msg_nudge_more_reasons", target: "decision_more_reasons" },
+  { edgeId: "edge_nudge_upsell", source: "decision_upsell", target: "msg_nudge_upsell", label: "Timeout nudge" },
+  { edgeId: "e_nudge_upsell_loop", source: "msg_nudge_upsell", target: "decision_upsell" },
+  { edgeId: "edge_nudge_followup", source: "decision_upsell_followup", target: "msg_nudge_followup", label: "Timeout nudge" },
+  { edgeId: "e_nudge_followup_loop", source: "msg_nudge_followup", target: "decision_upsell_followup" },
 ];

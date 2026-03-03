@@ -97,6 +97,8 @@ export interface FeedbackCollectNodeConfig {
   allowFreeText: boolean;
   feedbackType: string;
   prompt?: string;
+  timeout?: number;
+  timeoutMessage?: string;
 }
 
 export interface ActionNodeConfig {

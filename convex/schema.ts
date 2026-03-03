@@ -57,28 +57,31 @@ export default defineSchema({
     .index("by_whatsappId", ["whatsappId"])
     .index("by_status", ["status"]),
 
-  // -- Matches --
+  // -- Matches (§7.1 Match Status Values) --
   matches: defineTable({
     smaIntroId: v.optional(v.string()),
     memberAId: v.id("members"),
     memberBId: v.id("members"),
+    // §7.1: active (sent, awaiting), rejected (Flow B), past (Flow C→No), pending (Flow C→Yes paid)
     status: v.union(
+      v.literal("active"),
+      v.literal("rejected"),
+      v.literal("past"),
       v.literal("pending"),
-      v.literal("sent_a"),
-      v.literal("sent_b"),
-      v.literal("a_interested"),
-      v.literal("b_interested"),
-      v.literal("mutual_interest"),
-      v.literal("group_created"),
-      v.literal("a_declined"),
-      v.literal("b_declined"),
-      v.literal("a_passed"),
-      v.literal("b_passed"),
-      v.literal("personal_outreach_a"),
-      v.literal("personal_outreach_b"),
       v.literal("completed"),
       v.literal("expired"),
     ),
+    // §7.2: what the member responded
+    responseType: v.optional(v.union(
+      v.literal("interested"),
+      v.literal("not_interested"),
+      v.literal("upsell_yes"),
+      v.literal("upsell_no_interested"),
+      v.literal("upsell_no_pass"),
+      v.literal("no_response"),
+    )),
+    // §7.2: structured notes written by the flow
+    matchNotes: v.optional(v.any()),
     triggeredBy: v.id("admins"),
     groupChatId: v.optional(v.string()),
     createdAt: v.number(),

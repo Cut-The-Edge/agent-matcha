@@ -88,8 +88,8 @@ export const receiveMessage = mutation({
     const terminalStatuses = new Set([
       "completed",
       "expired",
-      "a_declined",
-      "b_declined",
+      "rejected",
+      "past",
     ]);
 
     let activeMatchId = undefined;

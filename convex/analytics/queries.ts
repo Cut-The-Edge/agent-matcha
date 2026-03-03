@@ -25,27 +25,18 @@ export const getOverviewStats = query({
     const terminalStatuses = new Set([
       "completed",
       "expired",
-      "a_declined",
-      "b_declined",
+      "rejected",
+      "past",
     ]);
 
     const pendingStatuses = new Set([
-      "pending",
-      "sent_a",
-      "sent_b",
+      "active",
     ]);
 
     const respondedStatuses = new Set([
-      "a_interested",
-      "b_interested",
-      "mutual_interest",
-      "group_created",
-      "a_declined",
-      "b_declined",
-      "a_passed",
-      "b_passed",
-      "personal_outreach_a",
-      "personal_outreach_b",
+      "rejected",
+      "past",
+      "pending",
       "completed",
     ]);
 

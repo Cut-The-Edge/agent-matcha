@@ -160,13 +160,13 @@ const recordFeedback = createTool({
  */
 const updateMatchStatus = createTool({
   description:
-    "Update the status of a match (e.g., from pending to a_interested, mutual_interest, etc.). This is called after processing feedback.",
+    "Update the status of a match per §7.1 (active, rejected, past, pending, completed, expired). Called after processing feedback.",
   args: z.object({
     matchId: z.string().describe("The match document ID"),
     newStatus: z
       .string()
       .describe(
-        "The new match status (e.g., a_interested, b_interested, mutual_interest, a_declined, etc.)",
+        "The new match status: active, rejected, past, pending, completed, or expired",
       ),
   }),
   handler: async (ctx, args): Promise<string> => {

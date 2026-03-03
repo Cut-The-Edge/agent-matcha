@@ -80,6 +80,24 @@ export const handleCheckoutCompleted = internalMutation({
           lastTransitionAt: Date.now(),
         });
 
+        // Update match status (§5.2: "Move match to Pending" — upsell activated)
+        if (instance.matchId) {
+          await ctx.db.patch(instance.matchId, {
+            status: "pending",
+            responseType: "upsell_yes",
+            matchNotes: {
+              member_id: instance.memberId,
+              response_type: "upsell_yes",
+              upsell_offered: true,
+              upsell_accepted: true,
+              payment_status: "paid_first",
+              final_status: "pending",
+              timestamp: new Date().toISOString(),
+            },
+            updatedAt: Date.now(),
+          });
+        }
+
         // Advance the flow past the payment-waiting step
         await ctx.scheduler.runAfter(
           0,

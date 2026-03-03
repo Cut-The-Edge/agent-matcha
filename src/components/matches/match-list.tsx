@@ -42,15 +42,10 @@ import {
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "rejected", label: "Rejected" },
+  { value: "past", label: "Past" },
   { value: "pending", label: "Pending" },
-  { value: "sent_a", label: "Sent A" },
-  { value: "sent_b", label: "Sent B" },
-  { value: "a_interested", label: "A Interested" },
-  { value: "b_interested", label: "B Interested" },
-  { value: "mutual_interest", label: "Mutual Interest" },
-  { value: "group_created", label: "Group Created" },
-  { value: "a_declined", label: "A Declined" },
-  { value: "b_declined", label: "B Declined" },
   { value: "completed", label: "Completed" },
   { value: "expired", label: "Expired" },
 ]

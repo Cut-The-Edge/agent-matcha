@@ -43,6 +43,16 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   },
 }
 
+// §7.1 Match Status Values
+const matchStatusConfig: Record<string, { label: string; className: string }> = {
+  active: { label: "Active", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  past: { label: "Past", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  pending: { label: "Pending", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  completed: { label: "Completed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
+  expired: { label: "Expired", className: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500" },
+}
+
 export const columns: ColumnDef<Member>[] = [
   {
     id: "name",
@@ -121,6 +131,35 @@ export const columns: ColumnDef<Member>[] = [
       )
     },
     filterFn: (row, id, value) => value.includes(row.getValue(id)),
+  },
+  {
+    id: "matchStatus",
+    accessorFn: (row: any) => row.latestMatchStatus,
+    header: "Match Status",
+    cell: ({ row }: any) => {
+      const status = row.original.latestMatchStatus
+      const partner = row.original.latestMatchPartner
+      if (!status) {
+        return <span className="text-muted-foreground text-xs">No match</span>
+      }
+      const config = matchStatusConfig[status] ?? {
+        label: status,
+        className: "bg-gray-100 text-gray-700",
+      }
+      return (
+        <div className="flex flex-col gap-0.5">
+          <Badge variant="outline" className={`border-transparent text-[11px] ${config.className}`}>
+            {config.label}
+          </Badge>
+          {partner && (
+            <span className="text-muted-foreground text-[10px] leading-tight">
+              w/ {partner}
+            </span>
+          )}
+        </div>
+      )
+    },
+    filterFn: (row: any, id: string, value: any) => value.includes(row.getValue(id)),
   },
   {
     accessorKey: "rejectionCount",
