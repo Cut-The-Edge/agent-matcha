@@ -1,6 +1,18 @@
-// convex/integrations/stripe/config.ts
-// Stripe setup and configuration
-// Initializes @convex-dev/stripe component with API keys
-// TODO: Set up Stripe component instance
+// @ts-nocheck
+/**
+ * Stripe Configuration
+ *
+ * Sets up the @convex-dev/stripe component client.
+ */
 
-export {};
+import { StripeSubscriptions } from "@convex-dev/stripe";
+import { components } from "../../_generated/api";
+
+/**
+ * Create a Stripe client instance for use inside Convex actions.
+ */
+export function createStripeClient() {
+  return new StripeSubscriptions(components.stripe, {
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+  });
+}

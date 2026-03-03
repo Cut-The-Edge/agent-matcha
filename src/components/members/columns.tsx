@@ -2,10 +2,14 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, ArrowUpDown } from "lucide-react"
+import { Check, X, ArrowUpDown, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Doc } from "../../../convex/_generated/dataModel"
 import { format } from "date-fns"
+
+export interface MemberTableMeta {
+  onEdit?: (member: Member) => void
+}
 
 type Member = Doc<"members">
 
@@ -161,5 +165,24 @@ export const columns: ColumnDef<Member>[] = [
         {format(new Date(row.original.lastSyncedAt), "MMM d, yyyy")}
       </span>
     ),
+  },
+  {
+    id: "actions",
+    header: "",
+    cell: ({ row, table }) => {
+      const meta = table.options.meta as MemberTableMeta | undefined
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => meta?.onEdit?.(row.original)}
+        >
+          <Pencil className="mr-1 size-3" />
+          Edit
+        </Button>
+      )
+    },
+    enableHiding: false,
   },
 ]

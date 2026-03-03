@@ -20,12 +20,22 @@ import {
   Columns3,
   ChevronDown,
   Users,
+  UserPlus,
+  Pencil,
+  Loader2,
 } from "lucide-react"
 
-import { useAuthQuery } from "@/hooks/use-auth-query"
+import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
 import { api } from "../../../convex/_generated/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -50,7 +60,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { columns } from "./columns"
+import { columns, type MemberTableMeta } from "./columns"
+import type { Doc } from "../../../convex/_generated/dataModel"
 
 function MemberTableSkeleton() {
   return (
@@ -100,20 +111,30 @@ function MemberTableSkeleton() {
   )
 }
 
-function MemberEmptyState() {
+function MemberEmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
       <Users className="text-muted-foreground mb-4 size-12" />
-      <h3 className="mb-1 text-lg font-semibold">No members synced</h3>
-      <p className="text-muted-foreground text-sm">
-        Connect SmartMatchApp to import members.
+      <h3 className="mb-1 text-lg font-semibold">No members yet</h3>
+      <p className="text-muted-foreground mb-4 text-sm">
+        Add a test member to get started with sandbox testing.
       </p>
+      <Button onClick={onAdd}>
+        <UserPlus className="mr-1 size-4" />
+        Add Test Member
+      </Button>
     </div>
   )
 }
 
 export function MemberList() {
   const members = useAuthQuery(api.members.queries.list, {})
+  const { mutateWithAuth: createMember } = useAuthMutation(api.members.mutations.create)
+  const { mutateWithAuth: updateMember } = useAuthMutation(api.members.mutations.update)
+  const [addDialogOpen, setAddDialogOpen] = React.useState(false)
+  const [isAdding, setIsAdding] = React.useState(false)
+  const [editingMember, setEditingMember] = React.useState<Doc<"members"> | null>(null)
+  const [isEditing, setIsEditing] = React.useState(false)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>([])
@@ -125,9 +146,57 @@ export function MemberList() {
     pageSize: 10,
   })
 
+  const handleAddMember = async (fd: FormData) => {
+    setIsAdding(true)
+    try {
+      await createMember({
+        smaId: `test-${Date.now()}`,
+        firstName: fd.get("firstName") as string,
+        lastName: (fd.get("lastName") as string) || undefined,
+        phone: (fd.get("phone") as string) || undefined,
+        whatsappId: (fd.get("whatsappId") as string) || undefined,
+        email: (fd.get("email") as string) || undefined,
+        profileLink: (fd.get("profileLink") as string) || undefined,
+        tier: "free",
+      })
+      setAddDialogOpen(false)
+    } catch (err) {
+      console.error("Failed to create member:", err)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleEditMember = async (fd: FormData) => {
+    if (!editingMember) return
+    setIsEditing(true)
+    try {
+      await updateMember({
+        memberId: editingMember._id,
+        firstName: (fd.get("firstName") as string) || undefined,
+        lastName: (fd.get("lastName") as string) || undefined,
+        phone: (fd.get("phone") as string) || undefined,
+        whatsappId: (fd.get("whatsappId") as string) || undefined,
+        email: (fd.get("email") as string) || undefined,
+        profileLink: (fd.get("profileLink") as string) || undefined,
+        tier: (fd.get("tier") as "free" | "member" | "vip") || undefined,
+      })
+      setEditingMember(null)
+    } catch (err) {
+      console.error("Failed to update member:", err)
+    } finally {
+      setIsEditing(false)
+    }
+  }
+
+  const tableMeta: MemberTableMeta = {
+    onEdit: (member) => setEditingMember(member),
+  }
+
   const table = useReactTable({
     data: members ?? [],
     columns,
+    meta: tableMeta,
     state: {
       sorting,
       columnFilters,
@@ -151,9 +220,19 @@ export function MemberList() {
     return <MemberTableSkeleton />
   }
 
-  // Empty state
+  // Empty state — still show Add Member
   if (members.length === 0) {
-    return <MemberEmptyState />
+    return (
+      <>
+        <MemberEmptyState onAdd={() => setAddDialogOpen(true)} />
+        <AddMemberDialog
+          open={addDialogOpen}
+          onOpenChange={setAddDialogOpen}
+          isAdding={isAdding}
+          onSubmit={handleAddMember}
+        />
+      </>
+    )
   }
 
   return (
@@ -204,6 +283,24 @@ export function MemberList() {
               ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+          <UserPlus className="mr-1 size-4" />
+          Add Member
+        </Button>
+        <AddMemberDialog
+          open={addDialogOpen}
+          onOpenChange={setAddDialogOpen}
+          isAdding={isAdding}
+          onSubmit={handleAddMember}
+        />
+        <EditMemberDialog
+          member={editingMember}
+          open={!!editingMember}
+          onOpenChange={(open) => { if (!open) setEditingMember(null) }}
+          isSaving={isEditing}
+          onSubmit={handleEditMember}
+        />
       </div>
 
       {/* Table */}
@@ -334,5 +431,139 @@ export function MemberList() {
         </div>
       </div>
     </div>
+  )
+}
+
+function AddMemberDialog({
+  open,
+  onOpenChange,
+  isAdding,
+  onSubmit,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  isAdding: boolean
+  onSubmit: (fd: FormData) => Promise<void>
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Test Member</DialogTitle>
+        </DialogHeader>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            const form = e.currentTarget
+            await onSubmit(new FormData(form))
+            form.reset()
+          }}
+          className="space-y-3"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="firstName" className="text-xs">First Name *</Label>
+              <Input id="firstName" name="firstName" required className="mt-1" placeholder="Adi" />
+            </div>
+            <div>
+              <Label htmlFor="lastName" className="text-xs">Last Name</Label>
+              <Input id="lastName" name="lastName" className="mt-1" placeholder="Doe" />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="phone" className="text-xs">Phone</Label>
+            <Input id="phone" name="phone" className="mt-1" placeholder="+972546642546" />
+          </div>
+          <div>
+            <Label htmlFor="whatsappId" className="text-xs">WhatsApp ID</Label>
+            <Input id="whatsappId" name="whatsappId" className="mt-1" placeholder="whatsapp:+972546642546" />
+          </div>
+          <div>
+            <Label htmlFor="email" className="text-xs">Email</Label>
+            <Input id="email" name="email" type="email" className="mt-1" placeholder="adi@example.com" />
+          </div>
+          <div>
+            <Label htmlFor="profileLink" className="text-xs">Profile Link</Label>
+            <Input id="profileLink" name="profileLink" className="mt-1" placeholder="https://smartmatchapp.com/profile/..." />
+          </div>
+          <Button type="submit" className="w-full" disabled={isAdding}>
+            {isAdding ? <Loader2 className="mr-1 size-4 animate-spin" /> : <UserPlus className="mr-1 size-4" />}
+            Create Member
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditMemberDialog({
+  member,
+  open,
+  onOpenChange,
+  isSaving,
+  onSubmit,
+}: {
+  member: Doc<"members"> | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  isSaving: boolean
+  onSubmit: (fd: FormData) => Promise<void>
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Member</DialogTitle>
+        </DialogHeader>
+        {member && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              await onSubmit(new FormData(e.currentTarget))
+            }}
+            className="space-y-3"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="edit-firstName" className="text-xs">First Name</Label>
+                <Input id="edit-firstName" name="firstName" defaultValue={member.firstName} className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="edit-lastName" className="text-xs">Last Name</Label>
+                <Input id="edit-lastName" name="lastName" defaultValue={member.lastName ?? ""} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-phone" className="text-xs">Phone</Label>
+              <Input id="edit-phone" name="phone" defaultValue={member.phone ?? ""} className="mt-1" />
+            </div>
+            <div>
+              <Label htmlFor="edit-whatsappId" className="text-xs">WhatsApp ID</Label>
+              <Input id="edit-whatsappId" name="whatsappId" defaultValue={member.whatsappId ?? ""} className="mt-1" />
+            </div>
+            <div>
+              <Label htmlFor="edit-email" className="text-xs">Email</Label>
+              <Input id="edit-email" name="email" type="email" defaultValue={member.email ?? ""} className="mt-1" />
+            </div>
+            <div>
+              <Label htmlFor="edit-profileLink" className="text-xs">Profile Link</Label>
+              <Input id="edit-profileLink" name="profileLink" defaultValue={member.profileLink ?? ""} className="mt-1" placeholder="https://smartmatchapp.com/profile/..." />
+            </div>
+            <div>
+              <Label htmlFor="edit-tier" className="text-xs">Tier</Label>
+              <select id="edit-tier" name="tier" defaultValue={member.tier} className="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                <option value="free">Free</option>
+                <option value="member">Member</option>
+                <option value="vip">VIP</option>
+              </select>
+            </div>
+            <Button type="submit" className="w-full" disabled={isSaving}>
+              {isSaving ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Pencil className="mr-1 size-4" />}
+              Save Changes
+            </Button>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

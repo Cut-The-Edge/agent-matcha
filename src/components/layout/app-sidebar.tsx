@@ -6,6 +6,8 @@ import {
   Heart,
   Users,
   MessageSquare,
+  Workflow,
+  FlaskConical,
   BarChart3,
   UserCog,
   Settings,
@@ -46,6 +48,16 @@ const data = {
       title: "Conversations",
       url: "/dashboard/conversations",
       icon: MessageSquare,
+    },
+    {
+      title: "Flows",
+      url: "/dashboard/flows",
+      icon: Workflow,
+    },
+    {
+      title: "Sandbox",
+      url: "/dashboard/sandbox",
+      icon: FlaskConical,
     },
   ],
   navAdmin: [

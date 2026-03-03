@@ -33,6 +33,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     whatsappId: v.optional(v.string()),
+    profileLink: v.optional(v.string()),
     tier: v.union(
       v.literal("free"),
       v.literal("member"),
@@ -53,6 +54,7 @@ export default defineSchema({
     .index("by_smaId", ["smaId"])
     .index("by_phone", ["phone"])
     .index("by_email", ["email"])
+    .index("by_whatsappId", ["whatsappId"])
     .index("by_status", ["status"]),
 
   // -- Matches --
@@ -90,28 +92,24 @@ export default defineSchema({
   feedback: defineTable({
     matchId: v.id("matches"),
     memberId: v.id("members"),
-    decision: v.union(
-      v.literal("interested"),
-      v.literal("not_interested"),
-      v.literal("passed"),
-    ),
-    categories: v.optional(v.array(v.union(
-      v.literal("physical_attraction"),
-      v.literal("photos_only"),
-      v.literal("chemistry"),
-      v.literal("willingness_to_meet"),
-      v.literal("age_preference"),
-      v.literal("location"),
-      v.literal("career_income"),
-      v.literal("something_specific"),
-    ))),
+    flowInstanceId: v.optional(v.id("flowInstances")),
+    decision: v.string(),
+    // Primary reasons selected (e.g. "physical", "location", "bio")
+    categories: v.optional(v.array(v.string())),
+    // Sub-category selections keyed by primary reason
+    // e.g. { "location": "Too far for me right now", "physical": "Somewhat" }
+    subCategories: v.optional(v.any()),
     freeText: v.optional(v.string()),
     voiceNote: v.optional(v.string()),
+    // Raw responses from flow context for full audit trail
+    rawResponses: v.optional(v.any()),
+    llmAnalysis: v.optional(v.any()),
     smaMatchNotesSynced: v.boolean(),
     createdAt: v.number(),
   })
     .index("by_match", ["matchId"])
-    .index("by_member", ["memberId"]),
+    .index("by_member", ["memberId"])
+    .index("by_flowInstance", ["flowInstanceId"]),
 
   // -- Conversations (WhatsApp message log) --
   whatsappMessages: defineTable({
@@ -126,6 +124,9 @@ export default defineSchema({
     ),
     content: v.string(),
     twilioSid: v.optional(v.string()),
+    mediaUrl: v.optional(v.string()),
+    mediaContentType: v.optional(v.string()),
+    transcription: v.optional(v.string()),
     status: v.union(
       v.literal("sent"),
       v.literal("delivered"),
@@ -150,6 +151,7 @@ export default defineSchema({
     ),
     stripeSessionId: v.optional(v.string()),
     stripePaymentIntentId: v.optional(v.string()),
+    flowInstanceId: v.optional(v.id("flowInstances")),
     status: v.union(
       v.literal("pending"),
       v.literal("paid"),
@@ -159,7 +161,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_match", ["matchId"])
-    .index("by_member", ["memberId"]),
+    .index("by_member", ["memberId"])
+    .index("by_flowInstance", ["flowInstanceId"])
+    .index("by_stripeSession", ["stripeSessionId"]),
 
   // -- Audit Log --
   auditLogs: defineTable({
@@ -170,4 +174,70 @@ export default defineSchema({
     details: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_created", ["createdAt"]),
+
+  // -- Flow Engine: Definitions --
+  flowDefinitions: defineTable({
+    name: v.string(),
+    type: v.string(),
+    description: v.optional(v.string()),
+    nodes: v.array(
+      v.object({
+        nodeId: v.string(),
+        type: v.string(),
+        label: v.string(),
+        position: v.object({ x: v.number(), y: v.number() }),
+        config: v.any(),
+      })
+    ),
+    edges: v.array(
+      v.object({
+        edgeId: v.string(),
+        source: v.string(),
+        target: v.string(),
+        label: v.optional(v.string()),
+        condition: v.optional(v.string()),
+      })
+    ),
+    version: v.number(),
+    isActive: v.boolean(),
+    isDefault: v.boolean(),
+    createdBy: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_type", ["type"])
+    .index("by_active", ["type", "isActive"]),
+
+  // -- Flow Engine: Instances --
+  flowInstances: defineTable({
+    flowDefinitionId: v.id("flowDefinitions"),
+    matchId: v.optional(v.id("matches")),
+    memberId: v.optional(v.id("members")),
+    currentNodeId: v.string(),
+    status: v.string(),
+    context: v.any(),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    lastTransitionAt: v.number(),
+    error: v.optional(v.string()),
+    schedulerJobId: v.optional(v.id("_scheduled_functions")),
+  })
+    .index("by_match", ["matchId"])
+    .index("by_member", ["memberId"])
+    .index("by_status", ["status"])
+    .index("by_flow", ["flowDefinitionId"]),
+
+  // -- Flow Engine: Execution Logs --
+  flowExecutionLogs: defineTable({
+    instanceId: v.id("flowInstances"),
+    nodeId: v.string(),
+    nodeType: v.string(),
+    action: v.string(),
+    input: v.optional(v.string()),
+    output: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    timestamp: v.number(),
+  })
+    .index("by_instance", ["instanceId"])
+    .index("by_timestamp", ["timestamp"]),
 });

@@ -4,10 +4,76 @@ import { v } from "convex/values";
 import { requireAuth } from "../auth/authz";
 
 /**
- * List conversation summaries - one row per member who has messages.
+ * List all messages for a member, ordered by createdAt ascending (chronological).
+ */
+export const listByMember = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+    memberId: v.id("members"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    const limit = args.limit ?? 200;
+
+    const messages = await ctx.db
+      .query("whatsappMessages")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .order("asc")
+      .take(limit);
+
+    return messages;
+  },
+});
+
+/**
+ * List all messages related to a match (both parties).
+ * Gets messages from both member A and member B for the given match.
+ */
+export const listByMatch = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+    matchId: v.id("matches"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    const limit = args.limit ?? 200;
+
+    const messages = await ctx.db
+      .query("whatsappMessages")
+      .withIndex("by_match", (q) => q.eq("matchId", args.matchId))
+      .collect();
+
+    // Sort by createdAt asc and limit
+    const sorted = messages
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(0, limit);
+
+    // Resolve member names
+    const enriched = await Promise.all(
+      sorted.map(async (msg) => {
+        const member = await ctx.db.get(msg.memberId);
+        return {
+          ...msg,
+          memberName: member
+            ? `${member.firstName}${member.lastName ? ` ${member.lastName}` : ""}`
+            : "Unknown",
+        };
+      })
+    );
+
+    return enriched;
+  },
+});
+
+/**
+ * Get conversation summaries — one row per member who has messages.
  * Returns member info, last message preview, message counts, and timestamps.
  */
-export const listConversationSummaries = query({
+export const getConversationSummaries = query({
   args: {
     sessionToken: v.optional(v.string()),
     limit: v.optional(v.number()),
@@ -94,25 +160,52 @@ export const listConversationSummaries = query({
 });
 
 /**
- * Get messages for a specific member, ordered chronologically.
+ * Get count of inbound messages that have not yet been processed.
+ * "Unread" = inbound messages with status "delivered" (not yet read).
  */
-export const listByMember = query({
+export const getUnreadCount = query({
   args: {
     sessionToken: v.optional(v.string()),
-    memberId: v.id("members"),
-    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.sessionToken);
 
-    const limit = args.limit ?? 200;
+    const allMessages = await ctx.db.query("whatsappMessages").collect();
+
+    const unreadCount = allMessages.filter(
+      (m) => m.direction === "inbound" && m.status === "delivered"
+    ).length;
+
+    return { unreadCount };
+  },
+});
+
+/**
+ * Get count of unread messages for a specific member.
+ */
+export const getUnreadCountByMember = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
 
     const messages = await ctx.db
       .query("whatsappMessages")
       .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
-      .order("asc")
-      .take(limit);
+      .collect();
 
-    return messages;
+    const unreadCount = messages.filter(
+      (m) => m.direction === "inbound" && m.status === "delivered"
+    ).length;
+
+    return { unreadCount };
   },
 });
+
+/**
+ * Backward-compatible alias for getConversationSummaries.
+ * Existing frontend code references this name.
+ */
+export const listConversationSummaries = getConversationSummaries;
