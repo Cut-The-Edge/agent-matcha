@@ -40,7 +40,7 @@ export const nodes = [
       options: [
         { value: "interested", label: "I'm interested", edgeId: "edge_interested" },
         { value: "not_interested", label: "Not interested", edgeId: "edge_not_interested" },
-        { value: "upsell_intro", label: "More info / intro", edgeId: "edge_upsell_intro" },
+        { value: "upsell_intro", label: "I want more info / an intro", edgeId: "edge_upsell_intro" },
       ],
       // No Response is handled by a 24h background timeout, not a user button
       timeout: 86400000, // 24 hours
@@ -309,12 +309,24 @@ export const nodes = [
       timeoutEdgeId: "edge_nudge_upsell",
     },
   },
+  // §5.2 — Pre-payment message
+  {
+    nodeId: "msg_upsell_initiate",
+    type: "message",
+    label: "Initiate Outreach",
+    position: { x: 4200, y: 1700 },
+    config: {
+      template:
+        "Great, I'll initiate the outreach on your behalf! To get started, please complete the first payment below.",
+      channel: "whatsapp",
+    },
+  },
   // §5.2 — Upsell Accepted → Create Stripe checkout + send link via WhatsApp
   {
     nodeId: "action_create_payment",
     type: "action",
     label: "Create Payment Link",
-    position: { x: 4200, y: 2000 },
+    position: { x: 4200, y: 2200 },
     config: {
       actionType: "create_stripe_link",
       params: {
@@ -501,7 +513,8 @@ export const edges = [
   { edgeId: "e_reject_end", source: "action_reject", target: "end_rejected" },
 
   // §5.1 Upsell → Yes / No
-  { edgeId: "edge_upsell_yes", source: "decision_upsell", target: "action_create_payment", label: "Yes, activate" },
+  { edgeId: "edge_upsell_yes", source: "decision_upsell", target: "msg_upsell_initiate", label: "Yes, activate" },
+  { edgeId: "e_initiate_payment", source: "msg_upsell_initiate", target: "action_create_payment" },
   { edgeId: "edge_upsell_no", source: "decision_upsell", target: "decision_upsell_followup", label: "No, I'll pass" },
 
   // §5.2 Upsell Yes → Payment confirmed message → End
@@ -509,7 +522,7 @@ export const edges = [
   { edgeId: "e_upsell_yes_end", source: "msg_payment_confirmed", target: "end_upsell_yes" },
 
   // §5.3 Still interested?
-  { edgeId: "edge_upsell_pass_interested", source: "decision_upsell_followup", target: "action_create_payment", label: "I'm interested" },
+  { edgeId: "edge_upsell_pass_interested", source: "decision_upsell_followup", target: "action_interested", label: "I'm interested" },
   { edgeId: "edge_upsell_pass_not_interested", source: "decision_upsell_followup", target: "msg_upsell_pass", label: "Not interested" },
 
   // §5.3.2 Pass → Action → End

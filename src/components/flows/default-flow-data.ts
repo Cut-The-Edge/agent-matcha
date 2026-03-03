@@ -55,6 +55,7 @@ export const defaultNodes: Node[] = [
             value: "upsell_intro",
             label: "I want more info / an intro",
             edgeId: "edge_upsell_intro",
+
           },
         ],
         // No Response handled by 24h background timeout, NOT a button
@@ -447,11 +448,25 @@ export const defaultNodes: Node[] = [
     },
   },
 
+  // §5.2 — Pre-payment message
+  {
+    id: "msg_upsell_initiate",
+    type: "message",
+    position: { x: 4200, y: 1700 },
+    data: {
+      label: "Initiate Outreach",
+      config: {
+        template:
+          "Great, I'll initiate the outreach on your behalf! To get started, please complete the first payment below.",
+        channel: "whatsapp",
+      },
+    },
+  },
   // §5.2 — Upsell Accepted → Create Stripe checkout + send link via WhatsApp
   {
     id: "action_create_payment",
     type: "action",
-    position: { x: 4200, y: 2000 },
+    position: { x: 4200, y: 2200 },
     data: {
       label: "Create Payment Link",
       config: {
@@ -881,9 +896,16 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_upsell_yes",
     source: "decision_upsell",
-    target: "action_create_payment",
+    target: "msg_upsell_initiate",
     sourceHandle: "edge_upsell_yes",
     label: "Yes, activate",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_initiate_payment",
+    source: "msg_upsell_initiate",
+    target: "action_create_payment",
     type: "smoothstep",
     animated: true,
   },
@@ -917,7 +939,7 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_upsell_pass_interested",
     source: "decision_upsell_followup",
-    target: "action_create_payment",
+    target: "action_interested",
     sourceHandle: "edge_upsell_pass_interested",
     label: "I'm interested",
     type: "smoothstep",

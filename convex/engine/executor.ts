@@ -662,22 +662,34 @@ export const executeFeedbackCollectNode = internalMutation({
         createdAt: Date.now(),
       });
 
-      // Schedule Twilio send with interactive buttons/list
+      // Schedule Twilio send — interactive buttons if categories exist, plain text for free-text nodes
       const phone = await getMemberPhone(ctx, instance.memberId);
       if (phone) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.integrations.twilio.interactive.sendInteractiveMessage,
-          {
-            to: phone,
-            question: feedbackPrompt,
-            options: args.categories.map((cat) => ({
-              value: cat,
-              label: cat.replace(/_/g, " "),
-            })),
-            whatsappMessageId: messageId,
-          }
-        );
+        if (args.categories.length > 0) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.interactive.sendInteractiveMessage,
+            {
+              to: phone,
+              question: feedbackPrompt,
+              options: args.categories.map((cat) => ({
+                value: cat,
+                label: cat.replace(/_/g, " "),
+              })),
+              whatsappMessageId: messageId,
+            }
+          );
+        } else {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.whatsapp.sendTextMessage,
+            {
+              to: phone,
+              body: feedbackPrompt,
+              whatsappMessageId: messageId,
+            }
+          );
+        }
       }
     }
 
