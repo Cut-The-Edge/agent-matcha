@@ -704,7 +704,7 @@ export const executeFeedbackCollectNode = internalMutation({
     await ctx.db.patch(args.flowInstanceId, {
       context: updatedContext,
       lastTransitionAt: Date.now(),
-      ...(schedulerJobId ? { schedulerJobId } : {}),
+      schedulerJobId: schedulerJobId ?? undefined,
     });
 
     const duration = Date.now() - startTime;

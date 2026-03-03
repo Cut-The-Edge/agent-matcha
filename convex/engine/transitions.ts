@@ -631,6 +631,33 @@ export const handleFeedbackCollectTimeout = internalMutation({
 
     const config = currentNode.config as FeedbackCollectNodeConfig;
 
+    // Cap nudges to prevent infinite spam if the member never responds
+    const MAX_NUDGES = 3;
+    const nudgeKey = `nudge_count_${args.nodeId}`;
+    const nudgeCount = ((context.metadata?.[nudgeKey] as number) ?? 0);
+    if (nudgeCount >= MAX_NUDGES) {
+      await ctx.db.patch(args.flowInstanceId, {
+        status: INSTANCE_STATUS.EXPIRED,
+        schedulerJobId: undefined,
+        lastTransitionAt: Date.now(),
+      });
+      await ctx.db.insert("flowExecutionLogs", {
+        instanceId: args.flowInstanceId,
+        nodeId: args.nodeId,
+        nodeType: NODE_TYPES.FEEDBACK_COLLECT,
+        action: "timeout_expired",
+        output: JSON.stringify({ nudgeCount, maxReached: true }),
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    // Increment nudge count
+    const updatedMetadata = { ...context.metadata, [nudgeKey]: nudgeCount + 1 };
+    await ctx.db.patch(args.flowInstanceId, {
+      context: { ...context, metadata: updatedMetadata },
+    });
+
     // Send the nudge message inline (no separate nudge node needed)
     const nudgeTemplate =
       config.timeoutMessage ||
@@ -690,6 +717,17 @@ export const handleFeedbackCollectTimeout = internalMutation({
       output: JSON.stringify({ nudgeMessage: resolvedNudge }),
       timestamp: Date.now(),
     });
+
+    // Re-read instance to guard against race with handleMemberResponse
+    const freshInstance = await ctx.db.get(args.flowInstanceId);
+    if (
+      !freshInstance ||
+      freshInstance.status !== INSTANCE_STATUS.ACTIVE ||
+      !(freshInstance.context as FlowContext).waitingForInput ||
+      (freshInstance.context as FlowContext).waitingNodeId !== args.nodeId
+    ) {
+      return; // Member responded while we were sending the nudge
+    }
 
     // Re-execute the same feedback collect node (re-sends the question + sets a new timeout)
     await ctx.scheduler.runAfter(
