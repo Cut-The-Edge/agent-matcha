@@ -324,8 +324,26 @@ export const executeActionNode = internalMutation({
           });
         }
 
-        // 4. Increment member rejection count
+        // 4. Increment member rejection count + store on context for condition check
         if (instance.memberId && decision === "not_interested") {
+          // Read current count synchronously so the downstream condition node
+          // sees the correct value (the async incrementRejectionCount may not
+          // have landed by the time the condition evaluates).
+          const member = await ctx.db.get(instance.memberId);
+          const currentCount = (member as any)?.rejectionCount ?? 0;
+          const newCount = currentCount + 1;
+
+          // Store on flow context — evaluateConditionExpression checks
+          // context[field] first, so "rejectionCount >= 3" will read this.
+          const ctxWithCount: FlowContext = {
+            ...context,
+            rejectionCount: newCount,
+          };
+          await ctx.db.patch(args.flowInstanceId, {
+            context: ctxWithCount,
+            lastTransitionAt: Date.now(),
+          });
+
           await ctx.scheduler.runAfter(
             0,
             internal.members.mutations.incrementRejectionCount,
@@ -483,6 +501,32 @@ export const executeActionNode = internalMutation({
             status: "scheduled",
           };
         }
+        break;
+      }
+
+      case "expire_match": {
+        // Move match to "expired" status after 8-day follow-up sequence
+        if (instance.matchId) {
+          await ctx.db.patch(instance.matchId, {
+            status: args.params?.target_status || "expired",
+            responseType: args.params?.response_type || "no_response",
+            matchNotes: {
+              member_id: instance.memberId,
+              response_type: "no_response",
+              note: args.params?.note || "No response after follow-up sequence.",
+              actions: args.params?.actions || [],
+              final_status: "expired",
+              timestamp: new Date().toISOString(),
+            },
+            updatedAt: Date.now(),
+          });
+        }
+
+        actionResult = {
+          type: "expire_match",
+          matchId: instance.matchId,
+          status: "expired",
+        };
         break;
       }
 

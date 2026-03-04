@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Workflow,
   FlaskConical,
+  RefreshCcw,
   BarChart3,
   UserCog,
   Settings,
@@ -58,6 +59,11 @@ const data = {
       title: "Sandbox",
       url: "/dashboard/sandbox",
       icon: FlaskConical,
+    },
+    {
+      title: "Recalibration",
+      url: "/dashboard/recalibration",
+      icon: RefreshCcw,
     },
   ],
   navAdmin: [

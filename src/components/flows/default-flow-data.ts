@@ -53,45 +53,72 @@ export const defaultNodes: Node[] = [
           },
           {
             value: "upsell_intro",
-            label: "I want more info / an intro",
+            label: "More info / intro",
             edgeId: "edge_upsell_intro",
 
           },
         ],
-        // No Response handled by 24h background timeout, NOT a button
-        timeout: 86400000, // 24 hours
-        timeoutEdgeId: "edge_no_resp",
+        // No Response: 2-day timeout starts the structured follow-up sequence (Day 2/5/7/8)
+        timeout: 172800000, // 2 days
+        timeoutEdgeId: "edge_timeout_day2",
       },
     },
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // §3 — FLOW A: MEMBER IS INTERESTED (PLACEHOLDER)
+  // §3 — FLOW A: MEMBER IS INTERESTED
   // ══════════════════════════════════════════════════════════════════════════
 
   {
-    id: "action_interested",
-    type: "action",
+    id: "msg_interested_pitch",
+    type: "message",
     position: { x: 500, y: 1200 },
     data: {
-      label: "Flow A: Interested (TBD)",
+      label: "Interested — Outreach Pitch",
       config: {
-        actionType: "update_match_status",
-        params: {
-          final_status: "active",
-          response_type: "interested",
-          note: "Member is interested. PLACEHOLDER — Full interested flow TBD.",
-        },
+        template:
+          "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
+        channel: "whatsapp",
       },
     },
   },
   {
-    id: "end_interested",
-    type: "end",
+    id: "decision_interested_outreach",
+    type: "decision",
     position: { x: 500, y: 1700 },
     data: {
-      label: "End (Placeholder)",
-      config: { endType: "completed" },
+      label: "Outreach Decision",
+      config: {
+        question:
+          "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
+        options: [
+          {
+            value: "interested_yes",
+            label: "Yes, start outreach",
+            edgeId: "edge_interested_yes",
+          },
+          {
+            value: "interested_pass",
+            label: "Actually I'll pass",
+            edgeId: "edge_interested_pass",
+          },
+        ],
+        timeout: 86400000,
+        timeoutEdgeId: "edge_nudge_interested_outreach",
+      },
+    },
+  },
+  {
+    id: "msg_interested_prepayment",
+    type: "message",
+    position: { x: 500, y: 2200 },
+    data: {
+      label: "Pre-Payment — Interested",
+      config: {
+        template:
+          "Perfect — I can do that. I'll reach out to them directly, share a bit about you, and gauge their interest before making a formal introduction.\n\nIt's $250 total, split into two parts — $125 now to initiate the outreach, and $125 only if they're interested in connecting. You can activate it here:",
+        channel: "whatsapp",
+      },
     },
   },
 
@@ -409,7 +436,7 @@ export const defaultNodes: Node[] = [
   {
     id: "end_rejected",
     type: "end",
-    position: { x: 2000, y: 4700 },
+    position: { x: 1500, y: 4900 },
     data: {
       label: "End (Rejected)",
       config: { endType: "completed" },
@@ -429,16 +456,16 @@ export const defaultNodes: Node[] = [
       label: "Upsell: Curated Outreach",
       config: {
         question:
-          "Great question! What you received is the full profile we're able to share at this stage.\n\nIf you'd like to go deeper, we can personally reach out to this person on your behalf and represent you. This is an additional concierge service.\n\nHow it works:\n- Total cost: $250\n- $125 upfront to initiate outreach\n- $125 only if the other party agrees to connect\n\nThere are no guarantees — but we always try our best. Would you like to activate this?",
+          "At this stage, what you've received is the full profile we're able to share.\n\nIf you'd like to go deeper, we offer a Curated Outreach service — we personally reach out to this person on your behalf, share a bit about you, and gauge their interest before making a formal introduction.\n\nHow it works:\n- Total cost: $250\n- $125 upfront to initiate outreach\n- $125 only if the other party is interested in connecting\n\nNo guarantees — but we present you intentionally and always do our best. Would you like to activate this?",
         options: [
           {
             value: "upsell_yes",
-            label: "Yes, activate",
+            label: "Yes, start outreach",
             edgeId: "edge_upsell_yes",
           },
           {
             value: "upsell_no",
-            label: "No, I'll pass",
+            label: "No thanks, I'll pass",
             edgeId: "edge_upsell_no",
           },
         ],
@@ -457,7 +484,7 @@ export const defaultNodes: Node[] = [
       label: "Initiate Outreach",
       config: {
         template:
-          "Great, I'll initiate the outreach on your behalf! To get started, please complete the first payment below.",
+          "Great. I'll initiate the outreach on your behalf. To begin, please complete the first $125 payment here:\n\nOnce confirmed, we'll connect with them directly, gather additional insight, and present you intentionally. I'll keep you updated as soon as we know more.\n\nIf there's anything specific you'd like us to ask or emphasize about you, send it here before we reach out.",
         channel: "whatsapp",
       },
     },
@@ -487,7 +514,7 @@ export const defaultNodes: Node[] = [
       label: "Payment Confirmed",
       config: {
         template:
-          "Payment received — thank you, {{memberFirstName}}! 🎉\n\nWe're now reaching out to your match on your behalf. We'll keep you updated right here on WhatsApp as soon as we hear back.",
+          "Payment received — we'll initiate outreach shortly. Our team will review the match and reach out directly to learn more and present you intentionally. We'll update you as soon as we have an answer.",
         channel: "whatsapp",
       },
     },
@@ -497,40 +524,12 @@ export const defaultNodes: Node[] = [
     type: "end",
     position: { x: 4200, y: 3200 },
     data: {
-      label: "End (Pending — Outreach Initiated)",
+      label: "End (Human Touchpoint — Outreach)",
       config: { endType: "completed" },
     },
   },
 
-  // §5.3 — Upsell Declined → "Still interested?"
-  {
-    id: "decision_upsell_followup",
-    type: "decision",
-    position: { x: 5200, y: 2000 },
-    data: {
-      label: "Still Interested?",
-      config: {
-        question:
-          "No problem at all! Based on the profile, are you still interested in this match, or would you like to pass?",
-        options: [
-          {
-            value: "upsell_pass_interested",
-            label: "I'm interested",
-            edgeId: "edge_upsell_pass_interested",
-          },
-          {
-            value: "upsell_pass_not_interested",
-            label: "Not interested",
-            edgeId: "edge_upsell_pass_not_interested",
-          },
-        ],
-        timeout: 86400000,
-        timeoutEdgeId: "edge_nudge_followup",
-      },
-    },
-  },
-
-  // §5.3.2 — Not interested → close match
+  // §5.3.2 — Decline → close match (shared by Interested pass + Upsell no)
   {
     id: "msg_upsell_pass",
     type: "message",
@@ -539,7 +538,7 @@ export const defaultNodes: Node[] = [
       label: "Pass Closing",
       config: {
         template:
-          "No problem. If something shifts or you'd like to reach out later, just let us know. We're always here.",
+          "No problem. We'll move {{matchFirstName}} to your Past Introductions for now.\n\nIf something shifts or you'd like us to reach out later, just ping us with their name and we'll take care of it.",
         channel: "whatsapp",
       },
     },
@@ -614,34 +613,223 @@ export const defaultNodes: Node[] = [
     },
   },
   {
-    id: "msg_nudge_followup",
+    id: "msg_nudge_interested_outreach",
     type: "message",
-    position: { x: 5900, y: 2000 },
+    position: { x: 200, y: 1700 },
     data: {
-      label: "Nudge — Followup",
+      label: "Nudge — Interested Outreach",
       config: {
         template:
-          "Hey {{memberFirstName}}, still here whenever you're ready!",
+          "Hey {{memberFirstName}}, just checking in — take your time, no pressure at all.",
         channel: "whatsapp",
+      },
+    },
+  },
+  {
+    id: "action_notify_admin_outreach",
+    type: "action",
+    position: { x: 4200, y: 3000 },
+    data: {
+      label: "Notify Admin — Outreach",
+      config: {
+        actionType: "notify_admin",
+        params: {
+          notification:
+            "Curated Outreach Requested — Member: {{memberFirstName}} {{memberLastName}}, Target Match: {{matchFirstName}} {{matchLastName}}, Payment: $125 received, Action Required: Schedule outreach call",
+        },
       },
     },
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // §6 — FLOW D: NO RESPONSE — Nudge + re-ask
+  // §6 — FLOW D: STRUCTURED FOLLOW-UP SEQUENCE (Day 2 → 5 → 7 → 8 expire)
   // ══════════════════════════════════════════════════════════════════════════
 
   {
-    id: "msg_no_response_nudge",
+    id: "msg_followup_day2",
     type: "message",
-    position: { x: -400, y: 1200 },
+    position: { x: -800, y: 800 },
     data: {
-      label: "Nudge — No Response",
+      label: "Follow-up Day 2",
       config: {
         template:
-          "Hey {{memberFirstName}}, just checking in! Did you get a chance to review the profile we sent? We'd love to hear your thoughts whenever you're ready.",
+          "Just checking in on the introduction I sent over for {{matchFirstName}}. Introductions remain open for 7 days, so when you have a moment let me know if you're interested or not.",
         channel: "whatsapp",
       },
+    },
+  },
+  {
+    id: "decision_response_day2",
+    type: "decision",
+    position: { x: -800, y: 1200 },
+    data: {
+      label: "Response (Day 2)",
+      config: {
+        question:
+          "Just checking in on the introduction I sent over for {{matchFirstName}}. Introductions remain open for 7 days, so when you have a moment let me know if you're interested or not.",
+        options: [
+          { value: "interested", label: "I'm interested", edgeId: "edge_day2_interested" },
+          { value: "not_interested", label: "Not interested", edgeId: "edge_day2_not_interested" },
+          { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day2_upsell" },
+        ],
+        timeout: 259200000, // 3 days
+        timeoutEdgeId: "edge_timeout_day5",
+      },
+    },
+  },
+  {
+    id: "msg_followup_day5",
+    type: "message",
+    position: { x: -800, y: 1800 },
+    data: {
+      label: "Follow-up Day 5",
+      config: {
+        template:
+          "Circling back on {{matchFirstName}}. This introduction will expire in a couple of days, so let me know if you'd like to proceed or pass before it closes.",
+        channel: "whatsapp",
+      },
+    },
+  },
+  {
+    id: "decision_response_day5",
+    type: "decision",
+    position: { x: -800, y: 2200 },
+    data: {
+      label: "Response (Day 5)",
+      config: {
+        question:
+          "Circling back on {{matchFirstName}}. This introduction will expire in a couple of days, so let me know if you'd like to proceed or pass before it closes.",
+        options: [
+          { value: "interested", label: "I'm interested", edgeId: "edge_day5_interested" },
+          { value: "not_interested", label: "Not interested", edgeId: "edge_day5_not_interested" },
+          { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day5_upsell" },
+        ],
+        timeout: 172800000, // 2 days
+        timeoutEdgeId: "edge_timeout_day7",
+      },
+    },
+  },
+  {
+    id: "msg_followup_day7",
+    type: "message",
+    position: { x: -800, y: 2800 },
+    data: {
+      label: "Follow-up Day 7",
+      config: {
+        template:
+          "Quick final check on {{matchFirstName}}. Since introductions remain open for 7 days, I'll be moving this match to Past Introductions today if I don't hear back. Just let me know if you'd like to move forward before it expires.",
+        channel: "whatsapp",
+      },
+    },
+  },
+  {
+    id: "decision_response_day7",
+    type: "decision",
+    position: { x: -800, y: 3200 },
+    data: {
+      label: "Response (Day 7)",
+      config: {
+        question:
+          "Quick final check on {{matchFirstName}}. Since introductions remain open for 7 days, I'll be moving this match to Past Introductions today if I don't hear back. Just let me know if you'd like to move forward before it expires.",
+        options: [
+          { value: "interested", label: "I'm interested", edgeId: "edge_day7_interested" },
+          { value: "not_interested", label: "Not interested", edgeId: "edge_day7_not_interested" },
+          { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day7_upsell" },
+        ],
+        timeout: 86400000, // 1 day
+        timeoutEdgeId: "edge_timeout_day8",
+      },
+    },
+  },
+  {
+    id: "msg_expire_day8",
+    type: "message",
+    position: { x: -800, y: 3800 },
+    data: {
+      label: "Expired — Day 8",
+      config: {
+        template:
+          "Since I didn't hear back, I've moved {{matchFirstName}} to Past Introductions to keep your queue clear. If you change your mind later, just message me their name and we can reopen it.",
+        channel: "whatsapp",
+      },
+    },
+  },
+  {
+    id: "action_expire",
+    type: "action",
+    position: { x: -800, y: 4200 },
+    data: {
+      label: "Expire + Past Intro",
+      config: {
+        actionType: "expire_match",
+        params: {
+          target_status: "expired",
+          response_type: "no_response",
+          note: "No response after 8-day follow-up sequence. Moved to Past Introductions.",
+          actions: [
+            "Move match: Active Introductions → Past Introductions",
+            "Log expiry reason in Match Notes",
+          ],
+        },
+      },
+    },
+  },
+  {
+    id: "end_expired",
+    type: "end",
+    position: { x: -800, y: 4600 },
+    data: {
+      label: "End (Expired)",
+      config: { endType: "expired" },
+    },
+  },
+
+  // ── §4.4b — 3-DECLINE RECALIBRATION ──────────────────────────────────────
+  {
+    id: "condition_check_declines",
+    type: "condition",
+    position: { x: 2000, y: 4500 },
+    data: {
+      label: "Check Decline Count",
+      config: {
+        expression: "rejectionCount >= 3",
+        trueEdgeId: "e_decline_recalibrate",
+        falseEdgeId: "e_decline_ok",
+      },
+    },
+  },
+  {
+    id: "msg_recalibration",
+    type: "message",
+    position: { x: 2500, y: 4900 },
+    data: {
+      label: "Recalibration Offer",
+      config: {
+        template:
+          "I want to pause before sending another profile. After a few declines, it's usually helpful to recalibrate together so we don't keep missing.\n\nPlease book a quick alignment call here: {{recalibrationLink}}\n\nWe'll refine and move forward intentionally.",
+        channel: "whatsapp",
+      },
+    },
+  },
+  {
+    id: "action_recalibration",
+    type: "action",
+    position: { x: 2500, y: 5400 },
+    data: {
+      label: "Set Recalibrating",
+      config: {
+        actionType: "schedule_recalibration",
+        params: {},
+      },
+    },
+  },
+  {
+    id: "end_recalibration",
+    type: "end",
+    position: { x: 2500, y: 5800 },
+    data: {
+      label: "End (Recalibration)",
+      config: { endType: "completed" },
     },
   },
 ]
@@ -664,7 +852,7 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_interested",
     source: "decision_response",
-    target: "action_interested",
+    target: "msg_interested_pitch",
     sourceHandle: "edge_interested",
     label: "I'm interested",
     type: "smoothstep",
@@ -688,34 +876,197 @@ export const defaultEdges: Edge[] = [
     type: "smoothstep",
     animated: true,
   },
+
+  // ── §3 Flow A: Interested → Outreach Pitch → Decision → Payment (or Pass)
   {
-    id: "edge_no_resp",
+    id: "e_pitch_to_decision",
+    source: "msg_interested_pitch",
+    target: "decision_interested_outreach",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_interested_yes",
+    source: "decision_interested_outreach",
+    target: "msg_interested_prepayment",
+    sourceHandle: "edge_interested_yes",
+    label: "Yes, start outreach",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_interested_pass",
+    source: "decision_interested_outreach",
+    target: "msg_upsell_pass",
+    sourceHandle: "edge_interested_pass",
+    label: "Actually I'll pass",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_interested_prepay_action",
+    source: "msg_interested_prepayment",
+    target: "action_create_payment",
+    type: "smoothstep",
+    animated: true,
+  },
+
+  // ── §6 Structured follow-up chain (Day 2 → 5 → 7 → 8 expire) ────────
+  {
+    id: "edge_timeout_day2",
     source: "decision_response",
-    target: "msg_no_response_nudge",
+    target: "msg_followup_day2",
     sourceHandle: "timeout",
-    label: "No response (timeout)",
+    label: "No response (Day 2)",
     type: "smoothstep",
     animated: true,
     style: { strokeDasharray: "8 4" },
   },
-
-  // ── §3 Flow A: Interested → End (placeholder) ────────────────────────
   {
-    id: "e_interested_end",
-    source: "action_interested",
-    target: "end_interested",
+    id: "e_day2_decision",
+    source: "msg_followup_day2",
+    target: "decision_response_day2",
     type: "smoothstep",
     animated: true,
   },
-
-  // ── §6 No Response nudge → loop back to decision (re-send) ───────────
   {
-    id: "e_nudge_loop",
-    source: "msg_no_response_nudge",
-    target: "decision_response",
+    id: "edge_day2_interested",
+    source: "decision_response_day2",
+    target: "msg_interested_pitch",
+    sourceHandle: "edge_day2_interested",
+    label: "I'm interested",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day2_not_interested",
+    source: "decision_response_day2",
+    target: "decision_why_not",
+    sourceHandle: "edge_day2_not_interested",
+    label: "Not interested",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day2_upsell",
+    source: "decision_response_day2",
+    target: "decision_upsell",
+    sourceHandle: "edge_day2_upsell",
+    label: "More info / intro",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_timeout_day5",
+    source: "decision_response_day2",
+    target: "msg_followup_day5",
+    sourceHandle: "timeout",
+    label: "No response (Day 5)",
     type: "smoothstep",
     animated: true,
     style: { strokeDasharray: "8 4" },
+  },
+  {
+    id: "e_day5_decision",
+    source: "msg_followup_day5",
+    target: "decision_response_day5",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day5_interested",
+    source: "decision_response_day5",
+    target: "msg_interested_pitch",
+    sourceHandle: "edge_day5_interested",
+    label: "I'm interested",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day5_not_interested",
+    source: "decision_response_day5",
+    target: "decision_why_not",
+    sourceHandle: "edge_day5_not_interested",
+    label: "Not interested",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day5_upsell",
+    source: "decision_response_day5",
+    target: "decision_upsell",
+    sourceHandle: "edge_day5_upsell",
+    label: "More info / intro",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_timeout_day7",
+    source: "decision_response_day5",
+    target: "msg_followup_day7",
+    sourceHandle: "timeout",
+    label: "No response (Day 7)",
+    type: "smoothstep",
+    animated: true,
+    style: { strokeDasharray: "8 4" },
+  },
+  {
+    id: "e_day7_decision",
+    source: "msg_followup_day7",
+    target: "decision_response_day7",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day7_interested",
+    source: "decision_response_day7",
+    target: "msg_interested_pitch",
+    sourceHandle: "edge_day7_interested",
+    label: "I'm interested",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day7_not_interested",
+    source: "decision_response_day7",
+    target: "decision_why_not",
+    sourceHandle: "edge_day7_not_interested",
+    label: "Not interested",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_day7_upsell",
+    source: "decision_response_day7",
+    target: "decision_upsell",
+    sourceHandle: "edge_day7_upsell",
+    label: "More info / intro",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "edge_timeout_day8",
+    source: "decision_response_day7",
+    target: "msg_expire_day8",
+    sourceHandle: "timeout",
+    label: "No response (Day 8)",
+    type: "smoothstep",
+    animated: true,
+    style: { strokeDasharray: "8 4" },
+  },
+  {
+    id: "e_expire_action",
+    source: "msg_expire_day8",
+    target: "action_expire",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_expire_end",
+    source: "action_expire",
+    target: "end_expired",
+    type: "smoothstep",
+    animated: true,
   },
 
   // ── §4.1 Why Not Interested → 8 sub-category feedback nodes ──────────
@@ -885,9 +1236,41 @@ export const defaultEdges: Edge[] = [
     animated: true,
   },
   {
-    id: "e_reject_end",
+    id: "e_reject_check",
     source: "action_reject",
+    target: "condition_check_declines",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_decline_ok",
+    source: "condition_check_declines",
     target: "end_rejected",
+    sourceHandle: "false",
+    label: "< 3 declines",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_decline_recalibrate",
+    source: "condition_check_declines",
+    target: "msg_recalibration",
+    sourceHandle: "true",
+    label: "≥ 3 declines",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_recalibration_action",
+    source: "msg_recalibration",
+    target: "action_recalibration",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_recalibration_end",
+    source: "action_recalibration",
+    target: "end_recalibration",
     type: "smoothstep",
     animated: true,
   },
@@ -912,14 +1295,14 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_upsell_no",
     source: "decision_upsell",
-    target: "decision_upsell_followup",
+    target: "msg_upsell_pass",
     sourceHandle: "edge_upsell_no",
-    label: "No, I'll pass",
+    label: "No thanks, I'll pass",
     type: "smoothstep",
     animated: true,
   },
 
-  // ── §5.2 Upsell Yes → Payment → Confirmation msg → End ──────────────
+  // ── §5.2 Upsell Yes → Payment → Confirmation → Admin Notify → End ───
   {
     id: "e_payment_confirmed",
     source: "action_create_payment",
@@ -928,29 +1311,16 @@ export const defaultEdges: Edge[] = [
     animated: true,
   },
   {
-    id: "e_upsell_yes_end",
+    id: "e_payment_to_notify",
     source: "msg_payment_confirmed",
+    target: "action_notify_admin_outreach",
+    type: "smoothstep",
+    animated: true,
+  },
+  {
+    id: "e_notify_to_end",
+    source: "action_notify_admin_outreach",
     target: "end_upsell_yes",
-    type: "smoothstep",
-    animated: true,
-  },
-
-  // ── §5.3 Upsell No → "Still interested?" → branches ──────────────────
-  {
-    id: "edge_upsell_pass_interested",
-    source: "decision_upsell_followup",
-    target: "action_interested",
-    sourceHandle: "edge_upsell_pass_interested",
-    label: "I'm interested",
-    type: "smoothstep",
-    animated: true,
-  },
-  {
-    id: "edge_upsell_pass_not_interested",
-    source: "decision_upsell_followup",
-    target: "msg_upsell_pass",
-    sourceHandle: "edge_upsell_pass_not_interested",
-    label: "Not interested",
     type: "smoothstep",
     animated: true,
   },
@@ -1027,9 +1397,9 @@ export const defaultEdges: Edge[] = [
     style: { strokeDasharray: "8 4" },
   },
   {
-    id: "edge_nudge_followup",
-    source: "decision_upsell_followup",
-    target: "msg_nudge_followup",
+    id: "edge_nudge_interested_outreach",
+    source: "decision_interested_outreach",
+    target: "msg_nudge_interested_outreach",
     sourceHandle: "timeout",
     label: "Timeout nudge",
     type: "smoothstep",
@@ -1037,9 +1407,9 @@ export const defaultEdges: Edge[] = [
     style: { strokeDasharray: "8 4" },
   },
   {
-    id: "e_nudge_followup_loop",
-    source: "msg_nudge_followup",
-    target: "decision_upsell_followup",
+    id: "e_nudge_interested_outreach_loop",
+    source: "msg_nudge_interested_outreach",
+    target: "decision_interested_outreach",
     type: "smoothstep",
     animated: true,
     style: { strokeDasharray: "8 4" },

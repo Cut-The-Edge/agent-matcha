@@ -93,6 +93,7 @@ export const getFlowInstance = query({
 
 export const listFlowInstances = query({
   args: {
+    sessionToken: v.optional(v.string()),
     matchId: v.optional(v.id("matches")),
     memberId: v.optional(v.id("members")),
     status: v.optional(v.string()),
@@ -145,6 +146,7 @@ export const listFlowInstances = query({
 
 export const getExecutionLog = query({
   args: {
+    sessionToken: v.optional(v.string()),
     instanceId: v.id("flowInstances"),
     limit: v.optional(v.number()),
   },

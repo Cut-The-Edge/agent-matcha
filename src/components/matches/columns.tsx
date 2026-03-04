@@ -30,6 +30,10 @@ export type MatchRow = {
   groupChatId?: string
 }
 
+export type MatchTableMeta = {
+  onViewDetails: (matchId: Id<"matches">) => void
+}
+
 // §7.1 Match Status Values
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   active: {
@@ -132,28 +136,35 @@ export const columns: ColumnDef<MatchRow>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className="data-[state=open]:bg-muted flex h-8 w-8 p-0"
-            size="icon"
-          >
-            <MoreVertical className="h-4 w-4" />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem>View details</DropdownMenuItem>
-          <DropdownMenuItem>View conversation</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>Resend message</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive">
-            Cancel match
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
+    cell: ({ row, table }) => {
+      const meta = table.options.meta as MatchTableMeta | undefined
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="data-[state=open]:bg-muted flex h-8 w-8 p-0"
+              size="icon"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-4 w-4" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem
+              onClick={() => meta?.onViewDetails(row.original._id)}
+            >
+              View details
+            </DropdownMenuItem>
+            <DropdownMenuItem>View conversation</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive">
+              Cancel match
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    },
   },
 ]

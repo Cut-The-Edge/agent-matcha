@@ -179,6 +179,70 @@ export const getByEmail = query({
 });
 
 /**
+ * List members in "recalibrating" status, enriched with rejection details.
+ * Used by the Recalibration dashboard page.
+ */
+export const listRecalibrating = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    const members = await ctx.db
+      .query("members")
+      .withIndex("by_status", (q) => q.eq("status", "recalibrating"))
+      .collect();
+
+    const enriched = await Promise.all(
+      members.map(async (member) => {
+        const feedbackRecords = await ctx.db
+          .query("feedback")
+          .withIndex("by_member", (q) => q.eq("memberId", member._id))
+          .collect();
+
+        const rejections = feedbackRecords.filter(
+          (f) => f.decision === "not_interested"
+        );
+
+        // Most recent rejection timestamp
+        const lastRejectionAt =
+          rejections.length > 0
+            ? Math.max(...rejections.map((r) => r.createdAt))
+            : null;
+
+        // Most common rejection category
+        let topRejectionReason: string | null = null;
+        const categoryCounts: Record<string, number> = {};
+        for (const r of rejections) {
+          if (r.categories) {
+            for (const cat of r.categories) {
+              categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
+            }
+          }
+        }
+        const entries = Object.entries(categoryCounts);
+        if (entries.length > 0) {
+          entries.sort((a, b) => b[1] - a[1]);
+          topRejectionReason = entries[0][0];
+        }
+
+        return {
+          ...member,
+          lastRejectionAt,
+          topRejectionReason,
+        };
+      })
+    );
+
+    // Sort by rejectionCount descending
+    enriched.sort((a, b) => b.rejectionCount - a.rejectionCount);
+
+    return enriched;
+  },
+});
+
+/**
  * Return aggregate stats: counts by status, counts by tier, total active.
  */
 export const getStats = query({

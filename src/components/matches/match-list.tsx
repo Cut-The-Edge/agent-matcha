@@ -13,7 +13,9 @@ import {
 } from "@tanstack/react-table"
 import { useAuthQuery } from "@/hooks/use-auth-query"
 import { api } from "../../../convex/_generated/api"
-import { columns, type MatchRow } from "@/components/matches/columns"
+import { columns, type MatchRow, type MatchTableMeta } from "@/components/matches/columns"
+import { MatchDetailSheet } from "@/components/matches/match-detail-sheet"
+import { Id } from "../../../convex/_generated/dataModel"
 import {
   Table,
   TableBody,
@@ -119,6 +121,8 @@ export function MatchList() {
     pageIndex: 0,
     pageSize: 10,
   })
+  const [selectedMatchId, setSelectedMatchId] =
+    React.useState<Id<"matches"> | null>(null)
 
   const matches = useAuthQuery(api.matches.queries.list, {})
 
@@ -133,9 +137,14 @@ export function MatchList() {
     return data.filter((m) => m.status === statusFilter)
   }, [data, statusFilter])
 
+  const tableMeta: MatchTableMeta = {
+    onViewDetails: (matchId) => setSelectedMatchId(matchId),
+  }
+
   const table = useReactTable({
     data: filteredData,
     columns,
+    meta: tableMeta,
     state: {
       sorting,
       columnFilters,
@@ -213,6 +222,8 @@ export function MatchList() {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedMatchId(row.original._id)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -283,6 +294,14 @@ export function MatchList() {
           </Button>
         </div>
       </div>
+
+      <MatchDetailSheet
+        matchId={selectedMatchId}
+        open={selectedMatchId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMatchId(null)
+        }}
+      />
     </div>
   )
 }

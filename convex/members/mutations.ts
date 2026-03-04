@@ -129,6 +129,32 @@ export const updateStatus = mutation({
 });
 
 /**
+ * Reactivate a recalibrating member: sets status back to "active" and resets rejectionCount to 0.
+ */
+export const reactivate = mutation({
+  args: {
+    sessionToken: v.optional(v.string()),
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    const existing = await ctx.db.get(args.memberId);
+    if (!existing) {
+      throw new Error(`Member not found: ${args.memberId}`);
+    }
+
+    await ctx.db.patch(args.memberId, {
+      status: "active",
+      rejectionCount: 0,
+      updatedAt: Date.now(),
+    });
+
+    return args.memberId;
+  },
+});
+
+/**
  * Increment rejectionCount for a member.
  * If rejectionCount reaches >= 3, automatically set status to "recalibrating".
  * Internal mutation — called by match processing logic, not directly by the frontend.
