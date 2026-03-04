@@ -6,6 +6,7 @@ import {
   Heart,
   Users,
   MessageSquare,
+  Phone,
   Workflow,
   FlaskConical,
   RefreshCcw,
@@ -49,6 +50,11 @@ const data = {
       title: "Conversations",
       url: "/dashboard/conversations",
       icon: MessageSquare,
+    },
+    {
+      title: "Phone Calls",
+      url: "/dashboard/calls",
+      icon: Phone,
     },
     {
       title: "Flows",

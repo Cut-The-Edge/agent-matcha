@@ -26,3 +26,8 @@ npm-debug.log*
 
 # convex
 .convex/
+
+# python
+__pycache__/
+*.egg-info/
+*.pyc
