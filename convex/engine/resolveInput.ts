@@ -356,13 +356,11 @@ export const resolvePaymentWaitingInput = internalAction({
           args.matchId,
         );
 
-        // Cancel the pending payment record
-        if (instance?.matchId) {
-          await ctx.runMutation(
-            internal.engine.transitions.cancelPendingPayment,
-            { flowInstanceId: args.flowInstanceId },
-          );
-        }
+        // Cancel pending payment and clear the awaitingPayment flag
+        await ctx.runMutation(
+          internal.engine.transitions.cancelPendingPayment,
+          { flowInstanceId: args.flowInstanceId },
+        );
 
         // Rewind to the decision node with the "pass" option
         await ctx.runMutation(internal.engine.transitions.rewindFlow, {

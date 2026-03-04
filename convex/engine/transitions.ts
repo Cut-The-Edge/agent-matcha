@@ -1415,11 +1415,13 @@ export const getFlowInstance = internalQuery({
 });
 
 /**
- * Cancel pending payments for a flow instance.
+ * Cancel pending payments for a flow instance and clear the awaitingPayment flag.
+ * Must be called before rewindFlow so the flag doesn't persist into future nodes.
  */
 export const cancelPendingPayment = internalMutation({
   args: { flowInstanceId: v.id("flowInstances") },
   handler: async (ctx, args) => {
+    // Cancel any pending payment records
     const payments = await ctx.db
       .query("payments")
       .withIndex("by_flowInstance", (q) =>
@@ -1432,6 +1434,21 @@ export const cancelPendingPayment = internalMutation({
           status: "cancelled",
         });
       }
+    }
+
+    // Clear the awaitingPayment flag so future nodes aren't intercepted
+    const instance = await ctx.db.get(args.flowInstanceId);
+    if (instance) {
+      const context = instance.context as any;
+      await ctx.db.patch(args.flowInstanceId, {
+        context: {
+          ...context,
+          metadata: {
+            ...context.metadata,
+            awaitingPayment: false,
+          },
+        },
+      });
     }
   },
 });
