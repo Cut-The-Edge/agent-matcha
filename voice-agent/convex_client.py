@@ -31,14 +31,18 @@ class ConvexClient:
         sip_call_id: str | None = None,
         phone: str | None = None,
         direction: str = "inbound",
+        sandbox: bool = False,
     ) -> dict[str, Any]:
         """Log a new call and return member data if found."""
-        return await self._post("/voice/call-started", {
+        payload: dict[str, Any] = {
             "livekitRoomId": livekit_room_id,
             "sipCallId": sip_call_id,
             "phone": phone,
             "direction": direction,
-        })
+        }
+        if sandbox:
+            payload["sandbox"] = True
+        return await self._post("/voice/call-started", payload)
 
     async def call_ended(
         self,
@@ -47,14 +51,18 @@ class ConvexClient:
         duration: int,
         transcript: list[dict[str, Any]],
         status: str = "completed",
+        egress_id: str | None = None,
     ) -> dict[str, Any]:
         """Save transcript and trigger AI summary generation."""
-        return await self._post("/voice/call-ended", {
+        payload: dict[str, Any] = {
             "callId": call_id,
             "duration": duration,
             "transcript": transcript,
             "status": status,
-        })
+        }
+        if egress_id:
+            payload["egressId"] = egress_id
+        return await self._post("/voice/call-ended", payload)
 
     async def add_transcript_segment(
         self,

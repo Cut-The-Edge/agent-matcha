@@ -41,6 +41,7 @@ type CallRow = {
   profileAction?: string
   smaSyncStatus?: string
   qualityFlags?: string[]
+  sandbox?: boolean
   startedAt: number
   createdAt: number
 }
@@ -92,9 +93,16 @@ const columns: ColumnDef<CallRow>[] = [
     header: "Caller",
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <span className="font-medium">
-          {row.original.memberName ?? "Unknown"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium">
+            {row.original.memberName ?? "Unknown"}
+          </span>
+          {row.original.sandbox && (
+            <Badge variant="outline" className="border-amber-400 text-amber-600 text-[10px] px-1 py-0">
+              Sandbox
+            </Badge>
+          )}
+        </div>
         {row.original.phone && (
           <span className="text-xs text-muted-foreground">
             {row.original.phone}
@@ -162,7 +170,7 @@ const columns: ColumnDef<CallRow>[] = [
           : status === "failed"
             ? "destructive"
             : "outline"
-      return <Badge variant={variant}>{status}</Badge>
+      return <Badge variant={variant}>{status === "skipped" ? "skipped" : status}</Badge>
     },
   },
   {

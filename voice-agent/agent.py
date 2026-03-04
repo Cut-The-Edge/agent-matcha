@@ -186,6 +186,95 @@ class MatchaAgent(Agent):
         return "Call ended."
 
 
+# ── Member context builder ────────────────────────────────────────────
+
+# Labels for camelCase extractedData keys → human-readable names
+_INTAKE_LABELS: dict[str, str] = {
+    "firstName": "First name",
+    "lastName": "Last name",
+    "age": "Age",
+    "location": "Location",
+    "hometown": "Hometown",
+    "willingToRelocate": "Willing to relocate",
+    "ethnicity": "Ethnicity",
+    "occupation": "Occupation",
+    "familyInfo": "Family info",
+    "jewishObservance": "Jewish observance",
+    "kosherLevel": "Kosher level",
+    "shabbatObservance": "Shabbat observance",
+    "relationshipHistory": "Relationship history",
+    "lookingFor": "Looking for",
+    "physicalPreferences": "Physical preferences",
+    "ageRangePreference": "Age range preference",
+    "mustHaves": "Must-haves",
+    "dealbreakers": "Dealbreakers",
+    "marriageTimeline": "Marriage timeline",
+    "kidsPreference": "Kids preference",
+    "dayInLife": "Day in life",
+    "hobbies": "Hobbies",
+    "additionalNotes": "Additional notes",
+}
+
+
+def _build_member_context(member: dict) -> str:
+    """Build a rich '## Caller context' block from full member data."""
+    lines = [
+        "## Caller context",
+        EXISTING_MEMBER_CONTEXT,
+        "",
+        "**Basic info:**",
+        (
+            f"Name: {member.get('firstName', 'Unknown')}"
+            f"{(' ' + member['lastName']) if member.get('lastName') else ''}"
+            f" | Tier: {member.get('tier', 'unknown')}"
+            f" | Status: {member.get('status', 'unknown')}"
+            f" | Profile complete: {'Yes' if member.get('profileComplete') else 'No'}"
+        ),
+    ]
+
+    # Matchmaker notes
+    if member.get("matchmakerNotes"):
+        lines += ["", "**Matchmaker notes:**", member["matchmakerNotes"]]
+
+    # Rejection count
+    if member.get("rejectionCount"):
+        lines.append(f"\nRejection count: {member['rejectionCount']}")
+
+    # Recalibration summary
+    recal = member.get("recalibrationSummary")
+    if recal:
+        lines += ["", "**Recalibration:**"]
+        if recal.get("summary"):
+            lines.append(f"Pattern: {recal['summary']}")
+        if recal.get("keyPatterns"):
+            patterns = ", ".join(recal["keyPatterns"])
+            count = recal.get("feedbackCount", "?")
+            lines.append(f"Key patterns: {patterns} (from {count} feedback responses)")
+
+    # Previous intake data
+    prev = member.get("previousIntake")
+    if prev and isinstance(prev, dict):
+        intake_lines = []
+        for key, label in _INTAKE_LABELS.items():
+            val = prev.get(key)
+            if val is not None and val != "":
+                intake_lines.append(f"{label}: {val}")
+        if intake_lines:
+            lines += ["", "**Known profile data (from previous intake):**"]
+            lines += intake_lines
+
+    # Guidance for the agent
+    lines += [
+        "",
+        "**Guidance:**",
+        "- Do NOT re-ask questions where you already have data above",
+        "- Focus on gaps (fields not listed above) and confirming if existing info is still current",
+        "- If recalibrating, explore the patterns noted above",
+    ]
+
+    return "\n".join(lines)
+
+
 # ── Entrypoint ───────────────────────────────────────────────────────
 
 async def entrypoint(ctx: agents.JobContext):
@@ -195,18 +284,21 @@ async def entrypoint(ctx: agents.JobContext):
     convex = ConvexClient()
     call_handler = CallHandler(convex)
 
-    # Determine if this is an outbound call (metadata contains phone_number)
+    # Parse dispatch metadata
     phone_number: str | None = None
     is_outbound = False
+    is_sandbox = False
     if ctx.job.metadata:
         try:
             meta = json.loads(ctx.job.metadata)
             phone_number = meta.get("phone_number")
-            is_outbound = phone_number is not None
+            is_sandbox = meta.get("sandbox", False)
+            # Only treat as outbound SIP if phone_number is set and NOT a sandbox call
+            is_outbound = phone_number is not None and not is_sandbox
         except (json.JSONDecodeError, AttributeError):
             pass
 
-    # For outbound calls, place the call via SIP
+    # For outbound calls, place the call via SIP (skip for sandbox — browser is already connected)
     if is_outbound and phone_number:
         outbound_trunk_id = os.environ.get("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "")
         try:
@@ -243,6 +335,7 @@ async def entrypoint(ctx: agents.JobContext):
         phone=caller_phone,
         direction="outbound" if is_outbound else "inbound",
         lk_api=ctx.api,
+        sandbox=is_sandbox,
     )
 
     # Build the agent
@@ -250,12 +343,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Enrich the system prompt with caller context
     if call_handler.member:
-        agent._instructions += f"\n\n## Caller context\n{EXISTING_MEMBER_CONTEXT}"
-        agent._instructions += (
-            f"\nCaller name: {call_handler.member.get('firstName', 'Unknown')}"
-            f"\nTier: {call_handler.member.get('tier', 'unknown')}"
-            f"\nProfile complete: {call_handler.member.get('profileComplete', False)}"
-        )
+        agent._instructions += "\n\n" + _build_member_context(call_handler.member)
     else:
         agent._instructions += f"\n\n## Caller context\n{NEW_CALLER_CONTEXT}"
 

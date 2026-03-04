@@ -80,13 +80,42 @@ Respond with ONLY valid JSON, no markdown.`,
       summary = { summary: content, raw: true };
     }
 
-    // Save summary and extracted data to the call record
+    // Gap #1: Merge AI-extracted data with existing agent-saved data (agent wins)
+    const existing = (call.extractedData as Record<string, unknown>) ?? {};
+    const aiFields = (summary.extractedFields as Record<string, unknown>) ?? {};
+    const merged = { ...aiFields, ...existing };
+
+    // Gap #2: Determine profileAction
+    let profileAction: "updated" | "created" | "none" = "none";
+    if (call.memberId) {
+      profileAction = "updated";
+    } else if (merged.firstName) {
+      profileAction = "created";
+    }
+
+    // Save summary, merged data, and profileAction to the call record
     await ctx.runMutation(internal.voice.mutations.updateCall, {
       callId: args.callId,
       status: "completed",
       aiSummary: summary,
-      extractedData: summary.extractedFields ?? undefined,
+      extractedData: Object.keys(merged).length > 0 ? merged : undefined,
+      profileAction,
     });
+
+    // Gap #6: Update member profile with voice call data
+    if (call.memberId) {
+      const dateStr = new Date().toISOString().split("T")[0];
+      const prefix = call.sandbox ? "[SANDBOX] " : "";
+      const notes = `${prefix}[Voice Call ${dateStr}] ${summary.summary ?? "Call completed."}`;
+      const profileComplete = typeof summary.profileCompleteness === "number"
+        && summary.profileCompleteness > 70;
+
+      await ctx.runMutation(internal.voice.mutations.updateMemberFromCall, {
+        memberId: call.memberId,
+        matchmakerNotes: notes,
+        profileComplete: profileComplete || undefined,
+      });
+    }
 
     // Auto-flag quality issues
     const flags: string[] = [];
@@ -141,6 +170,18 @@ export const syncCallToSMA = internalAction({
     callId: v.id("phoneCalls"),
   },
   handler: async (ctx, args) => {
+    // Gap #7: Skip SMA sync for sandbox calls
+    const call = await ctx.runQuery(internal.voice.queries.getCallInternal, {
+      callId: args.callId,
+    });
+    if (call?.sandbox === true) {
+      await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
+        callId: args.callId,
+        status: "skipped",
+      });
+      return;
+    }
+
     await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
       callId: args.callId,
       status: "pending",

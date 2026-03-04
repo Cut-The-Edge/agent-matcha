@@ -47,7 +47,7 @@ export const getCallLog = query({
             memberName = `${member.firstName}${member.lastName ? ` ${member.lastName}` : ""}`;
           }
         }
-        return { ...call, memberName };
+        return { ...call, memberName, sandbox: call.sandbox ?? false };
       })
     );
   },
@@ -80,7 +80,7 @@ export const getCallById = query({
       .order("asc")
       .collect();
 
-    return { ...call, member, segments };
+    return { ...call, member, segments, sandbox: call.sandbox ?? false };
   },
 });
 
@@ -199,5 +199,45 @@ export const getCallInternal = internalQuery({
   args: { callId: v.id("phoneCalls") },
   handler: async (ctx, args) => {
     return ctx.db.get(args.callId);
+  },
+});
+
+/**
+ * Get full member context for the voice agent's system prompt.
+ *
+ * Gathers: full member record + latest completed call's extractedData
+ * (previous intake answers) so the agent can skip re-asking known info.
+ */
+export const getMemberContext = internalQuery({
+  args: { memberId: v.id("members") },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) return null;
+
+    // Get the latest completed call's extractedData for this member
+    const latestCall = await ctx.db
+      .query("phoneCalls")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .order("desc")
+      .first();
+
+    const previousIntake =
+      latestCall?.status === "completed" && latestCall.extractedData
+        ? latestCall.extractedData
+        : null;
+
+    // Return conversation-useful fields only (exclude PII like email/phone/smaId/timestamps)
+    return {
+      _id: member._id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      tier: member.tier,
+      status: member.status,
+      profileComplete: member.profileComplete,
+      matchmakerNotes: member.matchmakerNotes,
+      rejectionCount: member.rejectionCount,
+      recalibrationSummary: member.recalibrationSummary,
+      previousIntake,
+    };
   },
 });

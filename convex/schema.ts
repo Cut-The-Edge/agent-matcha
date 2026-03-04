@@ -211,11 +211,14 @@ export default defineSchema({
         v.literal("none"),
       )
     ),
+    sandbox: v.optional(v.boolean()),
+    egressId: v.optional(v.string()),
     smaSyncStatus: v.optional(
       v.union(
         v.literal("pending"),
         v.literal("synced"),
         v.literal("failed"),
+        v.literal("skipped"),
       )
     ),
     qualityFlags: v.optional(v.array(v.string())),

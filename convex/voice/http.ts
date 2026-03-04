@@ -9,7 +9,7 @@ import { internal } from "../_generated/api";
  */
 export const callStartedHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { livekitRoomId, sipCallId, phone, direction } = body;
+  const { livekitRoomId, sipCallId, phone, direction, sandbox } = body;
 
   // Look up member by phone
   let member = null;
@@ -30,21 +30,22 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
     memberId,
     phone,
     direction: direction ?? "inbound",
+    sandbox: sandbox ?? undefined,
   });
+
+  // Fetch rich member context (full profile + previous intake data)
+  let memberContext = null;
+  if (memberId) {
+    memberContext = await ctx.runQuery(
+      internal.voice.queries.getMemberContext,
+      { memberId }
+    );
+  }
 
   return new Response(
     JSON.stringify({
       callId,
-      member: member
-        ? {
-            _id: member._id,
-            firstName: member.firstName,
-            lastName: member.lastName,
-            tier: member.tier,
-            status: member.status,
-            profileComplete: member.profileComplete,
-          }
-        : null,
+      member: memberContext,
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
@@ -56,13 +57,14 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
  */
 export const callEndedHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { callId, duration, transcript, status } = body;
+  const { callId, duration, transcript, status, egressId } = body;
 
   await ctx.runMutation(internal.voice.mutations.updateCall, {
     callId,
     status: status ?? "completed",
     duration,
     transcript,
+    egressId: egressId ?? undefined,
   });
 
   // Trigger AI summary generation

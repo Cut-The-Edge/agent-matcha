@@ -48,6 +48,7 @@ class CallHandler:
         phone: str | None = None,
         direction: str = "inbound",
         lk_api: api.LiveKitAPI | None = None,
+        sandbox: bool = False,
     ) -> dict[str, Any]:
         """Called when a call begins. Logs to Convex, starts audio recording."""
         self._start_time = time.time()
@@ -59,6 +60,7 @@ class CallHandler:
                 sip_call_id=sip_call_id,
                 phone=phone,
                 direction=direction,
+                sandbox=sandbox,
             )
             self.call_id = result.get("callId")
             self.member = result.get("member")
@@ -173,6 +175,7 @@ class CallHandler:
                     duration=duration,
                     transcript=self._transcript,
                     status=status,
+                    egress_id=self._egress_id,
                 )
                 logger.info(
                     "Call ended: call_id=%s duration=%ds segments=%d",

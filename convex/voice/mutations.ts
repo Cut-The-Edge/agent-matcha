@@ -12,6 +12,7 @@ export const logCall = internalMutation({
     memberId: v.optional(v.id("members")),
     phone: v.optional(v.string()),
     direction: v.union(v.literal("inbound"), v.literal("outbound")),
+    sandbox: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -21,6 +22,7 @@ export const logCall = internalMutation({
       memberId: args.memberId,
       phone: args.phone,
       direction: args.direction,
+      sandbox: args.sandbox,
       status: "in_progress",
       startedAt: now,
       createdAt: now,
@@ -48,6 +50,7 @@ export const updateCall = internalMutation({
     profileAction: v.optional(
       v.union(v.literal("created"), v.literal("updated"), v.literal("none"))
     ),
+    egressId: v.optional(v.string()),
     qualityFlags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -140,8 +143,34 @@ export const flagCall = mutation({
 });
 
 /**
- * Update SMA sync status on a call.
+ * Update member profile from voice call data (internal, bypasses dashboard auth).
  */
+export const updateMemberFromCall = internalMutation({
+  args: {
+    memberId: v.id("members"),
+    matchmakerNotes: v.string(),
+    profileComplete: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) return;
+
+    const existing = member.matchmakerNotes ?? "";
+    const separator = existing ? "\n\n---\n\n" : "";
+    const merged = existing + separator + args.matchmakerNotes;
+
+    const patch: Record<string, unknown> = {
+      matchmakerNotes: merged,
+      updatedAt: Date.now(),
+    };
+    if (args.profileComplete !== undefined) {
+      patch.profileComplete = args.profileComplete;
+    }
+
+    await ctx.db.patch(args.memberId, patch);
+  },
+});
+
 export const updateSmaSyncStatus = internalMutation({
   args: {
     callId: v.id("phoneCalls"),
@@ -149,6 +178,7 @@ export const updateSmaSyncStatus = internalMutation({
       v.literal("pending"),
       v.literal("synced"),
       v.literal("failed"),
+      v.literal("skipped"),
     ),
   },
   handler: async (ctx, args) => {
