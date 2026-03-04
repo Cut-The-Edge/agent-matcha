@@ -184,6 +184,60 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_created", ["createdAt"]),
 
+  // -- Phone Calls --
+  phoneCalls: defineTable({
+    livekitRoomId: v.string(),
+    sipCallId: v.optional(v.string()),
+    memberId: v.optional(v.id("members")),
+    phone: v.optional(v.string()),
+    direction: v.union(v.literal("inbound"), v.literal("outbound")),
+    status: v.union(
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("transferred"),
+      v.literal("failed"),
+      v.literal("no_answer"),
+    ),
+    duration: v.optional(v.number()),
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    transcript: v.optional(v.any()),
+    aiSummary: v.optional(v.any()),
+    extractedData: v.optional(v.any()),
+    profileAction: v.optional(
+      v.union(
+        v.literal("created"),
+        v.literal("updated"),
+        v.literal("none"),
+      )
+    ),
+    smaSyncStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("synced"),
+        v.literal("failed"),
+      )
+    ),
+    qualityFlags: v.optional(v.array(v.string())),
+    escalationReason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_room", ["livekitRoomId"])
+    .index("by_member", ["memberId"])
+    .index("by_phone", ["phone"])
+    .index("by_status", ["status"])
+    .index("by_created", ["createdAt"]),
+
+  callTranscriptSegments: defineTable({
+    callId: v.id("phoneCalls"),
+    speaker: v.union(v.literal("caller"), v.literal("agent")),
+    text: v.string(),
+    timestamp: v.number(),
+    confidence: v.optional(v.number()),
+  })
+    .index("by_call", ["callId"])
+    .index("by_timestamp", ["callId", "timestamp"]),
+
   // -- Flow Engine: Definitions --
   flowDefinitions: defineTable({
     name: v.string(),
