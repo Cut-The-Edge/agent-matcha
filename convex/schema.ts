@@ -42,6 +42,12 @@ export default defineSchema({
     profileComplete: v.boolean(),
     matchmakerNotes: v.optional(v.string()),
     rejectionCount: v.number(),
+    recalibrationSummary: v.optional(v.object({
+      summary: v.string(),
+      keyPatterns: v.array(v.string()),
+      analyzedAt: v.number(),
+      feedbackCount: v.number(),
+    })),
     status: v.union(
       v.literal("active"),
       v.literal("paused"),

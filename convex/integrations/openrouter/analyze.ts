@@ -146,3 +146,182 @@ export const analyzeFeedback = internalAction({
     }
   },
 });
+
+// ============================================================================
+// Recalibration Analysis — Holistic summary across ALL rejections
+// ============================================================================
+
+const RECALIBRATION_SYSTEM_PROMPT = `You are an expert matchmaking analyst for Club Allenby, an exclusive Jewish singles matchmaking club. A member has declined 3+ matches and entered recalibration.
+
+Analyze ALL their rejection feedback and conversations to identify patterns and provide actionable insights for the matchmaker's recalibration call.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "summary": "2-3 sentence insight for the matchmaker — specific, actionable, referencing concrete patterns",
+  "keyPatterns": ["pattern1", "pattern2", "pattern3"]
+}
+
+The summary should answer: What is driving this member's rejections? What should the matchmaker focus on in the recalibration call?
+The keyPatterns should be 2-4 short phrases identifying the main rejection themes.`;
+
+export const analyzeRecalibration = internalAction({
+  args: {
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const apiKey = getOpenRouterApiKey();
+
+      // 1. Load the member record
+      const member = await ctx.runQuery(
+        internal.members.queries.getInternal,
+        { memberId: args.memberId },
+      );
+      if (!member) {
+        console.error("[analyzeRecalibration] Member not found:", args.memberId);
+        return;
+      }
+
+      // 2. Load all rejection feedback
+      const feedbackRecords = await ctx.runQuery(
+        internal.integrations.openrouter.callbacks.getFeedbackByMember,
+        { memberId: args.memberId },
+      );
+      const rejections = feedbackRecords.filter(
+        (f: any) => f.decision === "not_interested",
+      );
+
+      if (rejections.length === 0) {
+        console.log("[analyzeRecalibration] No rejection feedback found for", args.memberId);
+        return;
+      }
+
+      // 3. Load recent WhatsApp messages for conversational context
+      const recentMessages = await ctx.runQuery(
+        internal.engine.transitions.getRecentMessages,
+        { memberId: args.memberId, limit: 50 },
+      );
+
+      // 4. Build the rich prompt
+      let userPrompt = `Member: ${member.firstName} (${member.tier} tier)\n`;
+      if (member.matchmakerNotes) {
+        userPrompt += `Matchmaker notes: ${member.matchmakerNotes}\n`;
+      }
+      userPrompt += `Total rejections: ${rejections.length}\n\n`;
+
+      for (let i = 0; i < rejections.length; i++) {
+        const r = rejections[i];
+        userPrompt += `=== Rejection #${i + 1} ===\n`;
+        if (r.categories && r.categories.length > 0) {
+          userPrompt += `Categories: ${r.categories.join(", ")}\n`;
+        }
+        if (r.freeText) {
+          userPrompt += `Free text: "${r.freeText}"\n`;
+        }
+        if (r.llmAnalysis && typeof r.llmAnalysis === "object" && !r.llmAnalysis.error) {
+          if (r.llmAnalysis.matchmakerSummary) {
+            userPrompt += `LLM analysis: ${r.llmAnalysis.matchmakerSummary}\n`;
+          }
+          if (r.llmAnalysis.keyThemes && r.llmAnalysis.keyThemes.length > 0) {
+            userPrompt += `Key themes: ${r.llmAnalysis.keyThemes.join(", ")}\n`;
+          }
+        }
+        if (r.subCategories && typeof r.subCategories === "object") {
+          const subs = Object.entries(r.subCategories)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("; ");
+          if (subs) userPrompt += `Sub-categories: ${subs}\n`;
+        }
+        userPrompt += "\n";
+      }
+
+      // Add conversation excerpts
+      if (recentMessages && recentMessages.length > 0) {
+        userPrompt += "=== Recent conversation excerpts ===\n";
+        const sorted = [...recentMessages].reverse();
+        for (const msg of sorted.slice(0, 30)) {
+          const dir = msg.direction === "inbound" ? "Member" : "Bot";
+          userPrompt += `${dir}: ${msg.content.slice(0, 200)}\n`;
+        }
+      }
+
+      // 5. Call OpenRouter
+      const response = await fetch(OPENROUTER_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: OPENROUTER_MODEL,
+          messages: [
+            { role: "system", content: RECALIBRATION_SYSTEM_PROMPT },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 600,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `OpenRouter API error ${response.status}: ${errorText.slice(0, 200)}`,
+        );
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+
+      if (!content) {
+        throw new Error("OpenRouter returned empty content");
+      }
+
+      // 6. Parse the JSON response
+      let analysis;
+      try {
+        analysis = JSON.parse(content);
+      } catch {
+        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) {
+          analysis = JSON.parse(jsonMatch[1].trim());
+        } else {
+          throw new Error("Could not parse recalibration LLM response as JSON");
+        }
+      }
+
+      const summary =
+        typeof analysis.summary === "string"
+          ? analysis.summary
+          : "Multiple rejections recorded. Review feedback details for patterns.";
+      const keyPatterns = Array.isArray(analysis.keyPatterns)
+        ? analysis.keyPatterns.map(String)
+        : [];
+
+      // 7. Store on member record
+      await ctx.runMutation(
+        internal.members.mutations.updateRecalibrationSummary,
+        {
+          memberId: args.memberId,
+          recalibrationSummary: {
+            summary,
+            keyPatterns,
+            analyzedAt: Date.now(),
+            feedbackCount: rejections.length,
+          },
+        },
+      );
+
+      console.log(
+        `[analyzeRecalibration] Stored summary for ${member.firstName}: "${summary.slice(0, 80)}..."`,
+      );
+    } catch (error: any) {
+      console.error(
+        "[analyzeRecalibration] Failed for member",
+        args.memberId,
+        ":",
+        error?.message,
+      );
+    }
+  },
+});

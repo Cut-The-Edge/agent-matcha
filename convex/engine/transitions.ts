@@ -7,7 +7,7 @@
  */
 
 import { v } from "convex/values";
-import { internalMutation } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
 import {
   NODE_TYPES,
@@ -16,6 +16,7 @@ import {
 } from "./types";
 import type {
   FlowNode,
+  FlowEdge,
   FlowContext,
   MessageNodeConfig,
   DecisionNodeConfig,
@@ -85,20 +86,171 @@ export const processTransition = internalMutation({
       timestamp: Date.now(),
     });
 
-    // Check if we should auto-skip this FEEDBACK_COLLECT node.
-    // When a member expressed uncertainty at a DECISION (e.g., "I don't know" → gut_feeling),
-    // asking a follow-up sub-category question feels robotic. Auto-skip instead.
-    if (toNode && toNode.type === NODE_TYPES.FEEDBACK_COLLECT) {
-      const shouldSkip = shouldAutoSkipFeedback(args.context as FlowContext, args.fromNodeId, toNode);
-      if (shouldSkip) {
-        // Store a "skipped" response in context and advance to the next node
+    // ── Auto-skip: AI-extracted feedback makes downstream nodes redundant ──
+    // When the AI conversational fallback already collected rich feedback from
+    // the member (stored in context.metadata.aiExtractedFeedback), we auto-skip
+    // the mechanical follow-up nodes so the member doesn't get re-asked.
+    const ctx_context = args.context as FlowContext;
+    const aiExtracted = ctx_context.metadata?.aiExtractedFeedback as any;
+
+    if (toNode && aiExtracted && !aiExtracted.needsFollowUp) {
+      // --- Auto-skip DECISION nodes in the feedback pipeline ---
+      // e.g., "decision_why_not" (asks "what didn't feel right?" — AI already knows)
+      //       "decision_more_reasons" (asks "anything else?" — AI already captured all)
+      if (toNode.type === NODE_TYPES.DECISION) {
+        const autoSkipResult = getAutoSkipDecision(toNode, flowDef.edges, ctx_context, aiExtracted);
+        if (autoSkipResult) {
+          const updatedContext: FlowContext = {
+            ...ctx_context,
+            waitingForInput: false,
+            waitingNodeId: undefined,
+            memberDecision: autoSkipResult.optionValue,
+            responses: {
+              ...ctx_context.responses,
+              [toNode.nodeId]: {
+                selectedOption: autoSkipResult.optionValue,
+                selectedLabel: autoSkipResult.optionLabel,
+                rawInput: `[auto-resolved from AI conversation: ${aiExtracted.freeText?.slice(0, 100)}]`,
+                autoSkipped: true,
+              },
+            },
+          };
+
+          await ctx.db.patch(args.flowInstanceId, {
+            context: updatedContext,
+            lastTransitionAt: Date.now(),
+          });
+
+          await ctx.db.insert("flowExecutionLogs", {
+            instanceId: args.flowInstanceId,
+            nodeId: toNode.nodeId,
+            nodeType: NODE_TYPES.DECISION,
+            action: "auto_skipped",
+            output: JSON.stringify({
+              reason: "ai_extracted_feedback",
+              autoSelected: autoSkipResult.optionValue,
+              categories: aiExtracted.categories,
+            }),
+            timestamp: Date.now(),
+          });
+
+          // Follow the selected edge
+          await ctx.runMutation(internal.engine.transitions.processTransition, {
+            flowInstanceId: args.flowInstanceId,
+            fromNodeId: toNode.nodeId,
+            toNodeId: autoSkipResult.targetNodeId,
+            edgeId: autoSkipResult.edgeId,
+            context: updatedContext,
+            input: undefined,
+          });
+
+          // Auto-advance if needed
+          const nextNode = flowDef.nodes.find(
+            (n: FlowNode) => n.nodeId === autoSkipResult.targetNodeId,
+          );
+          if (nextNode) {
+            const autoTypes = [
+              NODE_TYPES.START, NODE_TYPES.MESSAGE, NODE_TYPES.ACTION,
+              NODE_TYPES.CONDITION, NODE_TYPES.END,
+            ];
+            if (autoTypes.includes(nextNode.type as any)) {
+              await ctx.scheduler.runAfter(0, internal.engine.interpreter.advanceFlow, {
+                flowInstanceId: args.flowInstanceId,
+                input: undefined,
+              });
+            }
+          }
+          return;
+        }
+      }
+
+      // --- Auto-skip FEEDBACK_COLLECT nodes ---
+      // When AI already extracted the sub-category details for this feedback type
+      if (toNode.type === NODE_TYPES.FEEDBACK_COLLECT) {
         const feedbackConfig = toNode.config as FeedbackCollectNodeConfig;
+        const hasExtractedForType = aiExtracted.categories?.includes(feedbackConfig.feedbackType)
+          || aiExtracted.subCategories?.[feedbackConfig.feedbackType];
+
+        if (hasExtractedForType && feedbackConfig.feedbackType !== "other") {
+          const subDetail = aiExtracted.subCategories?.[feedbackConfig.feedbackType] || "";
+          const updatedContext: FlowContext = {
+            ...ctx_context,
+            waitingForInput: false,
+            waitingNodeId: undefined,
+            responses: {
+              ...ctx_context.responses,
+              [toNode.nodeId]: {
+                skipped: true,
+                reason: "ai_extracted_feedback",
+                aiExtracted: subDetail,
+                freeText: aiExtracted.freeText,
+              },
+            },
+          };
+
+          await ctx.db.patch(args.flowInstanceId, {
+            context: updatedContext,
+            lastTransitionAt: Date.now(),
+          });
+
+          await ctx.db.insert("flowExecutionLogs", {
+            instanceId: args.flowInstanceId,
+            nodeId: toNode.nodeId,
+            nodeType: NODE_TYPES.FEEDBACK_COLLECT,
+            action: "auto_skipped",
+            output: JSON.stringify({
+              reason: "ai_extracted_feedback",
+              feedbackType: feedbackConfig.feedbackType,
+              aiExtracted: subDetail,
+            }),
+            timestamp: Date.now(),
+          });
+
+          // Follow the outgoing edge
+          const outEdges = flowDef.edges.filter(
+            (e: any) => e.source === toNode!.nodeId,
+          );
+          if (outEdges.length > 0) {
+            await ctx.runMutation(internal.engine.transitions.processTransition, {
+              flowInstanceId: args.flowInstanceId,
+              fromNodeId: toNode.nodeId,
+              toNodeId: outEdges[0].target,
+              edgeId: outEdges[0].edgeId,
+              context: updatedContext,
+              input: undefined,
+            });
+
+            const nextNode = flowDef.nodes.find(
+              (n: FlowNode) => n.nodeId === outEdges[0].target,
+            );
+            if (nextNode) {
+              const autoTypes = [
+                NODE_TYPES.START, NODE_TYPES.MESSAGE, NODE_TYPES.ACTION,
+                NODE_TYPES.CONDITION, NODE_TYPES.END,
+              ];
+              if (autoTypes.includes(nextNode.type as any)) {
+                await ctx.scheduler.runAfter(0, internal.engine.interpreter.advanceFlow, {
+                  flowInstanceId: args.flowInstanceId,
+                  input: undefined,
+                });
+              }
+            }
+          }
+          return;
+        }
+      }
+    }
+
+    // Legacy auto-skip: uncertainty at a DECISION → skip gut_feeling feedback
+    if (toNode && toNode.type === NODE_TYPES.FEEDBACK_COLLECT) {
+      const shouldSkip = shouldAutoSkipFeedback(ctx_context, args.fromNodeId, toNode);
+      if (shouldSkip) {
         const updatedContext: FlowContext = {
-          ...(args.context as FlowContext),
+          ...ctx_context,
           waitingForInput: false,
           waitingNodeId: undefined,
           responses: {
-            ...(args.context as FlowContext).responses,
+            ...ctx_context.responses,
             [toNode.nodeId]: { skipped: true, reason: "member_expressed_uncertainty" },
           },
         };
@@ -117,9 +269,8 @@ export const processTransition = internalMutation({
           timestamp: Date.now(),
         });
 
-        // Find the single outgoing edge and advance through it
         const outEdges = flowDef.edges.filter(
-          (e: any) => e.source === toNode!.nodeId
+          (e: any) => e.source === toNode!.nodeId,
         );
         if (outEdges.length > 0) {
           await ctx.runMutation(internal.engine.transitions.processTransition, {
@@ -131,9 +282,8 @@ export const processTransition = internalMutation({
             input: undefined,
           });
 
-          // Auto-advance if the next node is non-waiting
           const nextNode = flowDef.nodes.find(
-            (n: FlowNode) => n.nodeId === outEdges[0].target
+            (n: FlowNode) => n.nodeId === outEdges[0].target,
           );
           if (nextNode) {
             const autoTypes = [
@@ -240,6 +390,25 @@ export const handleMemberResponse = internalMutation({
     const context = waitingInstance.context as FlowContext;
     let resolvedInput: string | null = null;
 
+    // ── Special handling: member texted while waiting for Stripe payment ──
+    if (context.metadata?.awaitingPayment) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.engine.resolveInput.resolvePaymentWaitingInput,
+        {
+          flowInstanceId: waitingInstance._id,
+          memberId: args.memberId,
+          rawInput: args.response.trim(),
+          matchId: waitingInstance.matchId || undefined,
+        },
+      );
+      return {
+        handled: true,
+        flowInstanceId: waitingInstance._id,
+        currentNodeId: waitingInstance.currentNodeId,
+      };
+    }
+
     const flowDef = await ctx.db.get(waitingInstance.flowDefinitionId);
     const waitingNode = flowDef?.nodes.find(
       (n: FlowNode) => n.nodeId === context.waitingNodeId
@@ -329,7 +498,22 @@ export const handleMemberResponse = internalMutation({
         }
       );
     } else if (isDecisionNode || isFeedbackCollectNode) {
-      // No quick match — let the LLM figure it out
+      // No quick match — let the LLM figure it out, with full flow context
+      const question = (waitingNode?.config as any)?.question
+        || (waitingNode?.config as any)?.prompt
+        || "";
+
+      // Build flow graph context so the LLM understands the pipeline
+      let flowGraphContext = "";
+      if (flowDef && context.waitingNodeId) {
+        flowGraphContext = buildFlowGraphContext(
+          flowDef.nodes,
+          flowDef.edges,
+          context.waitingNodeId,
+          context,
+        );
+      }
+
       await ctx.scheduler.runAfter(
         0,
         internal.engine.resolveInput.resolveInputWithLLM,
@@ -339,6 +523,9 @@ export const handleMemberResponse = internalMutation({
           options: optionsList,
           formatAsFeedbackJson: isFeedbackCollectNode || false,
           memberId: args.memberId,
+          question,
+          matchId: waitingInstance.matchId || undefined,
+          flowGraphContext,
         }
       );
     } else {
@@ -748,8 +935,365 @@ export const handleFeedbackCollectTimeout = internalMutation({
 });
 
 // ============================================================================
+// rewindFlow — Move a flow instance back to a previous node
+// ============================================================================
+
+/**
+ * Rewind a flow instance to a previously visited node. Used when the AI
+ * conversational fallback detects the member changed their mind (e.g.,
+ * "actually I am interested" while at a "why not" feedback node).
+ *
+ * Resets the instance to the target node, clears waiting state and extracted
+ * feedback, logs the rewind, and re-executes the target node with new input.
+ */
+export const rewindFlow = internalMutation({
+  args: {
+    flowInstanceId: v.id("flowInstances"),
+    targetNodeId: v.string(),
+    input: v.string(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const instance = await ctx.db.get(args.flowInstanceId);
+    if (!instance || instance.status !== INSTANCE_STATUS.ACTIVE) return;
+
+    const flowDef = await ctx.db.get(instance.flowDefinitionId);
+    if (!flowDef) return;
+
+    const targetNode = flowDef.nodes.find(
+      (n: FlowNode) => n.nodeId === args.targetNodeId,
+    );
+    if (!targetNode) {
+      console.error(`[rewindFlow] Target node ${args.targetNodeId} not found`);
+      return;
+    }
+
+    const context = instance.context as FlowContext;
+    const previousNodeId = instance.currentNodeId;
+
+    // Cancel any pending scheduler job (timeout/nudge)
+    if (instance.schedulerJobId) {
+      try { await ctx.scheduler.cancel(instance.schedulerJobId); } catch {}
+    }
+
+    // Clear waiting state, extracted feedback (stale after rewind), and reset
+    const updatedContext: FlowContext = {
+      ...context,
+      waitingForInput: false,
+      waitingNodeId: undefined,
+      metadata: {
+        ...context.metadata,
+        aiExtractedFeedback: undefined,
+        rewindHistory: [
+          ...((context.metadata?.rewindHistory as any[]) || []),
+          {
+            from: previousNodeId,
+            to: args.targetNodeId,
+            reason: args.reason || "member_changed_mind",
+            at: Date.now(),
+          },
+        ],
+      },
+    };
+
+    // Update instance to the target node
+    await ctx.db.patch(args.flowInstanceId, {
+      currentNodeId: args.targetNodeId,
+      context: updatedContext,
+      lastTransitionAt: Date.now(),
+      schedulerJobId: undefined,
+    });
+
+    // Log the rewind
+    await ctx.db.insert("flowExecutionLogs", {
+      instanceId: args.flowInstanceId,
+      nodeId: previousNodeId,
+      nodeType: "rewind",
+      action: "rewound",
+      input: args.input,
+      output: JSON.stringify({
+        from: previousNodeId,
+        to: args.targetNodeId,
+        reason: args.reason,
+      }),
+      timestamp: Date.now(),
+    });
+
+    console.log(
+      `[rewindFlow] Rewound ${args.flowInstanceId}: ${previousNodeId} → ${args.targetNodeId} (${args.reason})`,
+    );
+
+    // Now advance the flow from the target node with the new input
+    await ctx.scheduler.runAfter(0, internal.engine.interpreter.advanceFlow, {
+      flowInstanceId: args.flowInstanceId,
+      input: args.input,
+    });
+  },
+});
+
+// ============================================================================
+// logOutboundMessage — Log an AI-generated outbound message to whatsappMessages
+// ============================================================================
+
+export const logOutboundMessage = internalMutation({
+  args: {
+    memberId: v.id("members"),
+    matchId: v.optional(v.id("matches")),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const messageId = await ctx.db.insert("whatsappMessages", {
+      matchId: args.matchId,
+      memberId: args.memberId,
+      direction: "outbound",
+      messageType: "text",
+      content: args.content,
+      status: "sent",
+      createdAt: Date.now(),
+    });
+    return messageId;
+  },
+});
+
+// ============================================================================
+// getRecentMessages — Load recent WhatsApp messages for a member (no auth)
+// ============================================================================
+
+export const getRecentMessages = internalQuery({
+  args: {
+    memberId: v.id("members"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("whatsappMessages")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .order("desc")
+      .take(args.limit ?? 10);
+  },
+});
+
+// ============================================================================
+// storeExtractedFeedback — Persist AI-extracted feedback into flow context
+// ============================================================================
+
+export const storeExtractedFeedback = internalMutation({
+  args: {
+    flowInstanceId: v.id("flowInstances"),
+    extractedFeedback: v.object({
+      categories: v.array(v.string()),
+      subCategories: v.any(),
+      freeText: v.string(),
+      sentiment: v.string(),
+      needsFollowUp: v.boolean(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const instance = await ctx.db.get(args.flowInstanceId);
+    if (!instance) return;
+
+    const context = instance.context as FlowContext;
+    const existing = context.metadata?.aiExtractedFeedback as any;
+
+    // Merge with any previously extracted feedback (accumulates across turns)
+    const mergedCategories = existing?.categories
+      ? [...new Set([...existing.categories, ...args.extractedFeedback.categories])]
+      : args.extractedFeedback.categories;
+
+    const mergedSubCategories = {
+      ...(existing?.subCategories || {}),
+      ...args.extractedFeedback.subCategories,
+    };
+
+    const mergedFreeText = existing?.freeText
+      ? `${existing.freeText}\n${args.extractedFeedback.freeText}`
+      : args.extractedFeedback.freeText;
+
+    const aiExtractedFeedback = {
+      categories: mergedCategories,
+      subCategories: mergedSubCategories,
+      freeText: mergedFreeText,
+      sentiment: args.extractedFeedback.sentiment,
+      needsFollowUp: args.extractedFeedback.needsFollowUp,
+      extractedAt: Date.now(),
+    };
+
+    await ctx.db.patch(args.flowInstanceId, {
+      context: {
+        ...context,
+        feedbackCategories: [
+          ...new Set([...(context.feedbackCategories || []), ...mergedCategories]),
+        ],
+        feedbackFreeText: mergedFreeText,
+        metadata: {
+          ...context.metadata,
+          aiExtractedFeedback,
+        },
+      },
+    });
+
+    console.log(
+      `[storeExtractedFeedback] Stored feedback for ${args.flowInstanceId}: ` +
+      `categories=${mergedCategories.join(",")}, sentiment=${args.extractedFeedback.sentiment}`,
+    );
+  },
+});
+
+// ============================================================================
 // Helpers
 // ============================================================================
+
+/**
+ * Build a human-readable description of the flow graph around the current node.
+ * Includes the current node, its options, what each option leads to (1-2 levels),
+ * and the previous node. This gives the LLM enough context to make routing decisions.
+ */
+export function buildFlowGraphContext(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  currentNodeId: string,
+  context: FlowContext,
+): string {
+  const currentNode = nodes.find((n) => n.nodeId === currentNodeId);
+  if (!currentNode) return "";
+
+  const lines: string[] = [];
+
+  // Previous node (where we came from)
+  const incomingEdges = edges.filter((e) => e.target === currentNodeId);
+  for (const edge of incomingEdges) {
+    const prevNode = nodes.find((n) => n.nodeId === edge.source);
+    if (prevNode) {
+      lines.push(`Previous node: [${prevNode.type}] "${prevNode.label}"`);
+      if (prevNode.type === "message") {
+        const config = prevNode.config as MessageNodeConfig;
+        lines.push(`  Message sent: "${config.template}"`);
+      }
+    }
+  }
+
+  // Current node
+  lines.push(`\nCurrent node: [${currentNode.type}] "${currentNode.label}"`);
+
+  // For decision nodes, describe each option and where it leads
+  if (currentNode.type === "decision") {
+    const config = currentNode.config as DecisionNodeConfig;
+    lines.push(`Question asked: "${config.question}"`);
+    lines.push(`Options and their downstream paths:`);
+
+    for (const opt of config.options) {
+      const edge = edges.find((e) => e.edgeId === opt.edgeId);
+      if (!edge) {
+        lines.push(`  - "${opt.label}" (value: ${opt.value}) → [unknown next step]`);
+        continue;
+      }
+      const nextNode = nodes.find((n) => n.nodeId === edge.target);
+      if (!nextNode) continue;
+
+      let downstream = describeNode(nextNode);
+
+      // Look one more level deep
+      const nextEdges = edges.filter((e) => e.source === nextNode.nodeId);
+      if (nextEdges.length > 0) {
+        const deepNodes = nextEdges
+          .map((e) => nodes.find((n) => n.nodeId === e.target))
+          .filter(Boolean)
+          .map((n) => describeNode(n!));
+        if (deepNodes.length > 0) {
+          downstream += ` → then: ${deepNodes.join(" / ")}`;
+        }
+      }
+
+      lines.push(`  - "${opt.label}" (value: ${opt.value}) → ${downstream}`);
+    }
+
+    if (config.timeoutEdgeId) {
+      const timeoutEdge = edges.find((e) => e.edgeId === config.timeoutEdgeId);
+      if (timeoutEdge) {
+        const timeoutNode = nodes.find((n) => n.nodeId === timeoutEdge.target);
+        if (timeoutNode) {
+          lines.push(`  - [timeout] → ${describeNode(timeoutNode)}`);
+        }
+      }
+    }
+  }
+
+  // For feedback_collect nodes, describe categories
+  if (currentNode.type === "feedback_collect") {
+    const config = currentNode.config as FeedbackCollectNodeConfig;
+    if (config.prompt) lines.push(`Prompt: "${config.prompt}"`);
+    lines.push(`Categories: ${config.categories.join(", ")}`);
+
+    const outEdges = edges.filter((e) => e.source === currentNodeId);
+    for (const edge of outEdges) {
+      const nextNode = nodes.find((n) => n.nodeId === edge.target);
+      if (nextNode) {
+        lines.push(`After selection → ${describeNode(nextNode)}`);
+      }
+    }
+  }
+
+  // Rewind targets: show previous DECISION nodes the member already passed through.
+  // The AI can rewind to these if the member changes their mind.
+  const visitedNodeIds = Object.keys(context.responses || {});
+  const rewindTargets = nodes.filter(
+    (n) =>
+      n.type === "decision" &&
+      n.nodeId !== currentNodeId &&
+      visitedNodeIds.includes(n.nodeId),
+  );
+  if (rewindTargets.length > 0) {
+    lines.push(`\n=== You can GO BACK to these previous decisions ===`);
+    for (const target of rewindTargets) {
+      const config = target.config as DecisionNodeConfig;
+      const optionLabels = config.options.map((o) => `"${o.label}" (value: ${o.value})`).join(", ");
+      const prevResponse = context.responses[target.nodeId];
+      const prevChoice = prevResponse?.selectedOption || prevResponse?.selectedLabel || "unknown";
+      lines.push(
+        `  - Node "${target.nodeId}": "${config.question?.slice(0, 60)}..." — member chose: ${prevChoice}`,
+      );
+      lines.push(`    Options: ${optionLabels}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Describe a node in a short, human-readable way for the LLM context.
+ */
+function describeNode(node: FlowNode): string {
+  switch (node.type) {
+    case "message": {
+      const c = node.config as MessageNodeConfig;
+      const preview = c.template.length > 80
+        ? c.template.slice(0, 80) + "…"
+        : c.template;
+      return `[message] "${preview}"`;
+    }
+    case "decision": {
+      const c = node.config as DecisionNodeConfig;
+      return `[decision] "${c.question}"`;
+    }
+    case "feedback_collect": {
+      const c = node.config as FeedbackCollectNodeConfig;
+      return `[feedback] ${c.prompt || c.feedbackType || "collect feedback"}`;
+    }
+    case "action": {
+      const c = node.config as ActionNodeConfig;
+      return `[action] ${c.actionType}`;
+    }
+    case "end": {
+      return `[end] flow complete`;
+    }
+    case "delay": {
+      const c = node.config as DelayNodeConfig;
+      return `[delay] ${c.duration} ${c.unit}`;
+    }
+    default:
+      return `[${node.type}] "${node.label}"`;
+  }
+}
 
 /**
  * Determine if a FEEDBACK_COLLECT node should be auto-skipped.
@@ -761,6 +1305,66 @@ export const handleFeedbackCollectTimeout = internalMutation({
  *
  * Returns true if the feedback node should be skipped.
  */
+
+/**
+ * Determine if a DECISION node can be auto-answered using AI-extracted feedback.
+ *
+ * Handles two key decision nodes in the feedback pipeline:
+ * - "decision_why_not": auto-selects the first extracted category
+ * - "decision_more_reasons": auto-answers "no" since AI already got everything
+ *
+ * Returns the auto-skip routing info, or null if the node shouldn't be skipped.
+ */
+function getAutoSkipDecision(
+  node: FlowNode,
+  edges: FlowEdge[],
+  context: FlowContext,
+  aiExtracted: any,
+): { optionValue: string; optionLabel: string; edgeId: string; targetNodeId: string } | null {
+  const config = node.config as DecisionNodeConfig;
+
+  // "decision_why_not" — pick the first extracted category
+  if (node.nodeId === "decision_why_not" || config.question?.includes("what didn't feel right")) {
+    const firstCategory = aiExtracted.categories?.[0];
+    if (firstCategory) {
+      const matchedOption = config.options.find(
+        (opt) => opt.value === firstCategory,
+      );
+      if (matchedOption) {
+        const edge = edges.find((e: any) => e.edgeId === matchedOption.edgeId);
+        if (edge) {
+          return {
+            optionValue: matchedOption.value,
+            optionLabel: matchedOption.label,
+            edgeId: edge.edgeId,
+            targetNodeId: edge.target,
+          };
+        }
+      }
+    }
+  }
+
+  // "decision_more_reasons" — AI already collected everything, answer "no"
+  if (node.nodeId === "decision_more_reasons" || config.question?.includes("anything else")) {
+    const noOption = config.options.find(
+      (opt) => opt.value === "more_reasons_no" || opt.label.toLowerCase() === "no",
+    );
+    if (noOption) {
+      const edge = edges.find((e: any) => e.edgeId === noOption.edgeId);
+      if (edge) {
+        return {
+          optionValue: noOption.value,
+          optionLabel: noOption.label,
+          edgeId: edge.edgeId,
+          targetNodeId: edge.target,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function shouldAutoSkipFeedback(
   context: FlowContext,
   fromNodeId: string,
@@ -799,6 +1403,38 @@ function shouldAutoSkipFeedback(
 
   return uncertaintyPatterns.some((pattern) => rawInput.includes(pattern));
 }
+
+/**
+ * Read a flow instance by ID (internal query for use from actions).
+ */
+export const getFlowInstance = internalQuery({
+  args: { flowInstanceId: v.id("flowInstances") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.flowInstanceId);
+  },
+});
+
+/**
+ * Cancel pending payments for a flow instance.
+ */
+export const cancelPendingPayment = internalMutation({
+  args: { flowInstanceId: v.id("flowInstances") },
+  handler: async (ctx, args) => {
+    const payments = await ctx.db
+      .query("payments")
+      .withIndex("by_flowInstance", (q) =>
+        q.eq("flowInstanceId", args.flowInstanceId),
+      )
+      .collect();
+    for (const payment of payments) {
+      if (payment.status === "pending") {
+        await ctx.db.patch(payment._id, {
+          status: "cancelled",
+        });
+      }
+    }
+  },
+});
 
 /**
  * Normalize text for quick option matching.

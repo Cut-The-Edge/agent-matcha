@@ -70,19 +70,6 @@ export const defaultNodes: Node[] = [
   // ══════════════════════════════════════════════════════════════════════════
 
   {
-    id: "msg_interested_pitch",
-    type: "message",
-    position: { x: 500, y: 1200 },
-    data: {
-      label: "Interested — Outreach Pitch",
-      config: {
-        template:
-          "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
-        channel: "whatsapp",
-      },
-    },
-  },
-  {
     id: "decision_interested_outreach",
     type: "decision",
     position: { x: 500, y: 1700 },
@@ -852,7 +839,7 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_interested",
     source: "decision_response",
-    target: "msg_interested_pitch",
+    target: "decision_interested_outreach",
     sourceHandle: "edge_interested",
     label: "I'm interested",
     type: "smoothstep",
@@ -877,14 +864,7 @@ export const defaultEdges: Edge[] = [
     animated: true,
   },
 
-  // ── §3 Flow A: Interested → Outreach Pitch → Decision → Payment (or Pass)
-  {
-    id: "e_pitch_to_decision",
-    source: "msg_interested_pitch",
-    target: "decision_interested_outreach",
-    type: "smoothstep",
-    animated: true,
-  },
+  // ── §3 Flow A: Interested → Decision → Payment (or Pass)
   {
     id: "edge_interested_yes",
     source: "decision_interested_outreach",
@@ -932,7 +912,7 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_day2_interested",
     source: "decision_response_day2",
-    target: "msg_interested_pitch",
+    target: "decision_interested_outreach",
     sourceHandle: "edge_day2_interested",
     label: "I'm interested",
     type: "smoothstep",
@@ -976,7 +956,7 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_day5_interested",
     source: "decision_response_day5",
-    target: "msg_interested_pitch",
+    target: "decision_interested_outreach",
     sourceHandle: "edge_day5_interested",
     label: "I'm interested",
     type: "smoothstep",
@@ -1020,7 +1000,7 @@ export const defaultEdges: Edge[] = [
   {
     id: "edge_day7_interested",
     source: "decision_response_day7",
-    target: "msg_interested_pitch",
+    target: "decision_interested_outreach",
     sourceHandle: "edge_day7_interested",
     label: "I'm interested",
     type: "smoothstep",

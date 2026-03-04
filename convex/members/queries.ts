@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { query } from "../_generated/server";
+import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "../auth/authz";
 
@@ -128,6 +128,18 @@ export const get = query({
 });
 
 /**
+ * Get a single member by ID (no auth required — internal use only).
+ */
+export const getInternal = internalQuery({
+  args: {
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.memberId);
+  },
+});
+
+/**
  * Get a member by their SmartMatchApp ID.
  */
 export const getBySmaId = query({
@@ -230,7 +242,8 @@ export const listRecalibrating = query({
         return {
           ...member,
           lastRejectionAt,
-          topRejectionReason,
+          topRejectionReason: member.recalibrationSummary?.keyPatterns?.[0] || topRejectionReason,
+          recalibrationSummary: member.recalibrationSummary?.summary || null,
         };
       })
     );

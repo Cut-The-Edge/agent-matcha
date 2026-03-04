@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import { requireAuth } from "../auth/authz";
 
 /**
@@ -180,6 +181,14 @@ export const incrementRejectionCount = internalMutation({
     }
 
     await ctx.db.patch(args.memberId, updates);
+
+    // Schedule async LLM analysis of all rejection conversations
+    if (newCount >= 3) {
+      await ctx.scheduler.runAfter(0, internal.integrations.openrouter.analyze.analyzeRecalibration, {
+        memberId: args.memberId,
+      });
+    }
+
     return { memberId: args.memberId, rejectionCount: newCount, recalibrating: newCount >= 3 };
   },
 });
@@ -279,5 +288,27 @@ export const deleteMember = mutation({
     });
 
     return args.memberId;
+  },
+});
+
+/**
+ * Store the LLM-generated recalibration summary on a member record.
+ * Called by the analyzeRecalibration action after OpenRouter responds.
+ */
+export const updateRecalibrationSummary = internalMutation({
+  args: {
+    memberId: v.id("members"),
+    recalibrationSummary: v.object({
+      summary: v.string(),
+      keyPatterns: v.array(v.string()),
+      analyzedAt: v.number(),
+      feedbackCount: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.memberId, {
+      recalibrationSummary: args.recalibrationSummary,
+      updatedAt: Date.now(),
+    });
   },
 });

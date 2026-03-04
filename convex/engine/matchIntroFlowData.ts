@@ -50,17 +50,6 @@ export const nodes = [
 
   // §3 — FLOW A: MEMBER IS INTERESTED
   {
-    nodeId: "msg_interested_pitch",
-    type: "message",
-    label: "Interested — Outreach Pitch",
-    position: { x: 500, y: 1200 },
-    config: {
-      template:
-        "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
-      channel: "whatsapp",
-    },
-  },
-  {
     nodeId: "decision_interested_outreach",
     type: "decision",
     label: "Outreach Decision",
@@ -635,12 +624,11 @@ export const edges = [
   { edgeId: "e_start_decision", source: "start_1", target: "decision_response" },
 
   // §2 Member Response → 3 flows + timeout
-  { edgeId: "edge_interested", source: "decision_response", target: "msg_interested_pitch", label: "I'm interested" },
+  { edgeId: "edge_interested", source: "decision_response", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_not_interested", source: "decision_response", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_upsell_intro", source: "decision_response", target: "decision_upsell", label: "More info / intro" },
 
-  // §3 Interested → Outreach pitch → Decision → Payment (or Pass)
-  { edgeId: "e_pitch_to_decision", source: "msg_interested_pitch", target: "decision_interested_outreach" },
+  // §3 Interested → Decision → Payment (or Pass)
   { edgeId: "edge_interested_yes", source: "decision_interested_outreach", target: "msg_interested_prepayment", label: "Yes, start outreach" },
   { edgeId: "edge_interested_pass", source: "decision_interested_outreach", target: "msg_upsell_pass", label: "Actually I'll pass" },
   { edgeId: "e_interested_prepay_action", source: "msg_interested_prepayment", target: "action_create_payment" },
@@ -648,17 +636,17 @@ export const edges = [
   // §6 Structured follow-up chain (Day 2 → 5 → 7 → 8 expire)
   { edgeId: "edge_timeout_day2", source: "decision_response", target: "msg_followup_day2", label: "No response (Day 2)" },
   { edgeId: "e_day2_decision", source: "msg_followup_day2", target: "decision_response_day2" },
-  { edgeId: "edge_day2_interested", source: "decision_response_day2", target: "msg_interested_pitch", label: "I'm interested" },
+  { edgeId: "edge_day2_interested", source: "decision_response_day2", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_day2_not_interested", source: "decision_response_day2", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_day2_upsell", source: "decision_response_day2", target: "decision_upsell", label: "More info / intro" },
   { edgeId: "edge_timeout_day5", source: "decision_response_day2", target: "msg_followup_day5", label: "No response (Day 5)" },
   { edgeId: "e_day5_decision", source: "msg_followup_day5", target: "decision_response_day5" },
-  { edgeId: "edge_day5_interested", source: "decision_response_day5", target: "msg_interested_pitch", label: "I'm interested" },
+  { edgeId: "edge_day5_interested", source: "decision_response_day5", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_day5_not_interested", source: "decision_response_day5", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_day5_upsell", source: "decision_response_day5", target: "decision_upsell", label: "More info / intro" },
   { edgeId: "edge_timeout_day7", source: "decision_response_day5", target: "msg_followup_day7", label: "No response (Day 7)" },
   { edgeId: "e_day7_decision", source: "msg_followup_day7", target: "decision_response_day7" },
-  { edgeId: "edge_day7_interested", source: "decision_response_day7", target: "msg_interested_pitch", label: "I'm interested" },
+  { edgeId: "edge_day7_interested", source: "decision_response_day7", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_day7_not_interested", source: "decision_response_day7", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_day7_upsell", source: "decision_response_day7", target: "decision_upsell", label: "More info / intro" },
   { edgeId: "edge_timeout_day8", source: "decision_response_day7", target: "msg_expire_day8", label: "No response (Day 8)" },

@@ -16,10 +16,16 @@
 
 import { Agent, createTool } from "@convex-dev/agent";
 import { components } from "../_generated/api";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod/v3";
 
 import { TEMPERATURE } from "./config";
+
+// Route all AI SDK calls through OpenRouter (OpenAI-compatible endpoint)
+const openrouter = createOpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
 // ============================================================================
 // System Prompt
@@ -269,7 +275,7 @@ const getConversationHistory = createTool({
  */
 export const matchaAgent = new Agent(components.agent, {
   name: "Agent Matcha",
-  languageModel: openai.chat("gpt-4o"),
+  languageModel: openrouter.chat("openai/gpt-4o"),
   instructions: SYSTEM_PROMPT,
   tools: {
     lookupMember,
@@ -293,7 +299,7 @@ export const matchaAgent = new Agent(components.agent, {
  */
 export const classifierAgent = new Agent(components.agent, {
   name: "Agent Matcha Classifier",
-  languageModel: openai.chat("gpt-4o-mini"),
+  languageModel: openrouter.chat("openai/gpt-4o-mini"),
   instructions: `You are a response classifier for Club Allenby's matchmaking system.
 Your ONLY job is to classify a member's free-text WhatsApp response into one of the provided categories.
 Respond with ONLY the category value — nothing else. No explanation, no extra text.
@@ -306,7 +312,7 @@ If the response is ambiguous or doesn't clearly fit any category, respond with "
  */
 export const personalizerAgent = new Agent(components.agent, {
   name: "Agent Matcha Personalizer",
-  languageModel: openai.chat("gpt-4o"),
+  languageModel: openrouter.chat("openai/gpt-4o"),
   instructions: `You are a message personalization engine for Club Allenby's matchmaking WhatsApp bot.
 Given a message template and member context, generate a warm, personalized version of the message.
 Keep the same intent and information, but make it feel personal and natural for WhatsApp.
