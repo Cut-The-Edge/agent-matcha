@@ -441,6 +441,15 @@ export const syncIntrosInternal = internalMutation({
       await ctx.db.insert("smaIntroductions", intro);
     }
 
+    // Schedule profile fetch for stub member if still "Unknown"
+    if (member && member.firstName === "Unknown" && member.smaId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.integrations.smartmatchapp.actions.fetchProfile,
+        { smaClientId: Number(member.smaId) }
+      );
+    }
+
     // Reconcile internal matches table from fresh intro data.
     // Creates matches that don't exist, updates ones that do.
     const GROUP_STATUS_MAP: Record<string, string> = {
@@ -497,6 +506,15 @@ export const syncIntrosInternal = internalMutation({
             createdAt: now,
             updatedAt: now,
           });
+
+          // Schedule profile fetch for partner if still a stub
+          if (partner.firstName === "Unknown" && partner.smaId) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.integrations.smartmatchapp.actions.fetchProfile,
+              { smaClientId: Number(partner.smaId) }
+            );
+          }
         }
       }
     }

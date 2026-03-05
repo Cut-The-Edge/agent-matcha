@@ -77,10 +77,28 @@ export const list = query({
           if (intro?.matchmakerName) triggeredByName = intro.matchmakerName;
         }
 
+        // Resolve "Unknown" names from SMA intro partnerName
+        let memberAName = formatMemberName(memberA);
+        let memberBName = formatMemberName(memberB);
+        if (memberAName === "Unknown" && memberA?.smaId) {
+          const ref = await ctx.db
+            .query("smaIntroductions")
+            .filter((q) => q.eq(q.field("partnerSmaId"), memberA.smaId))
+            .first();
+          if (ref?.partnerName && ref.partnerName !== "Unknown") memberAName = ref.partnerName;
+        }
+        if (memberBName === "Unknown" && memberB?.smaId) {
+          const ref = await ctx.db
+            .query("smaIntroductions")
+            .filter((q) => q.eq(q.field("partnerSmaId"), memberB.smaId))
+            .first();
+          if (ref?.partnerName && ref.partnerName !== "Unknown") memberBName = ref.partnerName;
+        }
+
         return {
           ...match,
-          memberAName: formatMemberName(memberA),
-          memberBName: formatMemberName(memberB),
+          memberAName,
+          memberBName,
           triggeredByName: triggeredByName ?? "System",
         };
       })
@@ -128,14 +146,38 @@ export const get = query({
       }
     }
 
+    // Resolve "Unknown" member names from SMA intro partnerName
+    let memberAName = formatMemberName(memberA);
+    let memberBName = formatMemberName(memberB);
+
+    if (memberAName === "Unknown" && memberA?.smaId) {
+      // Look for intros where this member is the partner
+      const refIntro = await ctx.db
+        .query("smaIntroductions")
+        .filter((q) => q.eq(q.field("partnerSmaId"), memberA.smaId))
+        .first();
+      if (refIntro?.partnerName && refIntro.partnerName !== "Unknown") {
+        memberAName = refIntro.partnerName;
+      }
+    }
+    if (memberBName === "Unknown" && memberB?.smaId) {
+      const refIntro = await ctx.db
+        .query("smaIntroductions")
+        .filter((q) => q.eq(q.field("partnerSmaId"), memberB.smaId))
+        .first();
+      if (refIntro?.partnerName && refIntro.partnerName !== "Unknown") {
+        memberBName = refIntro.partnerName;
+      }
+    }
+
     return {
       ...match,
       memberA: memberA
         ? {
             _id: memberA._id,
             smaId: memberA.smaId,
-            firstName: memberA.firstName,
-            lastName: memberA.lastName,
+            firstName: memberAName.split(" ")[0] || memberA.firstName,
+            lastName: memberAName.split(" ").slice(1).join(" ") || memberA.lastName,
             email: memberA.email,
             phone: memberA.phone,
             tier: memberA.tier,
@@ -146,16 +188,16 @@ export const get = query({
         ? {
             _id: memberB._id,
             smaId: memberB.smaId,
-            firstName: memberB.firstName,
-            lastName: memberB.lastName,
+            firstName: memberBName.split(" ")[0] || memberB.firstName,
+            lastName: memberBName.split(" ").slice(1).join(" ") || memberB.lastName,
             email: memberB.email,
             phone: memberB.phone,
             tier: memberB.tier,
             status: memberB.status,
           }
         : null,
-      memberAName: formatMemberName(memberA),
-      memberBName: formatMemberName(memberB),
+      memberAName,
+      memberBName,
       triggeredByName: triggeredByName ?? "System",
       feedback: feedbackEntries,
     };

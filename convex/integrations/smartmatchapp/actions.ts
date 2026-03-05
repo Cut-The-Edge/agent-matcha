@@ -51,22 +51,62 @@ export const handleMatchAdded = internalAction({
     let memberA = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId: smaIdA });
     let memberB = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId: smaIdB });
 
-    // Create stub members if not found (defensive — client_created should have run first)
-    if (!memberA) {
-      console.warn(`SMA match_added: member A (smaId=${smaIdA}) not found, creating stub`);
-      const result = await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
-        smaId: smaIdA,
-        firstName: "Unknown",
-      });
+    // Fetch full profile from SMA API if member not found (or is a stub)
+    if (!memberA || memberA.firstName === "Unknown") {
+      console.log(`SMA match_added: fetching profile for client ${args.clientId}`);
+      try {
+        const apiData = await fetchAndMapClient(args.clientId);
+        await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+          smaId: apiData.smaId,
+          firstName: apiData.firstName,
+          middleName: apiData.middleName,
+          lastName: apiData.lastName,
+          email: apiData.email,
+          phone: apiData.phone,
+          profilePictureUrl: apiData.profilePictureUrl,
+          location: apiData.location,
+          tier: apiData.tier,
+          profileComplete: apiData.profileComplete,
+          matchmakerNotes: apiData.matchmakerNotes,
+        });
+      } catch (err) {
+        console.warn(`SMA match_added: failed to fetch profile for client ${args.clientId}, creating stub:`, err);
+        if (!memberA) {
+          await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+            smaId: smaIdA,
+            firstName: "Unknown",
+          });
+        }
+      }
       memberA = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId: smaIdA });
     }
 
-    if (!memberB) {
-      console.warn(`SMA match_added: member B (smaId=${smaIdB}) not found, creating stub`);
-      const result = await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
-        smaId: smaIdB,
-        firstName: "Unknown",
-      });
+    if (!memberB || memberB.firstName === "Unknown") {
+      console.log(`SMA match_added: fetching profile for match ${args.matchId}`);
+      try {
+        const apiData = await fetchAndMapClient(args.matchId);
+        await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+          smaId: apiData.smaId,
+          firstName: apiData.firstName,
+          middleName: apiData.middleName,
+          lastName: apiData.lastName,
+          email: apiData.email,
+          phone: apiData.phone,
+          profilePictureUrl: apiData.profilePictureUrl,
+          location: apiData.location,
+          tier: apiData.tier,
+          profileComplete: apiData.profileComplete,
+          matchmakerNotes: apiData.matchmakerNotes,
+        });
+      } catch (err) {
+        console.warn(`SMA match_added: failed to fetch profile for match ${args.matchId}, creating stub:`, err);
+        if (!memberB) {
+          await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+            smaId: smaIdB,
+            firstName: "Unknown",
+          });
+        }
+      }
       memberB = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId: smaIdB });
     }
 
@@ -285,6 +325,31 @@ export const syncIntrosForMatch = internalAction({
         console.warn(`Failed to re-sync intros for smaId=${smaId} after match change:`, err);
       }
     }
+  },
+});
+
+/**
+ * Fetch a single member's profile from SMA API and upsert into DB.
+ * Internal-only — used by syncIntrosInternal to backfill "Unknown" stub members.
+ */
+export const fetchProfile = internalAction({
+  args: { smaClientId: v.number() },
+  handler: async (ctx, args) => {
+    const apiData = await fetchAndMapClient(args.smaClientId);
+    await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+      smaId: apiData.smaId,
+      firstName: apiData.firstName,
+      middleName: apiData.middleName,
+      lastName: apiData.lastName,
+      email: apiData.email,
+      phone: apiData.phone,
+      profilePictureUrl: apiData.profilePictureUrl,
+      location: apiData.location,
+      tier: apiData.tier,
+      profileComplete: apiData.profileComplete,
+      matchmakerNotes: apiData.matchmakerNotes,
+    });
+    return { smaId: apiData.smaId, firstName: apiData.firstName };
   },
 });
 
