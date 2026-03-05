@@ -292,6 +292,86 @@ export const deleteMember = mutation({
 });
 
 /**
+ * Upsert a member by smaId — internal version (no auth required).
+ * Called by the SMA webhook integration to sync member data.
+ */
+export const syncFromSmaInternal = internalMutation({
+  args: {
+    smaId: v.string(),
+    firstName: v.string(),
+    lastName: v.optional(v.string()),
+    middleName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    whatsappId: v.optional(v.string()),
+    profilePictureUrl: v.optional(v.string()),
+    location: v.optional(v.object({
+      country: v.optional(v.string()),
+      city: v.optional(v.string()),
+      state: v.optional(v.string()),
+      zipCode: v.optional(v.string()),
+    })),
+    tier: v.optional(
+      v.union(v.literal("free"), v.literal("member"), v.literal("vip"))
+    ),
+    profileComplete: v.optional(v.boolean()),
+    matchmakerNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query("members")
+      .withIndex("by_smaId", (q) => q.eq("smaId", args.smaId))
+      .first();
+
+    if (existing) {
+      // Partial update — only overwrite fields that have real values (skip empty strings)
+      const updates: Record<string, any> = {
+        lastSyncedAt: now,
+        updatedAt: now,
+      };
+
+      if (args.firstName) updates.firstName = args.firstName;
+      if (args.lastName !== undefined) updates.lastName = args.lastName;
+      if (args.middleName !== undefined) updates.middleName = args.middleName;
+      if (args.email !== undefined) updates.email = args.email;
+      if (args.phone !== undefined) updates.phone = args.phone;
+      if (args.whatsappId !== undefined) updates.whatsappId = args.whatsappId;
+      if (args.profilePictureUrl !== undefined) updates.profilePictureUrl = args.profilePictureUrl;
+      if (args.location !== undefined) updates.location = args.location;
+      if (args.tier !== undefined) updates.tier = args.tier;
+      if (args.profileComplete !== undefined) updates.profileComplete = args.profileComplete;
+      if (args.matchmakerNotes !== undefined) updates.matchmakerNotes = args.matchmakerNotes;
+
+      await ctx.db.patch(existing._id, updates);
+      return { memberId: existing._id, action: "updated" as const };
+    } else {
+      const memberId = await ctx.db.insert("members", {
+        smaId: args.smaId,
+        firstName: args.firstName || "Unknown",
+        middleName: args.middleName,
+        lastName: args.lastName,
+        email: args.email,
+        phone: args.phone,
+        whatsappId: args.whatsappId,
+        profilePictureUrl: args.profilePictureUrl,
+        location: args.location,
+        tier: args.tier ?? "free",
+        profileComplete: args.profileComplete ?? false,
+        matchmakerNotes: args.matchmakerNotes,
+        rejectionCount: 0,
+        status: "active",
+        lastSyncedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { memberId, action: "created" as const };
+    }
+  },
+});
+
+/**
  * Store the LLM-generated recalibration summary on a member record.
  * Called by the analyzeRecalibration action after OpenRouter responds.
  */

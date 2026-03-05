@@ -2,6 +2,7 @@
 import { httpRouter } from "convex/server";
 import { twilioWebhookHandler } from "./integrations/twilio/webhooks";
 import { crmMatchCreatedHandler } from "./integrations/crm/webhooks";
+import { smaWebhookHandler } from "./integrations/smartmatchapp/webhook";
 import { registerRoutes as registerStripeRoutes } from "@convex-dev/stripe";
 import { stripeEventHandlers } from "./integrations/stripe/webhooks";
 import { components } from "./_generated/api";
@@ -23,11 +24,18 @@ http.route({
   handler: twilioWebhookHandler,
 });
 
-// ── CRM match-created webhook ────────────────────────────────────
+// ── CRM match-created webhook (legacy — kept for backwards compat) ─
 http.route({
   path: "/crm/match-created",
   method: "POST",
   handler: crmMatchCreatedHandler,
+});
+
+// ── SmartMatchApp webhook (native SMA events) ──────────────────
+http.route({
+  path: "/sma/webhook",
+  method: "POST",
+  handler: smaWebhookHandler,
 });
 
 // ── Voice agent HTTP endpoints ───────────────────────────────────

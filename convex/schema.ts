@@ -29,11 +29,19 @@ export default defineSchema({
   members: defineTable({
     smaId: v.string(),
     firstName: v.string(),
+    middleName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     whatsappId: v.optional(v.string()),
     profileLink: v.optional(v.string()),
+    profilePictureUrl: v.optional(v.string()),
+    location: v.optional(v.object({
+      country: v.optional(v.string()),
+      city: v.optional(v.string()),
+      state: v.optional(v.string()),
+      zipCode: v.optional(v.string()),
+    })),
     tier: v.union(
       v.literal("free"),
       v.literal("member"),
@@ -88,14 +96,20 @@ export default defineSchema({
     )),
     // §7.2: structured notes written by the flow
     matchNotes: v.optional(v.any()),
-    triggeredBy: v.id("admins"),
+    triggeredBy: v.optional(v.id("admins")),
+    // SMA group/status sync
+    smaGroupId: v.optional(v.number()),
+    smaGroupName: v.optional(v.string()),
+    smaStatusId: v.optional(v.number()),
+    smaStatusName: v.optional(v.string()),
     groupChatId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_memberA", ["memberAId"])
     .index("by_memberB", ["memberBId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_smaIntroId", ["smaIntroId"]),
 
   // -- Feedback --
   feedback: defineTable({

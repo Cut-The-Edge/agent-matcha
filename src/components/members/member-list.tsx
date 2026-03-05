@@ -23,9 +23,11 @@ import {
   UserPlus,
   Pencil,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 
-import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
+import { useAuthQuery, useAuthMutation, useAuthAction } from "@/hooks/use-auth-query"
+import { toast } from "sonner"
 import { api } from "../../../convex/_generated/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -134,10 +136,14 @@ export function MemberList() {
   const members = useAuthQuery(api.members.queries.list, {})
   const { mutateWithAuth: createMember } = useAuthMutation(api.members.mutations.create)
   const { mutateWithAuth: updateMember } = useAuthMutation(api.members.mutations.update)
+  const { actionWithAuth: syncMemberAction } = useAuthAction(api.integrations.smartmatchapp.actions.syncMember)
+  const { actionWithAuth: syncAllMembersAction } = useAuthAction(api.integrations.smartmatchapp.actions.syncAllMembers)
   const [addDialogOpen, setAddDialogOpen] = React.useState(false)
   const [isAdding, setIsAdding] = React.useState(false)
   const [editingMember, setEditingMember] = React.useState<Doc<"members"> | null>(null)
   const [isEditing, setIsEditing] = React.useState(false)
+  const [syncingMemberId, setSyncingMemberId] = React.useState<string | null>(null)
+  const [isSyncingAll, setIsSyncingAll] = React.useState(false)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>([])
@@ -192,8 +198,37 @@ export function MemberList() {
     }
   }
 
+  const handleSyncMember = async (member: Doc<"members">) => {
+    if (!member.smaId || !/^\d+$/.test(member.smaId)) return
+    setSyncingMemberId(member._id)
+    try {
+      const result = await syncMemberAction({ smaClientId: Number(member.smaId) })
+      toast.success(`Synced ${member.firstName} (${result.action})`)
+    } catch (err) {
+      console.error("Sync failed:", err)
+      toast.error(`Failed to sync ${member.firstName}`)
+    } finally {
+      setSyncingMemberId(null)
+    }
+  }
+
+  const handleSyncAll = async () => {
+    setIsSyncingAll(true)
+    try {
+      const result = await syncAllMembersAction({})
+      toast.success(`Synced ${result.synced} member${result.synced !== 1 ? "s" : ""}${result.errors ? `, ${result.errors} error${result.errors !== 1 ? "s" : ""}` : ""}`)
+    } catch (err) {
+      console.error("Sync all failed:", err)
+      toast.error("Failed to sync all members")
+    } finally {
+      setIsSyncingAll(false)
+    }
+  }
+
   const tableMeta: MemberTableMeta = {
     onEdit: (member) => setEditingMember(member),
+    onSync: handleSyncMember,
+    syncingMemberId,
   }
 
   const table = useReactTable({
@@ -287,6 +322,19 @@ export function MemberList() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleSyncAll}
+          disabled={isSyncingAll}
+        >
+          {isSyncingAll ? (
+            <Loader2 className="mr-1 size-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-1 size-4" />
+          )}
+          Sync All
+        </Button>
         <Button size="sm" onClick={() => setAddDialogOpen(true)}>
           <UserPlus className="mr-1 size-4" />
           Add Member

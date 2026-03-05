@@ -49,10 +49,12 @@ import type * as integrations_deepgram_transcribe from "../integrations/deepgram
 import type * as integrations_openrouter_analyze from "../integrations/openrouter/analyze.js";
 import type * as integrations_openrouter_callbacks from "../integrations/openrouter/callbacks.js";
 import type * as integrations_openrouter_config from "../integrations/openrouter/config.js";
+import type * as integrations_smartmatchapp_actions from "../integrations/smartmatchapp/actions.js";
 import type * as integrations_smartmatchapp_client from "../integrations/smartmatchapp/client.js";
 import type * as integrations_smartmatchapp_contacts from "../integrations/smartmatchapp/contacts.js";
 import type * as integrations_smartmatchapp_matches from "../integrations/smartmatchapp/matches.js";
 import type * as integrations_smartmatchapp_notes from "../integrations/smartmatchapp/notes.js";
+import type * as integrations_smartmatchapp_webhook from "../integrations/smartmatchapp/webhook.js";
 import type * as integrations_stripe_callbacks from "../integrations/stripe/callbacks.js";
 import type * as integrations_stripe_checkout from "../integrations/stripe/checkout.js";
 import type * as integrations_stripe_config from "../integrations/stripe/config.js";
@@ -132,10 +134,12 @@ declare const fullApi: ApiFromModules<{
   "integrations/openrouter/analyze": typeof integrations_openrouter_analyze;
   "integrations/openrouter/callbacks": typeof integrations_openrouter_callbacks;
   "integrations/openrouter/config": typeof integrations_openrouter_config;
+  "integrations/smartmatchapp/actions": typeof integrations_smartmatchapp_actions;
   "integrations/smartmatchapp/client": typeof integrations_smartmatchapp_client;
   "integrations/smartmatchapp/contacts": typeof integrations_smartmatchapp_contacts;
   "integrations/smartmatchapp/matches": typeof integrations_smartmatchapp_matches;
   "integrations/smartmatchapp/notes": typeof integrations_smartmatchapp_notes;
+  "integrations/smartmatchapp/webhook": typeof integrations_smartmatchapp_webhook;
   "integrations/stripe/callbacks": typeof integrations_stripe_callbacks;
   "integrations/stripe/checkout": typeof integrations_stripe_checkout;
   "integrations/stripe/config": typeof integrations_stripe_config;

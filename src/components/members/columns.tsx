@@ -2,13 +2,15 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, ArrowUpDown, Pencil } from "lucide-react"
+import { Check, X, ArrowUpDown, Pencil, RefreshCw, Loader2, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Doc } from "../../../convex/_generated/dataModel"
 import { format } from "date-fns"
 
 export interface MemberTableMeta {
   onEdit?: (member: Member) => void
+  onSync?: (member: Member) => void
+  syncingMemberId?: string | null
 }
 
 type Member = Doc<"members">
@@ -71,14 +73,51 @@ export const columns: ColumnDef<Member>[] = [
     cell: ({ row }) => {
       const firstName = row.original.firstName
       const lastName = row.original.lastName
+      const profilePictureUrl = (row.original as any).profilePictureUrl
+      const initials = `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase()
       return (
-        <span className="font-medium">
-          {firstName}
-          {lastName ? ` ${lastName}` : ""}
-        </span>
+        <div className="flex items-center gap-2.5">
+          {profilePictureUrl ? (
+            <img
+              src={profilePictureUrl}
+              alt={firstName}
+              className="size-8 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
+              {initials || "?"}
+            </div>
+          )}
+          <span className="font-medium">
+            {firstName}
+            {lastName ? ` ${lastName}` : ""}
+          </span>
+        </div>
       )
     },
     enableHiding: false,
+  },
+  {
+    accessorKey: "smaId",
+    header: "CRM ID",
+    cell: ({ row }) => {
+      const smaId = row.original.smaId
+      const isNumeric = smaId && /^\d+$/.test(smaId)
+      if (!isNumeric) {
+        return <span className="text-muted-foreground text-xs">{smaId || "---"}</span>
+      }
+      return (
+        <a
+          href={`https://club-allenby.smartmatchapp.com/#!/client/${smaId}/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          {smaId}
+          <ExternalLink className="size-3" />
+        </a>
+      )
+    },
   },
   {
     accessorKey: "email",
@@ -210,16 +249,36 @@ export const columns: ColumnDef<Member>[] = [
     header: "",
     cell: ({ row, table }) => {
       const meta = table.options.meta as MemberTableMeta | undefined
+      const isSyncing = meta?.syncingMemberId === row.original._id
+      const hasSmaId = row.original.smaId && /^\d+$/.test(row.original.smaId)
       return (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => meta?.onEdit?.(row.original)}
-        >
-          <Pencil className="mr-1 size-3" />
-          Edit
-        </Button>
+        <div className="flex items-center gap-1">
+          {hasSmaId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              disabled={isSyncing}
+              onClick={() => meta?.onSync?.(row.original)}
+              title="Sync from SMA"
+            >
+              {isSyncing ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => meta?.onEdit?.(row.original)}
+          >
+            <Pencil className="mr-1 size-3" />
+            Edit
+          </Button>
+        </div>
       )
     },
     enableHiding: false,

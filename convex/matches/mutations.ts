@@ -233,6 +233,54 @@ export const complete = mutation({
 });
 
 /**
+ * Update a match's SMA group/status fields from a webhook event.
+ * Auto-maps certain SMA groups to our internal match statuses.
+ */
+export const updateMatchFromSma = internalMutation({
+  args: {
+    smaIntroId: v.string(),
+    smaGroupId: v.optional(v.number()),
+    smaGroupName: v.optional(v.string()),
+    smaStatusId: v.optional(v.number()),
+    smaStatusName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const match = await ctx.db
+      .query("matches")
+      .withIndex("by_smaIntroId", (q) => q.eq("smaIntroId", args.smaIntroId))
+      .first();
+
+    if (!match) {
+      console.warn(`updateMatchFromSma: no match found for smaIntroId=${args.smaIntroId}`);
+      return { found: false };
+    }
+
+    const updates: Record<string, any> = { updatedAt: Date.now() };
+
+    if (args.smaGroupId !== undefined) updates.smaGroupId = args.smaGroupId;
+    if (args.smaGroupName !== undefined) updates.smaGroupName = args.smaGroupName;
+    if (args.smaStatusId !== undefined) updates.smaStatusId = args.smaStatusId;
+    if (args.smaStatusName !== undefined) updates.smaStatusName = args.smaStatusName;
+
+    // Auto-map SMA group → our internal status for terminal groups
+    const GROUP_STATUS_MAP: Record<string, string> = {
+      "Rejected Introductions": "rejected",
+      "Not Suitable": "rejected",
+      "Past Introductions": "past",
+      "Successful Matches": "completed",
+    };
+
+    const groupName = args.smaGroupName;
+    if (groupName && GROUP_STATUS_MAP[groupName]) {
+      updates.status = GROUP_STATUS_MAP[groupName];
+    }
+
+    await ctx.db.patch(match._id, updates);
+    return { found: true, matchId: match._id, updatedStatus: updates.status };
+  },
+});
+
+/**
  * Set or update the groupChatId for a match (used when a WhatsApp group is created).
  */
 export const setGroupChat = mutation({

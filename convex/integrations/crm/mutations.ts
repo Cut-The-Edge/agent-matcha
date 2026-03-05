@@ -27,6 +27,8 @@ export const processMatchCreated = internalMutation({
     memberBName: v.optional(v.string()),
     profileLinkA: v.optional(v.string()),
     profileLinkB: v.optional(v.string()),
+    smaGroupId: v.optional(v.number()),
+    smaGroupName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Look up members by SMA ID
@@ -46,15 +48,11 @@ export const processMatchCreated = internalMutation({
       );
     }
 
-    // We need an admin ID for the match — use the first active admin
+    // Try to find an admin — SMA-originated matches may not have one
     const admin = await ctx.db
       .query("admins")
       .filter((q) => q.eq(q.field("status"), "active"))
       .first();
-
-    if (!admin) {
-      throw new Error("No active admin found to trigger match");
-    }
 
     // Create the match record
     const matchId = await ctx.db.insert("matches", {
@@ -62,7 +60,9 @@ export const processMatchCreated = internalMutation({
       memberAId: memberA._id,
       memberBId: memberB._id,
       status: "pending",
-      triggeredBy: admin._id,
+      triggeredBy: admin?._id,
+      smaGroupId: args.smaGroupId,
+      smaGroupName: args.smaGroupName,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });

@@ -140,6 +140,17 @@ export const getInternal = internalQuery({
 });
 
 /**
+ * List all members (no auth required — internal use only).
+ * Used by syncAllMembers to iterate over every member.
+ */
+export const listAllInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("members").collect();
+  },
+});
+
+/**
  * Get a member by their SmartMatchApp ID.
  */
 export const getBySmaId = query({
@@ -149,6 +160,21 @@ export const getBySmaId = query({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.sessionToken);
+    return await ctx.db
+      .query("members")
+      .withIndex("by_smaId", (q) => q.eq("smaId", args.smaId))
+      .first();
+  },
+});
+
+/**
+ * Get a member by their SmartMatchApp ID (no auth required — internal use only).
+ */
+export const getBySmaIdInternal = internalQuery({
+  args: {
+    smaId: v.string(),
+  },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("members")
       .withIndex("by_smaId", (q) => q.eq("smaId", args.smaId))

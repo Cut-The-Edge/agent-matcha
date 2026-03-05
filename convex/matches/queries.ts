@@ -64,7 +64,7 @@ export const list = query({
         const [memberA, memberB, admin] = await Promise.all([
           ctx.db.get(match.memberAId),
           ctx.db.get(match.memberBId),
-          ctx.db.get(match.triggeredBy),
+          match.triggeredBy ? ctx.db.get(match.triggeredBy) : null,
         ]);
 
         return {
@@ -97,7 +97,7 @@ export const get = query({
     const [memberA, memberB, admin] = await Promise.all([
       ctx.db.get(match.memberAId),
       ctx.db.get(match.memberBId),
-      ctx.db.get(match.triggeredBy),
+      match.triggeredBy ? ctx.db.get(match.triggeredBy) : null,
     ]);
 
     // Get feedback for this match
