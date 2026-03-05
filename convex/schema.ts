@@ -61,6 +61,17 @@ export default defineSchema({
       v.literal("paused"),
       v.literal("recalibrating"),
     ),
+    smaIntroSummary: v.optional(v.object({
+      successful: v.number(),
+      active: v.number(),
+      potential: v.number(),
+      rejected: v.number(),
+      past: v.number(),
+      automated: v.number(),
+      notSuitable: v.number(),
+      total: v.number(),
+      lastFetchedAt: v.number(),
+    })),
     lastSyncedAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -70,6 +81,34 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_whatsappId", ["whatsappId"])
     .index("by_status", ["status"]),
+
+  // -- SMA Introductions (cached from SMA CRM) --
+  smaIntroductions: defineTable({
+    smaMatchId: v.number(),
+    memberSmaId: v.string(),
+    partnerSmaId: v.string(),
+    partnerName: v.optional(v.string()),
+    group: v.string(),
+    groupId: v.number(),
+    clientPercent: v.optional(v.number()),
+    matchPercent: v.optional(v.number()),
+    matchmakerName: v.optional(v.string()),
+    smaCreatedDate: v.string(),
+    syncedAt: v.number(),
+    // Enriched match detail fields from SMA CRM
+    matchStatus: v.optional(v.string()),
+    matchStatusId: v.optional(v.number()),
+    clientStatus: v.optional(v.string()),
+    clientStatusId: v.optional(v.number()),
+    matchPartnerStatus: v.optional(v.string()),
+    matchPartnerStatusId: v.optional(v.number()),
+    clientPriority: v.optional(v.number()),
+    matchPriority: v.optional(v.number()),
+    clientDueDate: v.optional(v.string()),
+    matchDueDate: v.optional(v.string()),
+  })
+    .index("by_member", ["memberSmaId"])
+    .index("by_smaMatchId", ["smaMatchId"]),
 
   // -- Matches (§7.1 Match Status Values) --
   matches: defineTable({
@@ -254,6 +293,21 @@ export default defineSchema({
   })
     .index("by_call", ["callId"])
     .index("by_timestamp", ["callId", "timestamp"]),
+
+  // -- Sync Jobs (background sync tracking) --
+  syncJobs: defineTable({
+    type: v.string(),
+    status: v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    progress: v.optional(v.number()),
+    total: v.optional(v.number()),
+    result: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_type_status", ["type", "status"]),
 
   // -- Flow Engine: Definitions --
   flowDefinitions: defineTable({

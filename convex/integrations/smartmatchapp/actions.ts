@@ -9,7 +9,8 @@
 import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
-import { fetchAndMapClient } from "./contacts";
+import { fetchAndMapClient, fetchAndMapIntroductions } from "./contacts";
+import { getClientMatches, smaGet } from "./client";
 
 /**
  * Handle a match_added event from SMA.
@@ -238,6 +239,56 @@ export const handleClientSync = internalAction({
 });
 
 /**
+ * Sync introductions for a single member by SMA client ID.
+ * Used by webhooks to auto-refresh intro data when matches change.
+ */
+export const syncMemberIntros = internalAction({
+  args: { smaClientId: v.number() },
+  handler: async (ctx, args) => {
+    const introData = await fetchAndMapIntroductions(
+      args.smaClientId,
+      async (smaId: string) => {
+        const m = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId });
+        return m && m.firstName && m.firstName !== "Unknown"
+          ? `${m.firstName}${m.lastName ? ` ${m.lastName}` : ""}`
+          : null;
+      },
+    );
+    await ctx.runMutation(internal.members.mutations.syncIntrosInternal, {
+      memberSmaId: String(args.smaClientId),
+      summary: introData.summary,
+      introductions: introData.introductions,
+    });
+    return { total: introData.summary.total };
+  },
+});
+
+/**
+ * Re-sync intros for all members affected by a given SMA match ID.
+ * Called by match_updated / match_group_changed / match_deleted webhooks,
+ * where we only know the match record ID, not the client IDs.
+ */
+export const syncIntrosForMatch = internalAction({
+  args: { smaMatchId: v.number() },
+  handler: async (ctx, args) => {
+    const memberSmaIds = await ctx.runQuery(
+      internal.members.queries.getMemberSmaIdsByMatchId,
+      { smaMatchId: args.smaMatchId },
+    );
+    for (const smaId of memberSmaIds) {
+      try {
+        await ctx.runAction(
+          internal.integrations.smartmatchapp.actions.syncMemberIntros,
+          { smaClientId: Number(smaId) },
+        );
+      } catch (err) {
+        console.warn(`Failed to re-sync intros for smaId=${smaId} after match change:`, err);
+      }
+    }
+  },
+});
+
+/**
  * Sync a single member's full profile from SMA API.
  * Callable from the frontend (user-facing action).
  */
@@ -266,35 +317,70 @@ export const syncMember = action({
       }
     );
 
+    // Sync introductions
+    try {
+      const introData = await fetchAndMapIntroductions(
+        args.smaClientId,
+        async (smaId: string) => {
+          const m = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId });
+          return m && m.firstName && m.firstName !== "Unknown"
+            ? `${m.firstName}${m.lastName ? ` ${m.lastName}` : ""}`
+            : null;
+        },
+      );
+      await ctx.runMutation(internal.members.mutations.syncIntrosInternal, {
+        memberSmaId: String(args.smaClientId),
+        summary: introData.summary,
+        introductions: introData.introductions,
+      });
+    } catch (err) {
+      console.warn(`Failed to sync intros for client ${args.smaClientId}:`, err);
+    }
+
     return { memberId: result.memberId, action: result.action };
   },
 });
 
 /**
- * Sync all members with numeric SMA IDs from the SMA API.
- * Callable from the frontend (user-facing action).
+ * Background sync all members — scheduled by startSyncAll mutation.
+ * Updates the syncJobs record with progress so the UI can track it.
  */
-export const syncAllMembers = action({
+export const syncAllMembersBackground = internalAction({
   args: {
-    sessionToken: v.optional(v.string()),
+    jobId: v.id("syncJobs"),
   },
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const allMembers = await ctx.runQuery(
       internal.members.queries.listAllInternal,
       {}
     );
 
-    // Only sync members with numeric smaIds (not "test-xxx" stubs)
     const syncable = allMembers.filter(
       (m: any) => m.smaId && /^\d+$/.test(m.smaId)
     );
 
+    // Set total count
+    await ctx.runMutation(internal.members.mutations.updateSyncJobProgress, {
+      jobId: args.jobId,
+      total: syncable.length,
+      progress: 0,
+    });
+
     let synced = 0;
     let errors = 0;
 
+    // SMA rate limits:
+    //   /clients/{id}/profile/  → 30 req / 10s (generous)
+    //   /clients/{id}/matches/  → 5 req / 10s  (tight bottleneck)
+    //
+    // Strategy: fetch all profiles first (fast), then rate-limit intro fetches.
+
+    // Phase 1: Fetch & save all profiles (30 req/10s — fine in a tight loop)
+    const profileResults: Array<{ member: any; apiData: any }> = [];
     for (const member of syncable) {
       try {
-        const apiData = await fetchAndMapClient(Number(member.smaId));
+        const smaClientId = Number(member.smaId);
+        const apiData = await fetchAndMapClient(smaClientId);
         await ctx.runMutation(
           internal.members.mutations.syncFromSmaInternal,
           {
@@ -311,15 +397,61 @@ export const syncAllMembers = action({
             matchmakerNotes: apiData.matchmakerNotes,
           }
         );
-        synced++;
+        profileResults.push({ member, apiData });
       } catch (err) {
-        console.error(
-          `Failed to sync member smaId=${member.smaId}:`,
-          err
-        );
+        console.error(`Failed to sync profile for smaId=${member.smaId}:`, err);
         errors++;
       }
     }
+    console.log(`Phase 1 done: ${profileResults.length} profiles synced`);
+
+    // Phase 2: Fetch intros with rate limiting (5 req/10s → 2.1s between each)
+    const MATCHES_DELAY_MS = 2100;
+
+    for (let i = 0; i < profileResults.length; i++) {
+      const { member } = profileResults[i];
+      const smaClientId = Number(member.smaId);
+
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, MATCHES_DELAY_MS));
+      }
+
+      try {
+        const introData = await fetchAndMapIntroductions(
+          smaClientId,
+          async (smaId: string) => {
+            const m = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId });
+            return m && m.firstName && m.firstName !== "Unknown"
+              ? `${m.firstName}${m.lastName ? ` ${m.lastName}` : ""}`
+              : null;
+          },
+        );
+        await ctx.runMutation(internal.members.mutations.syncIntrosInternal, {
+          memberSmaId: String(smaClientId),
+          summary: introData.summary,
+          introductions: introData.introductions,
+        });
+        synced++;
+        console.log(`Synced intros ${i + 1}/${profileResults.length}: smaId=${member.smaId} (${introData.summary.total} intros)`);
+      } catch (introErr) {
+        console.warn(`Failed to sync intros for smaId=${member.smaId}:`, introErr);
+        synced++;
+      }
+
+      // Update progress after each member
+      await ctx.runMutation(internal.members.mutations.updateSyncJobProgress, {
+        jobId: args.jobId,
+        progress: i + 1,
+      });
+    }
+
+    // Mark job as completed
+    await ctx.runMutation(internal.members.mutations.updateSyncJobProgress, {
+      jobId: args.jobId,
+      status: "completed",
+      progress: profileResults.length,
+      result: JSON.stringify({ synced, errors }),
+    });
 
     return { synced, errors };
   },

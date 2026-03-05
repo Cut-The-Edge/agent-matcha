@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { columns, type MemberTableMeta } from "./columns"
+import { IntroDetailSheet } from "./intro-detail-sheet"
 import type { Doc } from "../../../convex/_generated/dataModel"
 
 function MemberTableSkeleton() {
@@ -71,7 +72,7 @@ function MemberTableSkeleton() {
       <Table>
         <TableHeader className="bg-muted">
           <TableRow>
-            {["Name", "Email", "Phone", "Tier", "Status", "Match Status", "Rejections", "Profile", "Last Synced"].map(
+            {["Name", "Email", "Phone", "Tier", "Status", "Intros", "Rejections", "Profile", "Last Synced"].map(
               (header) => (
                 <TableHead key={header}>{header}</TableHead>
               )
@@ -137,13 +138,14 @@ export function MemberList() {
   const { mutateWithAuth: createMember } = useAuthMutation(api.members.mutations.create)
   const { mutateWithAuth: updateMember } = useAuthMutation(api.members.mutations.update)
   const { actionWithAuth: syncMemberAction } = useAuthAction(api.integrations.smartmatchapp.actions.syncMember)
-  const { actionWithAuth: syncAllMembersAction } = useAuthAction(api.integrations.smartmatchapp.actions.syncAllMembers)
+  const { mutateWithAuth: startSyncAll } = useAuthMutation(api.members.mutations.startSyncAll)
+  const syncStatus = useAuthQuery(api.members.queries.getSyncStatus, {})
   const [addDialogOpen, setAddDialogOpen] = React.useState(false)
   const [isAdding, setIsAdding] = React.useState(false)
   const [editingMember, setEditingMember] = React.useState<Doc<"members"> | null>(null)
   const [isEditing, setIsEditing] = React.useState(false)
   const [syncingMemberId, setSyncingMemberId] = React.useState<string | null>(null)
-  const [isSyncingAll, setIsSyncingAll] = React.useState(false)
+  const [selectedMemberForIntros, setSelectedMemberForIntros] = React.useState<Doc<"members"> | null>(null)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>([])
@@ -212,22 +214,43 @@ export function MemberList() {
     }
   }
 
+  const isSyncingAll = syncStatus?.status === "running"
+
+  // Show toast when sync completes
+  const prevSyncStatusRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const currentStatus = syncStatus?.status ?? null
+    if (prevSyncStatusRef.current === "running" && currentStatus === "completed") {
+      try {
+        const result = syncStatus?.result ? JSON.parse(syncStatus.result) : {}
+        toast.success(`Synced ${result.synced ?? 0} member${result.synced !== 1 ? "s" : ""}${result.errors ? `, ${result.errors} error${result.errors !== 1 ? "s" : ""}` : ""}`)
+      } catch {
+        toast.success("Sync completed")
+      }
+    } else if (prevSyncStatusRef.current === "running" && currentStatus === "failed") {
+      toast.error("Sync failed")
+    }
+    prevSyncStatusRef.current = currentStatus
+  }, [syncStatus?.status, syncStatus?.result])
+
   const handleSyncAll = async () => {
-    setIsSyncingAll(true)
     try {
-      const result = await syncAllMembersAction({})
-      toast.success(`Synced ${result.synced} member${result.synced !== 1 ? "s" : ""}${result.errors ? `, ${result.errors} error${result.errors !== 1 ? "s" : ""}` : ""}`)
+      const { alreadyRunning } = await startSyncAll({})
+      if (alreadyRunning) {
+        toast.info("Sync is already running")
+      } else {
+        toast.info("Sync started in background")
+      }
     } catch (err) {
-      console.error("Sync all failed:", err)
-      toast.error("Failed to sync all members")
-    } finally {
-      setIsSyncingAll(false)
+      console.error("Failed to start sync:", err)
+      toast.error("Failed to start sync")
     }
   }
 
   const tableMeta: MemberTableMeta = {
     onEdit: (member) => setEditingMember(member),
     onSync: handleSyncMember,
+    onViewIntros: (member) => setSelectedMemberForIntros(member),
     syncingMemberId,
   }
 
@@ -333,7 +356,9 @@ export function MemberList() {
           ) : (
             <RefreshCw className="mr-1 size-4" />
           )}
-          Sync All
+          {isSyncingAll && syncStatus?.progress != null && syncStatus?.total
+            ? `Syncing ${syncStatus.progress}/${syncStatus.total}`
+            : "Sync All"}
         </Button>
         <Button size="sm" onClick={() => setAddDialogOpen(true)}>
           <UserPlus className="mr-1 size-4" />
@@ -351,6 +376,11 @@ export function MemberList() {
           onOpenChange={(open) => { if (!open) setEditingMember(null) }}
           isSaving={isEditing}
           onSubmit={handleEditMember}
+        />
+        <IntroDetailSheet
+          member={selectedMemberForIntros}
+          open={!!selectedMemberForIntros}
+          onOpenChange={(open) => { if (!open) setSelectedMemberForIntros(null) }}
         />
       </div>
 

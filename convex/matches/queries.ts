@@ -67,11 +67,21 @@ export const list = query({
           match.triggeredBy ? ctx.db.get(match.triggeredBy) : null,
         ]);
 
+        // Fallback: if no admin, look up matchmaker from SMA intro
+        let triggeredByName = admin?.name ?? null;
+        if (!triggeredByName && match.smaIntroId) {
+          const intro = await ctx.db
+            .query("smaIntroductions")
+            .withIndex("by_smaMatchId", (q) => q.eq("smaMatchId", Number(match.smaIntroId)))
+            .first();
+          if (intro?.matchmakerName) triggeredByName = intro.matchmakerName;
+        }
+
         return {
           ...match,
           memberAName: formatMemberName(memberA),
           memberBName: formatMemberName(memberB),
-          triggeredByName: admin?.name ?? "Unknown",
+          triggeredByName: triggeredByName ?? "System",
         };
       })
     );
@@ -106,11 +116,24 @@ export const get = query({
       .withIndex("by_match", (q) => q.eq("matchId", args.matchId))
       .collect();
 
+    // Fallback for triggeredByName: if no admin, look up matchmaker from SMA intro
+    let triggeredByName = admin?.name ?? null;
+    if (!triggeredByName && match.smaIntroId) {
+      const intro = await ctx.db
+        .query("smaIntroductions")
+        .withIndex("by_smaMatchId", (q) => q.eq("smaMatchId", Number(match.smaIntroId)))
+        .first();
+      if (intro?.matchmakerName) {
+        triggeredByName = intro.matchmakerName;
+      }
+    }
+
     return {
       ...match,
       memberA: memberA
         ? {
             _id: memberA._id,
+            smaId: memberA.smaId,
             firstName: memberA.firstName,
             lastName: memberA.lastName,
             email: memberA.email,
@@ -122,6 +145,7 @@ export const get = query({
       memberB: memberB
         ? {
             _id: memberB._id,
+            smaId: memberB.smaId,
             firstName: memberB.firstName,
             lastName: memberB.lastName,
             email: memberB.email,
@@ -132,7 +156,7 @@ export const get = query({
         : null,
       memberAName: formatMemberName(memberA),
       memberBName: formatMemberName(memberB),
-      triggeredByName: admin?.name ?? "Unknown",
+      triggeredByName: triggeredByName ?? "System",
       feedback: feedbackEntries,
     };
   },

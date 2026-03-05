@@ -10,6 +10,7 @@ import { format } from "date-fns"
 export interface MemberTableMeta {
   onEdit?: (member: Member) => void
   onSync?: (member: Member) => void
+  onViewIntros?: (member: Member) => void
   syncingMemberId?: string | null
 }
 
@@ -45,14 +46,14 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   },
 }
 
-// §7.1 Match Status Values
-const matchStatusConfig: Record<string, { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-  past: { label: "Past", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
-  pending: { label: "Pending", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
-  expired: { label: "Expired", className: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500" },
+const introGroupConfig: Record<string, { label: string; className: string }> = {
+  active: { label: "A", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  rejected: { label: "R", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  past: { label: "Pa", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  potential: { label: "Po", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  successful: { label: "S", className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  automated: { label: "Au", className: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
+  notSuitable: { label: "NS", className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
 }
 
 export const columns: ColumnDef<Member>[] = [
@@ -172,33 +173,52 @@ export const columns: ColumnDef<Member>[] = [
     filterFn: (row, id, value) => value.includes(row.getValue(id)),
   },
   {
-    id: "matchStatus",
-    accessorFn: (row: any) => row.latestMatchStatus,
-    header: "Match Status",
-    cell: ({ row }: any) => {
-      const status = row.original.latestMatchStatus
-      const partner = row.original.latestMatchPartner
-      if (!status) {
-        return <span className="text-muted-foreground text-xs">No match</span>
+    id: "introductions",
+    accessorFn: (row: any) => row.smaIntroSummary?.total ?? 0,
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="-ml-3"
+      >
+        Intros
+        <ArrowUpDown className="ml-2 size-4" />
+      </Button>
+    ),
+    cell: ({ row, table }: any) => {
+      const summary = row.original.smaIntroSummary
+      const meta = table.options.meta as MemberTableMeta | undefined
+      if (!summary) {
+        return <span className="text-muted-foreground text-xs">---</span>
       }
-      const config = matchStatusConfig[status] ?? {
-        label: status,
-        className: "bg-gray-100 text-gray-700",
+      const groups = Object.entries(introGroupConfig)
+        .filter(([key]) => (summary as any)[key] > 0)
+        .map(([key, config]) => (
+          <Badge
+            key={key}
+            variant="outline"
+            className={`border-transparent px-1.5 py-0 text-[11px] leading-snug ${config.className}`}
+          >
+            {config.label}:{(summary as any)[key]}
+          </Badge>
+        ))
+      if (groups.length === 0) {
+        return <span className="text-muted-foreground text-xs">0</span>
       }
       return (
-        <div className="flex flex-col gap-0.5">
-          <Badge variant="outline" className={`border-transparent text-[11px] ${config.className}`}>
-            {config.label}
-          </Badge>
-          {partner && (
-            <span className="text-muted-foreground text-[10px] leading-tight">
-              w/ {partner}
-            </span>
-          )}
-        </div>
+        <button
+          className="flex flex-wrap gap-0.5 hover:opacity-80"
+          onClick={() => meta?.onViewIntros?.(row.original)}
+        >
+          {groups}
+        </button>
       )
     },
-    filterFn: (row: any, id: string, value: any) => value.includes(row.getValue(id)),
+    sortingFn: (rowA: any, rowB: any) => {
+      const a = rowA.original.smaIntroSummary?.total ?? 0
+      const b = rowB.original.smaIntroSummary?.total ?? 0
+      return a - b
+    },
   },
   {
     accessorKey: "rejectionCount",

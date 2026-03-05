@@ -35,7 +35,7 @@ export function LiveCallIndicator() {
         {activeCalls.length === 1 ? "1 Active Call" : `${activeCalls.length} Active Calls`}
       </div>
       <div className="mt-2 space-y-1">
-        {activeCalls.map((call) => (
+        {activeCalls.map((call: any) => (
           <div
             key={call._id}
             className="flex items-center justify-between text-sm text-muted-foreground"

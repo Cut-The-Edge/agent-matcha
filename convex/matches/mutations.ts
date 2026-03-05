@@ -281,6 +281,38 @@ export const updateMatchFromSma = internalMutation({
 });
 
 /**
+ * Mark a match as expired when SMA deletes the corresponding introduction.
+ * Uses "expired" instead of hard-deleting to preserve audit trail.
+ */
+export const deleteMatchFromSma = internalMutation({
+  args: {
+    smaIntroId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const match = await ctx.db
+      .query("matches")
+      .withIndex("by_smaIntroId", (q) => q.eq("smaIntroId", args.smaIntroId))
+      .first();
+
+    if (!match) {
+      console.warn(`deleteMatchFromSma: no match found for smaIntroId=${args.smaIntroId}`);
+      return { found: false };
+    }
+
+    if (TERMINAL_STATUSES.has(match.status)) {
+      return { found: true, matchId: match._id, alreadyTerminal: true };
+    }
+
+    await ctx.db.patch(match._id, {
+      status: "expired",
+      updatedAt: Date.now(),
+    });
+
+    return { found: true, matchId: match._id, alreadyTerminal: false };
+  },
+});
+
+/**
  * Set or update the groupChatId for a match (used when a WhatsApp group is created).
  */
 export const setGroupChat = mutation({

@@ -37,6 +37,9 @@ import {
   LogOut,
   Zap,
   SkipForward,
+  Star,
+  CalendarClock,
+  Link2,
 } from "lucide-react"
 
 // §7.1 Match Status Values
@@ -396,6 +399,190 @@ function FlowInstanceCard({
   )
 }
 
+// Group priority & colors matching the SMA CRM dashboard
+const INTRO_GROUP_CONFIG: Array<{ keyword: string; label: string; className: string }> = [
+  { keyword: "successful", label: "Successful Matches", className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  { keyword: "active", label: "Active Introductions", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  { keyword: "potential", label: "Potential Introductions", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  { keyword: "rejected", label: "Rejected Introductions", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  { keyword: "past", label: "Past Introductions", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  { keyword: "automated", label: "Automated Intro", className: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
+  { keyword: "not suitable", label: "Not Suitable", className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+]
+
+function getIntroGroupConfig(groupName: string) {
+  const lower = groupName.toLowerCase()
+  return INTRO_GROUP_CONFIG.find((g) => lower.includes(g.keyword))
+    ?? { keyword: "", label: groupName, className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" }
+}
+
+function getIntroGroupPriority(groupName: string): number {
+  const lower = groupName.toLowerCase()
+  const idx = INTRO_GROUP_CONFIG.findIndex((g) => lower.includes(g.keyword))
+  return idx === -1 ? INTRO_GROUP_CONFIG.length : idx
+}
+
+function IntroCard({ intro, isCurrentPartner }: { intro: any; isCurrentPartner: boolean }) {
+  return (
+    <div className={`rounded-md border px-3 py-2 text-sm space-y-1.5 ${isCurrentPartner ? "border-blue-300 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20" : ""}`}>
+      <div className="flex items-center justify-between">
+        <a
+          href={`https://club-allenby.smartmatchapp.com/#!/client/${intro.partnerSmaId}/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400 text-xs"
+        >
+          {intro.partnerName || `Client #${intro.partnerSmaId}`}
+          <ExternalLink className="size-2.5" />
+        </a>
+        <div className="flex items-center gap-1.5">
+          {intro.matchStatus && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {intro.matchStatus}
+            </Badge>
+          )}
+          {(intro.clientPercent != null || intro.matchPercent != null) && (
+            <span className="tabular-nums text-[10px] text-muted-foreground">
+              {intro.clientPercent ?? 0}% / {intro.matchPercent ?? 0}%
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+        {intro.clientStatus && <span>Client: {intro.clientStatus}</span>}
+        {intro.matchPartnerStatus && <span>Partner: {intro.matchPartnerStatus}</span>}
+        {intro.clientPriority != null && (
+          <span className="inline-flex items-center gap-0.5"><Star className="size-2.5" /> {intro.clientPriority}</span>
+        )}
+        {intro.clientDueDate && (
+          <span className="inline-flex items-center gap-0.5"><CalendarClock className="size-2.5" /> {new Date(intro.clientDueDate).toLocaleDateString()}</span>
+        )}
+        {intro.matchmakerName && <span>by {intro.matchmakerName}</span>}
+        {intro.smaCreatedDate && <span>{new Date(intro.smaCreatedDate).toLocaleDateString()}</span>}
+      </div>
+    </div>
+  )
+}
+
+function SmaIntroSection({
+  memberSmaId,
+  partnerSmaId,
+  memberLabel,
+}: {
+  memberSmaId: string
+  partnerSmaId: string
+  memberLabel: string
+}) {
+  const intros = useAuthQuery(
+    api.members.queries.getIntroductions,
+    { memberSmaId }
+  )
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set())
+
+  // Group intros by group name
+  const grouped = React.useMemo(() => {
+    const map = new Map<string, any[]>()
+    if (intros) {
+      for (const intro of intros) {
+        const list = map.get(intro.group) ?? []
+        list.push(intro)
+        map.set(intro.group, list)
+      }
+    }
+    return map
+  }, [intros])
+
+  // Sort groups by CRM priority order
+  const sortedGroups = React.useMemo(
+    () => Array.from(grouped.keys()).sort(
+      (a, b) => getIntroGroupPriority(a) - getIntroGroupPriority(b)
+    ),
+    [grouped]
+  )
+
+  // Auto-expand groups that contain the current match partner
+  React.useEffect(() => {
+    const autoExpand = new Set<string>()
+    for (const [groupName, items] of grouped) {
+      if (items.some((i: any) => i.partnerSmaId === partnerSmaId)) {
+        autoExpand.add(groupName)
+      }
+    }
+    if (autoExpand.size > 0) setExpandedGroups(autoExpand)
+  }, [grouped, partnerSmaId])
+
+  if (!intros) return <Skeleton className="h-16 w-full" />
+  if (intros.length === 0) {
+    return (
+      <div className="space-y-1">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {memberLabel}
+        </p>
+        <p className="text-xs text-muted-foreground">No introductions</p>
+      </div>
+    )
+  }
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(groupName)) next.delete(groupName)
+      else next.add(groupName)
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {memberLabel}
+      </p>
+      {sortedGroups.map((groupName) => {
+        const items = grouped.get(groupName)!
+        const config = getIntroGroupConfig(groupName)
+        const isExpanded = expandedGroups.has(groupName)
+
+        return (
+          <div key={groupName} className="rounded-lg border overflow-hidden">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors"
+              onClick={() => toggleGroup(groupName)}
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={`border-transparent text-[10px] px-1.5 py-0 ${config.className}`}>
+                  {groupName}
+                </Badge>
+                <span className="text-muted-foreground text-[10px]">{items.length}</span>
+              </div>
+              {isExpanded ? (
+                <ChevronUp className="size-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              )}
+            </button>
+            {isExpanded && (
+              <div className="border-t px-2 py-2 space-y-1.5">
+                {items.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-1">No matches</p>
+                ) : (
+                  items.map((intro: any) => (
+                    <IntroCard
+                      key={intro._id}
+                      intro={intro}
+                      isCurrentPartner={intro.partnerSmaId === partnerSmaId}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function SheetSkeleton() {
   return (
     <div className="space-y-4 p-4">
@@ -535,6 +722,24 @@ export function MatchDetailSheet({
                       )}
                     </div>
                   </div>
+
+                  {/* SMA Introduction data — Member A's perspective */}
+                  {match.memberA?.smaId && match.memberB?.smaId && (
+                    <>
+                      <Separator />
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Link2 className="size-3" />
+                          SMA Introductions — {match.memberA.firstName}
+                        </p>
+                        <SmaIntroSection
+                          memberSmaId={match.memberA.smaId}
+                          partnerSmaId={match.memberB.smaId}
+                          memberLabel={`${match.memberA.firstName}'s introductions`}
+                        />
+                      </div>
+                    </>
+                  )}
                 </TabsContent>
 
                 {/* Flow Runs Tab */}

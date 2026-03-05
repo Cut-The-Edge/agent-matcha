@@ -114,6 +114,10 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
       }
     );
 
+    // Re-sync intro counts for both sides
+    await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncMemberIntros, { smaClientId: clientId });
+    await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncMemberIntros, { smaClientId: matchId });
+
     return new Response(
       JSON.stringify({ ok: true, event: "match_added", scheduled: true }),
       { status: 200, headers: { "Content-Type": "application/json" } }
@@ -152,6 +156,7 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
   if (event === "match_updated") {
     const smaIntroId = payload?.id;
     if (smaIntroId) {
+      // Update internal matches table
       await ctx.scheduler.runAfter(
         0,
         internal.matches.mutations.updateMatchFromSma,
@@ -161,6 +166,18 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
           smaStatusName: payload?.status?.name,
         }
       );
+      // Immediately update smaIntroductions record with new status
+      await ctx.scheduler.runAfter(
+        0,
+        internal.members.mutations.updateIntroFromSma,
+        {
+          smaMatchId: smaIntroId,
+          matchStatus: payload?.status?.name,
+          matchStatusId: payload?.status?.id,
+        }
+      );
+      // Re-sync intro counts for affected members
+      await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncIntrosForMatch, { smaMatchId: smaIntroId });
     }
     return new Response(
       JSON.stringify({ ok: true, event: "match_updated", scheduled: true }),
@@ -172,6 +189,7 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
   if (event === "match_group_changed") {
     const smaIntroId = payload?.id;
     if (smaIntroId) {
+      // Update internal matches table
       await ctx.scheduler.runAfter(
         0,
         internal.matches.mutations.updateMatchFromSma,
@@ -181,9 +199,39 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
           smaGroupName: payload?.group?.name,
         }
       );
+      // Immediately update smaIntroductions record with new group
+      await ctx.scheduler.runAfter(
+        0,
+        internal.members.mutations.updateIntroFromSma,
+        {
+          smaMatchId: smaIntroId,
+          group: payload?.group?.name,
+          groupId: payload?.group?.id,
+        }
+      );
+      // Re-sync intro counts for affected members
+      await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncIntrosForMatch, { smaMatchId: smaIntroId });
     }
     return new Response(
       JSON.stringify({ ok: true, event: "match_group_changed", scheduled: true }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // ── Match Deleted ───────────────────────────────────────────────
+  if (event === "match_deleted") {
+    const smaMatchId = payload?.id;
+    if (smaMatchId) {
+      // Mark internal match as expired so dashboard reflects deletion
+      await ctx.scheduler.runAfter(0, internal.matches.mutations.deleteMatchFromSma, {
+        smaIntroId: String(smaMatchId),
+      });
+      // Re-sync intros for affected members — the deleted match
+      // won't appear in the fresh API response, so it gets removed naturally
+      await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncIntrosForMatch, { smaMatchId });
+    }
+    return new Response(
+      JSON.stringify({ ok: true, event: "match_deleted", scheduled: true }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   }

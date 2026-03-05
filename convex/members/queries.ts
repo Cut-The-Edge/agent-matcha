@@ -63,49 +63,24 @@ export const list = query({
     // Apply limit
     members = members.slice(0, limit);
 
-    // Enrich with latest match status
-    const enriched = await Promise.all(
-      members.map(async (member) => {
-        const matchAsA = await ctx.db
-          .query("matches")
-          .withIndex("by_memberA", (q) => q.eq("memberAId", member._id))
-          .order("desc")
-          .first();
-        const matchAsB = await ctx.db
-          .query("matches")
-          .withIndex("by_memberB", (q) => q.eq("memberBId", member._id))
-          .order("desc")
-          .first();
+    return members;
+  },
+});
 
-        // Pick the most recent match
-        let latestMatch = null;
-        if (matchAsA && matchAsB) {
-          latestMatch =
-            matchAsA.createdAt >= matchAsB.createdAt ? matchAsA : matchAsB;
-        } else {
-          latestMatch = matchAsA ?? matchAsB;
-        }
-
-        if (!latestMatch) return { ...member, latestMatchStatus: null, latestMatchPartner: null };
-
-        // Resolve partner name
-        const partnerId =
-          latestMatch.memberAId === member._id
-            ? latestMatch.memberBId
-            : latestMatch.memberAId;
-        const partner = await ctx.db.get(partnerId);
-
-        return {
-          ...member,
-          latestMatchStatus: latestMatch.status,
-          latestMatchPartner: partner
-            ? `${partner.firstName}${partner.lastName ? ` ${partner.lastName}` : ""}`
-            : null,
-        };
-      })
-    );
-
-    return enriched;
+/**
+ * Get all SMA introductions for a member by their SMA ID.
+ */
+export const getIntroductions = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+    memberSmaId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+    return await ctx.db
+      .query("smaIntroductions")
+      .withIndex("by_member", (q) => q.eq("memberSmaId", args.memberSmaId))
+      .collect();
   },
 });
 
@@ -124,6 +99,40 @@ export const get = query({
       return null;
     }
     return member;
+  },
+});
+
+/**
+ * Find member SMA IDs affected by a given SMA match ID.
+ * Checks smaIntroductions first, falls back to the matches table.
+ */
+export const getMemberSmaIdsByMatchId = internalQuery({
+  args: { smaMatchId: v.number() },
+  handler: async (ctx, args) => {
+    // 1. Check smaIntroductions table
+    const intros = await ctx.db
+      .query("smaIntroductions")
+      .withIndex("by_smaMatchId", (q) => q.eq("smaMatchId", args.smaMatchId))
+      .collect();
+    if (intros.length > 0) {
+      return [...new Set(intros.map((i) => i.memberSmaId))];
+    }
+
+    // 2. Fallback: check internal matches table by smaIntroId
+    const match = await ctx.db
+      .query("matches")
+      .withIndex("by_smaIntroId", (q) => q.eq("smaIntroId", String(args.smaMatchId)))
+      .first();
+    if (match) {
+      const smaIds: string[] = [];
+      const memberA = await ctx.db.get(match.memberAId);
+      const memberB = await ctx.db.get(match.memberBId);
+      if (memberA?.smaId) smaIds.push(memberA.smaId);
+      if (memberB?.smaId) smaIds.push(memberB.smaId);
+      return smaIds;
+    }
+
+    return [];
   },
 });
 
@@ -316,5 +325,38 @@ export const getStats = query({
       byStatus,
       byTier,
     };
+  },
+});
+
+/**
+ * Get the current sync-all job status.
+ * Returns the most recent running or recently completed job.
+ */
+export const getSyncStatus = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    // Check for a running job first
+    const running = await ctx.db
+      .query("syncJobs")
+      .withIndex("by_type_status", (q) => q.eq("type", "sync_all_members").eq("status", "running"))
+      .first();
+    if (running) return running;
+
+    // Return most recent completed/failed job (within last 5 minutes)
+    const recent = await ctx.db
+      .query("syncJobs")
+      .order("desc")
+      .filter((q) => q.eq(q.field("type"), "sync_all_members"))
+      .first();
+
+    if (recent && recent.completedAt && Date.now() - recent.completedAt < 5 * 60 * 1000) {
+      return recent;
+    }
+
+    return null;
   },
 });

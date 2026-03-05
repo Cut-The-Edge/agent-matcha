@@ -372,6 +372,210 @@ export const syncFromSmaInternal = internalMutation({
 });
 
 /**
+ * Sync SMA introduction summary + detail records for a member.
+ * Deletes old introductions and inserts fresh ones (atomic in Convex).
+ */
+export const syncIntrosInternal = internalMutation({
+  args: {
+    memberSmaId: v.string(),
+    summary: v.object({
+      successful: v.number(),
+      active: v.number(),
+      potential: v.number(),
+      rejected: v.number(),
+      past: v.number(),
+      automated: v.number(),
+      notSuitable: v.number(),
+      total: v.number(),
+      lastFetchedAt: v.number(),
+    }),
+    introductions: v.array(v.object({
+      smaMatchId: v.number(),
+      memberSmaId: v.string(),
+      partnerSmaId: v.string(),
+      partnerName: v.optional(v.string()),
+      group: v.string(),
+      groupId: v.number(),
+      clientPercent: v.optional(v.number()),
+      matchPercent: v.optional(v.number()),
+      matchmakerName: v.optional(v.string()),
+      smaCreatedDate: v.string(),
+      syncedAt: v.number(),
+      matchStatus: v.optional(v.string()),
+      matchStatusId: v.optional(v.number()),
+      clientStatus: v.optional(v.string()),
+      clientStatusId: v.optional(v.number()),
+      matchPartnerStatus: v.optional(v.string()),
+      matchPartnerStatusId: v.optional(v.number()),
+      clientPriority: v.optional(v.number()),
+      matchPriority: v.optional(v.number()),
+      clientDueDate: v.optional(v.string()),
+      matchDueDate: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    // Update smaIntroSummary on the member record
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_smaId", (q) => q.eq("smaId", args.memberSmaId))
+      .first();
+
+    if (member) {
+      await ctx.db.patch(member._id, {
+        smaIntroSummary: args.summary,
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Delete old introductions for this member
+    const oldIntros = await ctx.db
+      .query("smaIntroductions")
+      .withIndex("by_member", (q) => q.eq("memberSmaId", args.memberSmaId))
+      .collect();
+    for (const old of oldIntros) {
+      await ctx.db.delete(old._id);
+    }
+
+    // Insert fresh introductions
+    for (const intro of args.introductions) {
+      await ctx.db.insert("smaIntroductions", intro);
+    }
+
+    // Reconcile internal matches table from fresh intro data.
+    // Creates matches that don't exist, updates ones that do.
+    const GROUP_STATUS_MAP: Record<string, string> = {
+      "Active Introductions": "active",
+      "Potential Introductions": "pending",
+      "Rejected Introductions": "rejected",
+      "Not Suitable": "rejected",
+      "Past Introductions": "past",
+      "Successful Matches": "completed",
+      "Automated Intro": "active",
+    };
+    const TERMINAL_STATUSES = new Set(["completed", "expired", "rejected", "past"]);
+
+    for (const intro of args.introductions) {
+      const smaIntroId = String(intro.smaMatchId);
+      const match = await ctx.db
+        .query("matches")
+        .withIndex("by_smaIntroId", (q) => q.eq("smaIntroId", smaIntroId))
+        .first();
+
+      if (match) {
+        // Update existing match
+        const updates: Record<string, any> = { updatedAt: Date.now() };
+        if (intro.group) updates.smaGroupName = intro.group;
+        if (intro.groupId) updates.smaGroupId = intro.groupId;
+        if (intro.matchStatus) updates.smaStatusName = intro.matchStatus;
+        if (intro.matchStatusId) updates.smaStatusId = intro.matchStatusId;
+
+        // Auto-map terminal groups to internal match status
+        if (intro.group && GROUP_STATUS_MAP[intro.group] && !TERMINAL_STATUSES.has(match.status)) {
+          updates.status = GROUP_STATUS_MAP[intro.group];
+        }
+
+        await ctx.db.patch(match._id, updates);
+      } else if (member) {
+        // Create match from SMA intro — look up partner member
+        const partner = await ctx.db
+          .query("members")
+          .withIndex("by_smaId", (q) => q.eq("smaId", intro.partnerSmaId))
+          .first();
+
+        if (partner) {
+          const now = Date.now();
+          const status = GROUP_STATUS_MAP[intro.group] ?? "active";
+          await ctx.db.insert("matches", {
+            smaIntroId,
+            memberAId: member._id,
+            memberBId: partner._id,
+            status: status as any,
+            smaGroupId: intro.groupId,
+            smaGroupName: intro.group,
+            smaStatusName: intro.matchStatus,
+            smaStatusId: intro.matchStatusId,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+    }
+
+    // Expire matches that no longer exist in SMA.
+    // Any match linked to this member via smaIntroId, where that smaIntroId
+    // is NOT in the fresh intro set, should be marked expired.
+    if (member) {
+      const freshSmaIds = new Set(args.introductions.map((i) => String(i.smaMatchId)));
+
+      // Find all matches where this member is A or B
+      const matchesAsA = await ctx.db
+        .query("matches")
+        .withIndex("by_memberA", (q) => q.eq("memberAId", member._id))
+        .collect();
+      const matchesAsB = await ctx.db
+        .query("matches")
+        .withIndex("by_memberB", (q) => q.eq("memberBId", member._id))
+        .collect();
+
+      for (const match of [...matchesAsA, ...matchesAsB]) {
+        // Expire any SMA-linked match not in the fresh CRM data.
+        // CRM is the source of truth — if it's gone from SMA, expire it.
+        if (
+          match.smaIntroId &&
+          !freshSmaIds.has(match.smaIntroId) &&
+          match.status !== "expired"
+        ) {
+          await ctx.db.patch(match._id, {
+            status: "expired",
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+  },
+});
+
+/**
+ * Update an smaIntroductions record directly from a webhook event.
+ * Called by match_updated / match_group_changed webhooks for immediate updates
+ * (the full re-sync via syncIntrosForMatch is also scheduled but may lag).
+ */
+export const updateIntroFromSma = internalMutation({
+  args: {
+    smaMatchId: v.number(),
+    // Match-level status (e.g. "Interested", "In Progress")
+    matchStatus: v.optional(v.string()),
+    matchStatusId: v.optional(v.number()),
+    // Group change fields
+    group: v.optional(v.string()),
+    groupId: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const intros = await ctx.db
+      .query("smaIntroductions")
+      .withIndex("by_smaMatchId", (q) => q.eq("smaMatchId", args.smaMatchId))
+      .collect();
+
+    if (intros.length === 0) {
+      console.warn(`updateIntroFromSma: no intro found for smaMatchId=${args.smaMatchId}`);
+      return { found: false, count: 0 };
+    }
+
+    const updates: Record<string, any> = { syncedAt: Date.now() };
+    if (args.matchStatus !== undefined) updates.matchStatus = args.matchStatus;
+    if (args.matchStatusId !== undefined) updates.matchStatusId = args.matchStatusId;
+    if (args.group !== undefined) updates.group = args.group;
+    if (args.groupId !== undefined) updates.groupId = args.groupId;
+
+    for (const intro of intros) {
+      await ctx.db.patch(intro._id, updates);
+    }
+
+    return { found: true, count: intros.length };
+  },
+});
+
+/**
  * Store the LLM-generated recalibration summary on a member record.
  * Called by the analyzeRecalibration action after OpenRouter responds.
  */
@@ -390,5 +594,73 @@ export const updateRecalibrationSummary = internalMutation({
       recalibrationSummary: args.recalibrationSummary,
       updatedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Start a background sync-all job.
+ * Creates a syncJobs record and schedules the actual action.
+ * Returns immediately so the browser can navigate away.
+ */
+export const startSyncAll = mutation({
+  args: {
+    sessionToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    // Check if there's already a running sync
+    const running = await ctx.db
+      .query("syncJobs")
+      .withIndex("by_type_status", (q) => q.eq("type", "sync_all_members").eq("status", "running"))
+      .first();
+    if (running) {
+      return { jobId: running._id, alreadyRunning: true };
+    }
+
+    const jobId = await ctx.db.insert("syncJobs", {
+      type: "sync_all_members",
+      status: "running",
+      progress: 0,
+      total: 0,
+      startedAt: Date.now(),
+    });
+
+    // Schedule the background action
+    await ctx.scheduler.runAfter(
+      0,
+      internal.integrations.smartmatchapp.actions.syncAllMembersBackground,
+      { jobId }
+    );
+
+    return { jobId, alreadyRunning: false };
+  },
+});
+
+/**
+ * Update sync job progress (called by the background action).
+ */
+export const updateSyncJobProgress = internalMutation({
+  args: {
+    jobId: v.id("syncJobs"),
+    progress: v.optional(v.number()),
+    total: v.optional(v.number()),
+    status: v.optional(v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    )),
+    result: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const updates: Record<string, any> = {};
+    if (args.progress !== undefined) updates.progress = args.progress;
+    if (args.total !== undefined) updates.total = args.total;
+    if (args.status !== undefined) updates.status = args.status;
+    if (args.result !== undefined) updates.result = args.result;
+    if (args.status === "completed" || args.status === "failed") {
+      updates.completedAt = Date.now();
+    }
+    await ctx.db.patch(args.jobId, updates);
   },
 });
