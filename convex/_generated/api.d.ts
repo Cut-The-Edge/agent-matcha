@@ -74,6 +74,7 @@ import type * as members_queries from "../members/queries.js";
 import type * as members_types from "../members/types.js";
 import type * as seed_index from "../seed/index.js";
 import type * as seed_seedData from "../seed/seedData.js";
+import type * as settings from "../settings.js";
 import type * as utils_helpers from "../utils/helpers.js";
 import type * as utils_validators from "../utils/validators.js";
 import type * as voice_actions from "../voice/actions.js";
@@ -159,6 +160,7 @@ declare const fullApi: ApiFromModules<{
   "members/types": typeof members_types;
   "seed/index": typeof seed_index;
   "seed/seedData": typeof seed_seedData;
+  settings: typeof settings;
   "utils/helpers": typeof utils_helpers;
   "utils/validators": typeof utils_validators;
   "voice/actions": typeof voice_actions;

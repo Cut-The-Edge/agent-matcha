@@ -34,6 +34,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     whatsappId: v.optional(v.string()),
+    profileToken: v.optional(v.string()),
     profileLink: v.optional(v.string()),
     profilePictureUrl: v.optional(v.string()),
     location: v.optional(v.object({
@@ -48,6 +49,8 @@ export default defineSchema({
       v.literal("vip"),
     ),
     profileComplete: v.boolean(),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    profileData: v.optional(v.any()),
     matchmakerNotes: v.optional(v.string()),
     rejectionCount: v.number(),
     recalibrationSummary: v.optional(v.object({
@@ -80,6 +83,7 @@ export default defineSchema({
     .index("by_phone", ["phone"])
     .index("by_email", ["email"])
     .index("by_whatsappId", ["whatsappId"])
+    .index("by_profileToken", ["profileToken"])
     .index("by_status", ["status"]),
 
   // -- SMA Introductions (cached from SMA CRM) --
@@ -142,13 +146,16 @@ export default defineSchema({
     smaStatusId: v.optional(v.number()),
     smaStatusName: v.optional(v.string()),
     groupChatId: v.optional(v.string()),
+    flowTriggered: v.optional(v.boolean()),
+    introToken: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_memberA", ["memberAId"])
     .index("by_memberB", ["memberBId"])
     .index("by_status", ["status"])
-    .index("by_smaIntroId", ["smaIntroId"]),
+    .index("by_smaIntroId", ["smaIntroId"])
+    .index("by_introToken", ["introToken"]),
 
   // -- Feedback --
   feedback: defineTable({
@@ -360,6 +367,12 @@ export default defineSchema({
     .index("by_member", ["memberId"])
     .index("by_status", ["status"])
     .index("by_flow", ["flowDefinitionId"]),
+
+  // -- App Settings (singleton) --
+  appSettings: defineTable({
+    profileExpirationHours: v.number(),
+    updatedAt: v.number(),
+  }),
 
   // -- Flow Engine: Execution Logs --
   flowExecutionLogs: defineTable({

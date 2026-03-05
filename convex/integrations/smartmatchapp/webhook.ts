@@ -211,6 +211,15 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
       );
       // Re-sync intro counts for affected members
       await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncIntrosForMatch, { smaMatchId: smaIntroId });
+
+      // Trigger flow when moved to "Automated Intro"
+      if (payload?.group?.name === "Automated Intro") {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.integrations.smartmatchapp.actions.triggerFlowForActiveIntro,
+          { smaIntroId: String(smaIntroId) }
+        );
+      }
     }
     return new Response(
       JSON.stringify({ ok: true, event: "match_group_changed", scheduled: true }),

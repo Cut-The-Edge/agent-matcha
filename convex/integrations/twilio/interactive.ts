@@ -12,6 +12,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { toWhatsAppFormat } from "./config";
 
 export const sendInteractiveMessage = internalAction({
   args: {
@@ -34,10 +35,8 @@ export const sendInteractiveMessage = internalAction({
     const authHeader =
       "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64");
 
-    // Ensure whatsapp: format
-    const to = args.to.startsWith("whatsapp:")
-      ? args.to
-      : `whatsapp:${args.to.startsWith("+") ? args.to : "+" + args.to}`;
+    // Ensure whatsapp: format (strips spaces/dashes for E.164)
+    const to = toWhatsAppFormat(args.to);
     const from = fromNumber.startsWith("whatsapp:")
       ? fromNumber
       : `whatsapp:${fromNumber}`;

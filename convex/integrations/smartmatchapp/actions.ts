@@ -31,10 +31,10 @@ export const handleMatchAdded = internalAction({
     // Safety filter: only process if test client is involved
     const testClientId = process.env.SMA_TEST_CLIENT_ID;
     if (testClientId) {
-      const testId = parseInt(testClientId, 10);
-      if (args.clientId !== testId && args.matchId !== testId) {
+      const testIds = new Set(testClientId.split(",").map((id) => parseInt(id.trim(), 10)));
+      if (!testIds.has(args.clientId) && !testIds.has(args.matchId)) {
         console.log(
-          `SMA match_added skipped: neither client ${args.clientId} nor match ${args.matchId} is test client ${testId}`
+          `SMA match_added skipped: neither client ${args.clientId} nor match ${args.matchId} is in test clients [${[...testIds]}]`
         );
         return { skipped: true, reason: "test_filter" };
       }
@@ -65,6 +65,8 @@ export const handleMatchAdded = internalAction({
           phone: apiData.phone,
           profilePictureUrl: apiData.profilePictureUrl,
           location: apiData.location,
+          gender: apiData.gender,
+          profileData: apiData.smaProfile,
           tier: apiData.tier,
           profileComplete: apiData.profileComplete,
           matchmakerNotes: apiData.matchmakerNotes,
@@ -94,6 +96,8 @@ export const handleMatchAdded = internalAction({
           phone: apiData.phone,
           profilePictureUrl: apiData.profilePictureUrl,
           location: apiData.location,
+          gender: apiData.gender,
+          profileData: apiData.smaProfile,
           tier: apiData.tier,
           profileComplete: apiData.profileComplete,
           matchmakerNotes: apiData.matchmakerNotes,
@@ -152,6 +156,7 @@ function mapWebhookPayload(payload: Record<string, any>): Record<string, any> {
     prof_241: "lastName",
     prof_242: "email",
     prof_243: "phone",
+    prof_132: "gender",
     prof_235: "matchmakerNotes",
     prof_237: "profilePictureUrl",
     prof_244: "location",
@@ -168,6 +173,15 @@ function mapWebhookPayload(payload: Record<string, any>): Record<string, any> {
         if (ids.includes(6)) mapped.tier = "vip";
         else if (ids.includes(2)) mapped.tier = "member";
         else mapped.tier = "free";
+      } else if (ourKey === "gender") {
+        // Select field: normalize label to our enum
+        const label = typeof val === "object" ? val?.choice_label : val;
+        if (typeof label === "string") {
+          const lower = label.toLowerCase();
+          if (lower === "male" || lower === "man") mapped.gender = "male";
+          else if (lower === "female" || lower === "woman") mapped.gender = "female";
+          else mapped.gender = "other";
+        }
       } else if (ourKey === "profilePictureUrl") {
         // Image type: { name, url } → extract url
         if (typeof val === "object" && val?.url) {
@@ -202,13 +216,13 @@ export const handleClientSync = internalAction({
     webhookPayload: v.any(),
   },
   handler: async (ctx, args) => {
-    // Safety filter: only process if this is the test client
+    // Safety filter: only process if this is a test client
     const testClientId = process.env.SMA_TEST_CLIENT_ID;
     if (testClientId) {
-      const testId = parseInt(testClientId, 10);
-      if (args.smaClientId !== testId) {
+      const testIds = new Set(testClientId.split(",").map((id) => parseInt(id.trim(), 10)));
+      if (!testIds.has(args.smaClientId)) {
         console.log(
-          `SMA ${args.event} skipped: client ${args.smaClientId} is not test client ${testId}`
+          `SMA ${args.event} skipped: client ${args.smaClientId} is not in test clients [${[...testIds]}]`
         );
         return { skipped: true, reason: "test_filter" };
       }
@@ -260,6 +274,8 @@ export const handleClientSync = internalAction({
         phone: syncData.phone,
         profilePictureUrl: syncData.profilePictureUrl,
         location: syncData.location,
+        gender: syncData.gender,
+        profileData: syncData.smaProfile,
         tier: syncData.tier,
         profileComplete: syncData.profileComplete,
         matchmakerNotes: syncData.matchmakerNotes,
@@ -345,6 +361,8 @@ export const fetchProfile = internalAction({
       phone: apiData.phone,
       profilePictureUrl: apiData.profilePictureUrl,
       location: apiData.location,
+      gender: apiData.gender,
+      profileData: apiData.smaProfile,
       tier: apiData.tier,
       profileComplete: apiData.profileComplete,
       matchmakerNotes: apiData.matchmakerNotes,
@@ -376,6 +394,8 @@ export const syncMember = action({
         phone: apiData.phone,
         profilePictureUrl: apiData.profilePictureUrl,
         location: apiData.location,
+        gender: apiData.gender,
+        profileData: apiData.smaProfile,
         tier: apiData.tier,
         profileComplete: apiData.profileComplete,
         matchmakerNotes: apiData.matchmakerNotes,
@@ -457,6 +477,8 @@ export const syncAllMembersBackground = internalAction({
             phone: apiData.phone,
             profilePictureUrl: apiData.profilePictureUrl,
             location: apiData.location,
+            gender: apiData.gender,
+            profileData: apiData.smaProfile,
             tier: apiData.tier,
             profileComplete: apiData.profileComplete,
             matchmakerNotes: apiData.matchmakerNotes,
@@ -519,5 +541,116 @@ export const syncAllMembersBackground = internalAction({
     });
 
     return { synced, errors };
+  },
+});
+
+/**
+ * Trigger the male-only WhatsApp flow for an existing match.
+ * Fetches gender from SMA API if missing, then calls startFlowForMaleMember.
+ */
+export const triggerMaleFlowForMatch = internalAction({
+  args: { matchId: v.id("matches") },
+  handler: async (ctx, args) => {
+    const match = await ctx.runQuery(internal.matches.queries.getInternal, { matchId: args.matchId });
+    if (!match) {
+      console.warn(`triggerMaleFlowForMatch: match not found ${args.matchId}`);
+      return { triggered: false, reason: "match_not_found" };
+    }
+
+    if (match.flowTriggered) {
+      return { triggered: false, reason: "already_triggered" };
+    }
+
+    // Look up both members
+    let memberA = await ctx.runQuery(internal.members.queries.getInternal, { memberId: match.memberAId });
+    let memberB = await ctx.runQuery(internal.members.queries.getInternal, { memberId: match.memberBId });
+
+    // If gender missing on either side, try to fetch from SMA API
+    if (memberA && !memberA.gender && memberA.smaId && /^\d+$/.test(memberA.smaId)) {
+      try {
+        const apiData = await fetchAndMapClient(Number(memberA.smaId));
+        await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+          smaId: apiData.smaId,
+          firstName: apiData.firstName,
+          middleName: apiData.middleName,
+          lastName: apiData.lastName,
+          email: apiData.email,
+          phone: apiData.phone,
+          profilePictureUrl: apiData.profilePictureUrl,
+          location: apiData.location,
+          gender: apiData.gender,
+          profileData: apiData.smaProfile,
+          tier: apiData.tier,
+          profileComplete: apiData.profileComplete,
+          matchmakerNotes: apiData.matchmakerNotes,
+        });
+        memberA = await ctx.runQuery(internal.members.queries.getInternal, { memberId: match.memberAId });
+      } catch (err) {
+        console.warn(`triggerMaleFlowForMatch: failed to fetch gender for memberA smaId=${memberA.smaId}:`, err);
+      }
+    }
+
+    if (memberB && !memberB.gender && memberB.smaId && /^\d+$/.test(memberB.smaId)) {
+      try {
+        const apiData = await fetchAndMapClient(Number(memberB.smaId));
+        await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+          smaId: apiData.smaId,
+          firstName: apiData.firstName,
+          middleName: apiData.middleName,
+          lastName: apiData.lastName,
+          email: apiData.email,
+          phone: apiData.phone,
+          profilePictureUrl: apiData.profilePictureUrl,
+          location: apiData.location,
+          gender: apiData.gender,
+          profileData: apiData.smaProfile,
+          tier: apiData.tier,
+          profileComplete: apiData.profileComplete,
+          matchmakerNotes: apiData.matchmakerNotes,
+        });
+        memberB = await ctx.runQuery(internal.members.queries.getInternal, { memberId: match.memberBId });
+      } catch (err) {
+        console.warn(`triggerMaleFlowForMatch: failed to fetch gender for memberB smaId=${memberB.smaId}:`, err);
+      }
+    }
+
+    // Check if we now have a male member
+    const hasMale = memberA?.gender === "male" || memberB?.gender === "male";
+    if (!hasMale) {
+      console.warn(`triggerMaleFlowForMatch: still no male member for match ${args.matchId} after API fetch`);
+      return { triggered: false, reason: "no_male_after_fetch" };
+    }
+
+    // Delegate to the mutation (which re-checks flowTriggered atomically)
+    const result = await ctx.runMutation(
+      internal.integrations.crm.mutations.startFlowForMaleMember,
+      { matchId: args.matchId }
+    );
+
+    return { triggered: result.started, reason: result.started ? "ok" : result.reason };
+  },
+});
+
+/**
+ * Trigger flow for an active intro — called by match_group_changed webhook
+ * when a match is moved to "Automated Intro" group.
+ */
+export const triggerFlowForActiveIntro = internalAction({
+  args: { smaIntroId: v.string() },
+  handler: async (ctx, args) => {
+    const match = await ctx.runQuery(internal.matches.queries.getBySmaIntroId, { smaIntroId: args.smaIntroId });
+    if (!match) {
+      console.warn(`triggerFlowForActiveIntro: no match found for smaIntroId=${args.smaIntroId}`);
+      return { triggered: false, reason: "match_not_found" };
+    }
+
+    if (match.flowTriggered) {
+      return { triggered: false, reason: "already_triggered" };
+    }
+
+    return await ctx.runAction(
+      internal.integrations.smartmatchapp.actions.triggerMaleFlowForMatch,
+      { matchId: match._id }
+    );
   },
 });

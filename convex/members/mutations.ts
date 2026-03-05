@@ -1,8 +1,43 @@
 // @ts-nocheck
-import { mutation, internalMutation } from "../_generated/server";
+import { mutation, internalMutation, DatabaseWriter } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { requireAuth } from "../auth/authz";
+
+async function ensureProfileToken(db: DatabaseWriter, memberId: any): Promise<void> {
+  const member = await db.get(memberId);
+  if (!member || member.profileToken) return;
+  const token = crypto.randomUUID();
+  await db.patch(memberId, {
+    profileToken: token,
+    profileLink: `/intro/${token}`,
+  });
+}
+
+/**
+ * Generate a profileToken + profileLink for a member that doesn't have one.
+ */
+export const generateProfileToken = mutation({
+  args: {
+    sessionToken: v.optional(v.string()),
+    memberId: v.id("members"),
+    regenerate: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+    if (args.regenerate) {
+      const token = crypto.randomUUID();
+      await ctx.db.patch(args.memberId, {
+        profileToken: token,
+        profileLink: `/intro/${token}`,
+      });
+    } else {
+      await ensureProfileToken(ctx.db, args.memberId);
+    }
+    const member = await ctx.db.get(args.memberId);
+    return { profileLink: member?.profileLink ?? null };
+  },
+});
 
 /**
  * Create a new member.
@@ -311,6 +346,8 @@ export const syncFromSmaInternal = internalMutation({
       state: v.optional(v.string()),
       zipCode: v.optional(v.string()),
     })),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"), v.literal("other"))),
+    profileData: v.optional(v.any()),
     tier: v.optional(
       v.union(v.literal("free"), v.literal("member"), v.literal("vip"))
     ),
@@ -340,6 +377,8 @@ export const syncFromSmaInternal = internalMutation({
       if (args.whatsappId !== undefined) updates.whatsappId = args.whatsappId;
       if (args.profilePictureUrl !== undefined) updates.profilePictureUrl = args.profilePictureUrl;
       if (args.location !== undefined) updates.location = args.location;
+      if (args.gender !== undefined) updates.gender = args.gender;
+      if (args.profileData !== undefined) updates.profileData = args.profileData;
       if (args.tier !== undefined) updates.tier = args.tier;
       if (args.profileComplete !== undefined) updates.profileComplete = args.profileComplete;
       if (args.matchmakerNotes !== undefined) updates.matchmakerNotes = args.matchmakerNotes;
@@ -357,6 +396,8 @@ export const syncFromSmaInternal = internalMutation({
         whatsappId: args.whatsappId,
         profilePictureUrl: args.profilePictureUrl,
         location: args.location,
+        gender: args.gender,
+        profileData: args.profileData,
         tier: args.tier ?? "free",
         profileComplete: args.profileComplete ?? false,
         matchmakerNotes: args.matchmakerNotes,
@@ -494,7 +535,8 @@ export const syncIntrosInternal = internalMutation({
         if (partner) {
           const now = Date.now();
           const status = GROUP_STATUS_MAP[intro.group] ?? "active";
-          await ctx.db.insert("matches", {
+          const introToken = crypto.randomUUID();
+          const newMatchId = await ctx.db.insert("matches", {
             smaIntroId,
             memberAId: member._id,
             memberBId: partner._id,
@@ -503,9 +545,15 @@ export const syncIntrosInternal = internalMutation({
             smaGroupName: intro.group,
             smaStatusName: intro.matchStatus,
             smaStatusId: intro.matchStatusId,
+            flowTriggered: false,
+            introToken,
             createdAt: now,
             updatedAt: now,
           });
+
+          // Ensure both members have profile tokens
+          await ensureProfileToken(ctx.db, member._id);
+          await ensureProfileToken(ctx.db, partner._id);
 
           // Schedule profile fetch for partner if still a stub
           if (partner.firstName === "Unknown" && partner.smaId) {
@@ -513,6 +561,15 @@ export const syncIntrosInternal = internalMutation({
               0,
               internal.integrations.smartmatchapp.actions.fetchProfile,
               { smaClientId: Number(partner.smaId) }
+            );
+          }
+
+          // Schedule flow trigger for "Automated Intro" matches
+          if (intro.group === "Automated Intro") {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.integrations.smartmatchapp.actions.triggerMaleFlowForMatch,
+              { matchId: newMatchId }
             );
           }
         }

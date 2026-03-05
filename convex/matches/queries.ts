@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { query } from "../_generated/server";
+import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "../auth/authz";
 
@@ -342,5 +342,111 @@ export const getStats = query({
       avgResponseTimeMs: Math.round(avgResponseTimeMs),
       avgResponseTimeHours: Math.round(avgResponseTimeMs / (1000 * 60 * 60) * 10) / 10,
     };
+  },
+});
+
+/**
+ * Get a match by ID (no auth — internal use only).
+ */
+export const getInternal = internalQuery({
+  args: { matchId: v.id("matches") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.matchId);
+  },
+});
+
+/**
+ * Look up a match by its SMA introduction ID (no auth — internal use only).
+ */
+export const getBySmaIntroId = internalQuery({
+  args: { smaIntroId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("matches")
+      .withIndex("by_smaIntroId", (q) => q.eq("smaIntroId", args.smaIntroId))
+      .first();
+  },
+});
+
+/**
+ * Public query: look up a match by introToken and return the female member's
+ * profile data for the public profile page. No auth required — the token
+ * itself is the authorization.
+ *
+ * Returns only safe-to-share fields (no email, phone, last name, etc.)
+ */
+/**
+ * Build safe-to-share profile data from a member document.
+ */
+function buildProfileResponse(member: any) {
+  const profile = member.profileData ?? {};
+  return {
+    firstName: member.firstName,
+    age: profile.age,
+    birthdate: profile.birthdate,
+    location: member.location,
+    profilePictureUrl: member.profilePictureUrl,
+    coverPhotoUrl: typeof profile.coverPhoto === "object" ? profile.coverPhoto?.url : profile.coverPhoto,
+    occupation: profile.occupation,
+    careerOverview: profile.careerOverview,
+    religion: profile.religion,
+    jewishObservance: profile.jewishObservance,
+    ethnicity: profile.ethnicity,
+    politicalAffiliation: profile.politicalAffiliation,
+    interests: profile.interests,
+    currentRelationshipStatus: profile.currentRelationshipStatus,
+    dayInLife: profile.dayInLife,
+    weekendPreferences: profile.weekendPreferences,
+    friendsDescribe: profile.friendsDescribe,
+    upbringing: profile.upbringing,
+    relationshipStatus: profile.relationshipStatus,
+    relationshipHistory: profile.relationshipHistory,
+    hasChildren: profile.hasChildren,
+    wantChildren: profile.wantChildren,
+    childrenDetails: profile.childrenDetails,
+    height: profile.height,
+    languages: profile.languages,
+  };
+}
+
+export const getProfileByIntroToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    // 1. Try match introToken (time-limited intro link)
+    const match = await ctx.db
+      .query("matches")
+      .withIndex("by_introToken", (q) => q.eq("introToken", args.token))
+      .first();
+
+    if (match) {
+      // Check expiration
+      const settings = await ctx.db.query("appSettings").first();
+      const expirationHours = settings?.profileExpirationHours ?? 24;
+      const expiresAt = match.createdAt + expirationHours * 60 * 60 * 1000;
+      if (Date.now() > expiresAt) {
+        return { expired: true as const };
+      }
+
+      // Find the female member (check both sides)
+      const memberA = await ctx.db.get(match.memberAId);
+      const memberB = await ctx.db.get(match.memberBId);
+
+      const femaleMember =
+        memberA?.gender === "female" ? memberA :
+        memberB?.gender === "female" ? memberB :
+        memberB;
+
+      if (!femaleMember) return null;
+      return buildProfileResponse(femaleMember);
+    }
+
+    // 2. Try member profileToken (permanent member profile link)
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_profileToken", (q) => q.eq("profileToken", args.token))
+      .first();
+
+    if (!member) return null;
+    return buildProfileResponse(member);
   },
 });

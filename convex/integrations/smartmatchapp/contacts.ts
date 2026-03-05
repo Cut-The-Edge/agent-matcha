@@ -40,7 +40,11 @@ const PROFILE_FIELD_MAP: Record<string, string> = {
   prof_195: "relationshipHistory",
   prof_196: "childrenDetails",
   prof_237: "coverPhoto",
+  prof_132: "gender",
   prof_244: "location",
+  prof_165: "politicalAffiliation", // Select
+  prof_185: "interests",            // MultiSelect (top 6)
+  prof_194: "currentRelationshipStatus", // MultiSelect
   prof_176: "instagram",
   prof_177: "tiktok",
   prof_178: "linkedin",
@@ -92,6 +96,17 @@ function extractValue(field: any): any {
  * Fetch a full SMA client profile and map it to a flat object
  * compatible with our members table.
  */
+/**
+ * Normalize SMA gender label to our enum.
+ */
+function normalizeGender(label: string | null | undefined): "male" | "female" | "other" | undefined {
+  if (!label) return undefined;
+  const lower = label.toLowerCase();
+  if (lower === "male" || lower === "man") return "male";
+  if (lower === "female" || lower === "woman") return "female";
+  return "other";
+}
+
 export async function fetchAndMapClient(smaClientId: number): Promise<{
   smaId: string;
   firstName: string;
@@ -101,6 +116,7 @@ export async function fetchAndMapClient(smaClientId: number): Promise<{
   phone?: string;
   profilePictureUrl?: string;
   location?: { country?: string; city?: string; state?: string; zipCode?: string };
+  gender?: "male" | "female" | "other";
   tier: "free" | "member" | "vip";
   profileComplete: boolean;
   matchmakerNotes?: string;
@@ -144,6 +160,9 @@ export async function fetchAndMapClient(smaClientId: number): Promise<{
         ? coverPhoto
         : undefined;
 
+  // Extract gender from the Select field
+  const gender = normalizeGender(mapped.gender);
+
   return {
     smaId: String(smaClientId),
     firstName: mapped.firstName || "Unknown",
@@ -153,6 +172,7 @@ export async function fetchAndMapClient(smaClientId: number): Promise<{
     phone: mapped.phone,
     profilePictureUrl,
     location: mapped.location,
+    gender,
     tier: mapTier(allFields.prof_197?.value),
     profileComplete,
     matchmakerNotes: mapped.matchmakerNotes,

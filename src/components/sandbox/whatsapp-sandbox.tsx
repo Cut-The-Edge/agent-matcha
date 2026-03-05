@@ -5,14 +5,13 @@ import { useQuery, useMutation } from "convex/react"
 import { useRouter } from "next/navigation"
 import { api } from "../../../convex/_generated/api"
 import type { Id } from "../../../convex/_generated/dataModel"
-import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
+import { useAuthQuery, useAuthMutation, useAuthAction } from "@/hooks/use-auth-query"
 import {
   FlaskConical,
   Play,
   Eye,
-  Pencil,
-  Check,
-  X,
+  Link,
+  RefreshCw,
   Loader2,
   RotateCcw,
 } from "lucide-react"
@@ -30,12 +29,13 @@ export function WhatsAppSandboxContent() {
   // Mutations
   const startSandbox = useMutation(api.engine.sandbox.startSandboxFlow)
   const resetAndSeed = useMutation(api.engine.mutations.resetAndSeedFlow)
-  const { mutateWithAuth: updateMember } = useAuthMutation(
-    api.members.mutations.update
-  )
   const resetMember = useMutation(api.engine.sandbox.resetMember)
+  const { mutateWithAuth: generateProfileToken } = useAuthMutation(api.members.mutations.generateProfileToken)
+  const { actionWithAuth: syncMemberFromSma } = useAuthAction(api.integrations.smartmatchapp.actions.syncMember)
   const [isSeeding, setIsSeeding] = useState(false)
   const [resettingMemberId, setResettingMemberId] = useState<string | null>(null)
+  const [generatingProfileId, setGeneratingProfileId] = useState<string | null>(null)
+  const [syncingMemberId, setSyncingMemberId] = useState<string | null>(null)
 
   // Form state
   const [selectedFlowId, setSelectedFlowId] = useState<string>("")
@@ -43,11 +43,6 @@ export function WhatsAppSandboxContent() {
   const [memberBId, setMemberBId] = useState<string>("")
   const [isStarting, setIsStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Inline edit state for whatsappId / profileLink
-  const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
-  const [editingField, setEditingField] = useState<"whatsappId" | "profileLink">("whatsappId")
-  const [editValue, setEditValue] = useState("")
 
   const activeFlows = flowDefs?.filter((f: any) => f.isActive) ?? []
 
@@ -79,20 +74,6 @@ export function WhatsAppSandboxContent() {
       setError(err.message || "Failed to start flow")
     } finally {
       setIsStarting(false)
-    }
-  }
-
-  async function handleSaveField(memberId: string) {
-    try {
-      await updateMember({
-        memberId: memberId as Id<"members">,
-        ...(editingField === "whatsappId"
-          ? { whatsappId: editValue }
-          : { profileLink: editValue }),
-      })
-      setEditingMemberId(null)
-    } catch (err: any) {
-      console.error(`Failed to update ${editingField}:`, err)
     }
   }
 
@@ -130,7 +111,7 @@ export function WhatsAppSandboxContent() {
           {/* Member table */}
           <h3 className="text-sm font-semibold">Members</h3>
           <p className="mb-3 text-xs text-muted-foreground">
-            Click the pencil icon to set WhatsApp ID or Profile Link
+            Phone numbers and profile links for each member
           </p>
 
           <div className="mb-6 overflow-hidden rounded-lg border border-border">
@@ -138,7 +119,8 @@ export function WhatsAppSandboxContent() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="px-3 py-2 text-left font-medium">Name</th>
-                  <th className="px-3 py-2 text-left font-medium">WhatsApp ID</th>
+                  <th className="px-3 py-2 text-left font-medium">Gender</th>
+                  <th className="px-3 py-2 text-left font-medium">Phone</th>
                   <th className="px-3 py-2 text-left font-medium">Profile Link</th>
                   <th className="px-3 py-2 text-left font-medium"></th>
                 </tr>
@@ -149,108 +131,107 @@ export function WhatsAppSandboxContent() {
                     <td className="px-3 py-2 font-medium">
                       {m.firstName} {m.lastName || ""}
                     </td>
-                    {/* WhatsApp ID */}
+                    <td className="px-3 py-2 text-muted-foreground capitalize">
+                      {m.gender || "—"}
+                    </td>
+                    {/* Phone */}
                     <td className="px-3 py-2">
-                      {editingMemberId === m._id && editingField === "whatsappId" ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            placeholder="whatsapp:+1234..."
-                            className="w-full rounded border px-2 py-1 text-xs"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSaveField(m._id)
-                              if (e.key === "Escape") setEditingMemberId(null)
-                            }}
-                          />
-                          <button type="button" onClick={() => handleSaveField(m._id)} className="rounded p-1 text-green-600 hover:bg-green-50">
-                            <Check className="size-3" />
-                          </button>
-                          <button type="button" onClick={() => setEditingMemberId(null)} className="rounded p-1 text-red-600 hover:bg-red-50">
-                            <X className="size-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span className="truncate text-muted-foreground">{m.whatsappId || "—"}</span>
-                          <button
-                            type="button"
-                            onClick={() => { setEditingMemberId(m._id); setEditingField("whatsappId"); setEditValue(m.whatsappId || "") }}
-                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
-                          >
-                            <Pencil className="size-3" />
-                          </button>
-                        </div>
-                      )}
+                      <span className="truncate text-muted-foreground">{m.phone || "—"}</span>
                     </td>
                     {/* Profile Link */}
                     <td className="px-3 py-2">
-                      {editingMemberId === m._id && editingField === "profileLink" ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            placeholder="https://..."
-                            className="w-full rounded border px-2 py-1 text-xs"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSaveField(m._id)
-                              if (e.key === "Escape") setEditingMemberId(null)
-                            }}
-                          />
-                          <button type="button" onClick={() => handleSaveField(m._id)} className="rounded p-1 text-green-600 hover:bg-green-50">
-                            <Check className="size-3" />
-                          </button>
-                          <button type="button" onClick={() => setEditingMemberId(null)} className="rounded p-1 text-red-600 hover:bg-red-50">
-                            <X className="size-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span className="max-w-[140px] truncate text-muted-foreground">{m.profileLink || "—"}</span>
-                          <button
-                            type="button"
-                            onClick={() => { setEditingMemberId(m._id); setEditingField("profileLink"); setEditValue(m.profileLink || "") }}
-                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+                      <div className="flex items-center gap-2">
+                        {m.profileLink ? (
+                          <a
+                            href={m.profileLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-xs"
                           >
-                            <Pencil className="size-3" />
-                          </button>
-                        </div>
-                      )}
+                            View
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={generatingProfileId === m._id}
+                          onClick={async () => {
+                            setGeneratingProfileId(m._id)
+                            try {
+                              await generateProfileToken({
+                                memberId: m._id as Id<"members">,
+                                regenerate: !!m.profileLink,
+                              })
+                            } catch (err: any) {
+                              console.error("Failed to generate profile:", err)
+                            } finally {
+                              setGeneratingProfileId(null)
+                            }
+                          }}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:underline disabled:opacity-50"
+                        >
+                          {generatingProfileId === m._id ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <Link className="size-3" />
+                          )}
+                          {m.profileLink ? "Regenerate" : "Generate"}
+                        </button>
+                      </div>
                     </td>
-                    {/* Reset button */}
+                    {/* Sync + Reset buttons */}
                     <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        title="Reset member — clears all matches, flows, payments, feedback, and messages"
-                        disabled={resettingMemberId === m._id}
-                        onClick={async () => {
-                          if (!confirm(`Reset ${m.firstName} ${m.lastName || ""}? This deletes all their matches, flows, payments, feedback, and messages.`)) return
-                          setResettingMemberId(m._id)
-                          try {
-                            await resetMember({ memberId: m._id as Id<"members"> })
-                          } catch (err: any) {
-                            console.error("Reset failed:", err)
-                          } finally {
-                            setResettingMemberId(null)
-                          }
-                        }}
-                        className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      >
-                        {resettingMemberId === m._id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcw className="size-3.5" />
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          title="Sync full profile from SMA"
+                          disabled={syncingMemberId === m._id || !m.smaId}
+                          onClick={async () => {
+                            setSyncingMemberId(m._id)
+                            try {
+                              await syncMemberFromSma({ smaClientId: Number(m.smaId) })
+                            } catch (err: any) {
+                              console.error("Sync failed:", err)
+                            } finally {
+                              setSyncingMemberId(null)
+                            }
+                          }}
+                          className="rounded p-1 text-muted-foreground hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
+                        >
+                          {syncingMemberId === m._id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="size-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          title="Reset member — clears all matches, flows, payments, feedback, and messages"
+                          disabled={resettingMemberId === m._id}
+                          onClick={async () => {
+                            if (!confirm(`Reset ${m.firstName} ${m.lastName || ""}? This deletes all their matches, flows, payments, feedback, and messages.`)) return
+                            setResettingMemberId(m._id)
+                            try {
+                              await resetMember({ memberId: m._id as Id<"members"> })
+                            } catch (err: any) {
+                              console.error("Reset failed:", err)
+                            } finally {
+                              setResettingMemberId(null)
+                            }
+                          }}
+                          className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        >
+                          {resettingMemberId === m._id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="size-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )) ?? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-4 text-center text-muted-foreground">
+                    <td colSpan={5} className="px-3 py-4 text-center text-muted-foreground">
                       Loading members...
                     </td>
                   </tr>
@@ -304,7 +285,7 @@ export function WhatsAppSandboxContent() {
                 {members?.map((m: any) => (
                   <option key={m._id} value={m._id}>
                     {m.firstName} {m.lastName || ""}{" "}
-                    {m.whatsappId ? `(${m.whatsappId})` : "(no WhatsApp)"}
+                    {m.phone ? `(${m.phone})` : "(no phone)"}
                   </option>
                 ))}
               </select>
@@ -326,7 +307,7 @@ export function WhatsAppSandboxContent() {
                   .map((m: any) => (
                     <option key={m._id} value={m._id}>
                       {m.firstName} {m.lastName || ""}{" "}
-                      {m.whatsappId ? `(${m.whatsappId})` : "(no WhatsApp)"}
+                      {m.phone ? `(${m.phone})` : "(no phone)"}
                     </option>
                   ))}
               </select>

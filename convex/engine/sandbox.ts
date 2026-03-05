@@ -57,15 +57,21 @@ export const startSandboxFlow = mutation({
     const now = Date.now();
 
     // Create the match record (§7.1: "Active Introductions" — match sent, awaiting response)
+    const introToken = crypto.randomUUID();
     const matchId = await ctx.db.insert("matches", {
       smaIntroId: `sandbox-${now}`,
       memberAId: args.memberAId,
       memberBId: args.memberBId ?? args.memberAId,
       status: "active",
       triggeredBy: admin._id,
+      introToken,
+      flowTriggered: true,
       createdAt: now,
       updatedAt: now,
     });
+
+    const baseUrl = process.env.APP_URL || "https://app.matchaagent.com";
+    const introProfileLink = `${baseUrl}/intro/${introToken}`;
 
     const instanceIds: string[] = [];
 
@@ -78,7 +84,7 @@ export const startSandboxFlow = mutation({
       metadata: {
         memberFirstName: memberA.firstName,
         matchName: memberB ? memberB.firstName : "Test Partner",
-        profileLink: memberA.profileLink || "",
+        profileLink: introProfileLink,
         matchId: String(matchId),
         side: "A",
         sandbox: true,
@@ -129,7 +135,7 @@ export const startSandboxFlow = mutation({
         metadata: {
           memberFirstName: memberB.firstName,
           matchName: memberA.firstName,
-          profileLink: memberB.profileLink || "",
+          profileLink: introProfileLink,
           matchId: String(matchId),
           side: "B",
           sandbox: true,

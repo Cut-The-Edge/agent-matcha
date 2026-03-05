@@ -2,67 +2,44 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
+import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
+import { api } from "../../../../convex/_generated/api"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import {
   Sun,
   Moon,
   Monitor,
-  MessageSquare,
-  Heart,
-  CreditCard,
   Settings,
-  Info,
+  Link,
 } from "lucide-react"
-
-// ============================================================================
-// Integration cards data
-// ============================================================================
-
-const integrations = [
-  {
-    name: "Twilio",
-    description: "WhatsApp messaging for member conversations",
-    icon: MessageSquare,
-    status: "Not configured",
-    connected: false,
-  },
-  {
-    name: "SmartMatchApp",
-    description: "Member and match data synchronization",
-    icon: Heart,
-    status: "Not configured",
-    connected: false,
-  },
-  {
-    name: "Stripe",
-    description: "Payment processing for personal outreach",
-    icon: CreditCard,
-    status: "Not configured",
-    connected: false,
-  },
-]
-
-// ============================================================================
-// Page
-// ============================================================================
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const settings = useAuthQuery(api.settings.get, {})
+  const { mutateWithAuth: updateSettings } = useAuthMutation(api.settings.update)
+  const [expirationHours, setExpirationHours] = useState<string>("")
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (settings && "profileExpirationHours" in settings) {
+      setExpirationHours(String(settings.profileExpirationHours))
+    }
+  }, [settings])
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
       <div className="px-4 lg:px-6">
         <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
         <p className="text-muted-foreground">
-          Configure application settings and integrations
+          Configure application settings
         </p>
       </div>
 
@@ -111,71 +88,57 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        <Separator />
-
-        {/* Integrations Section */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Integrations</h3>
-          <div className="grid gap-4 md:grid-cols-3">
-            {integrations.map((integration) => (
-              <Card key={integration.name}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <integration.icon className="h-5 w-5" />
-                      {integration.name}
-                    </CardTitle>
-                    <Badge variant={integration.connected ? "default" : "secondary"}>
-                      {integration.status}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    {integration.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="outline" size="sm" disabled>
-                    Configure
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* About Section */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            About
-          </h3>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Application</span>
-                  <span className="text-sm font-medium">Agent Matcha</span>
+          {/* Profile Links */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Link className="h-4 w-4" />
+                Profile Links
+              </CardTitle>
+              <CardDescription>
+                Set how long intro profile pages remain accessible
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-3">
+                <div className="flex-1 max-w-[200px]">
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Expiration time (hours)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={expirationHours}
+                    onChange={(e) => {
+                      setExpirationHours(e.target.value)
+                      setSaved(false)
+                    }}
+                  />
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Version</span>
-                  <span className="text-sm font-medium">0.1.0</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Backend</span>
-                  <span className="text-sm font-medium">Convex</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Framework</span>
-                  <span className="text-sm font-medium">Next.js 15</span>
-                </div>
+                <Button
+                  size="sm"
+                  disabled={saving || !expirationHours || Number(expirationHours) < 1}
+                  onClick={async () => {
+                    setSaving(true)
+                    setSaved(false)
+                    try {
+                      await updateSettings({
+                        profileExpirationHours: Number(expirationHours),
+                      })
+                      setSaved(true)
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                >
+                  {saving ? "Saving..." : saved ? "Saved" : "Save"}
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
+
       </div>
     </div>
   )

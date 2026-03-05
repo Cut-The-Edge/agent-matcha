@@ -29,8 +29,9 @@ export function toWhatsAppFormat(phone: string): string {
   // Already in WhatsApp format
   if (phone.startsWith("whatsapp:")) return phone;
 
-  // Ensure it starts with +
-  const normalized = phone.startsWith("+") ? phone : `+${phone}`;
+  // Strip spaces, dashes, parentheses → E.164 format
+  const stripped = phone.replace(/[\s\-\(\)]/g, "");
+  const normalized = stripped.startsWith("+") ? stripped : `+${stripped}`;
   return `whatsapp:${normalized}`;
 }
 

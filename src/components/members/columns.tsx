@@ -99,6 +99,16 @@ export const columns: ColumnDef<Member>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: "gender",
+    header: "Gender",
+    cell: ({ row }) => (
+      <span className="text-muted-foreground capitalize">
+        {row.original.gender || "---"}
+      </span>
+    ),
+    filterFn: (row, id, value) => value.includes(row.getValue(id)),
+  },
+  {
     accessorKey: "smaId",
     header: "CRM ID",
     cell: ({ row }) => {
