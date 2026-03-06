@@ -157,6 +157,10 @@ export function WhatsAppSandboxContent() {
                           onClick={async () => {
                             setGeneratingProfileId(m._id)
                             try {
+                              // Sync latest profile data from SMA before generating link
+                              if (m.smaId) {
+                                await syncMemberFromSma({ smaClientId: Number(m.smaId) })
+                              }
                               await generateProfileToken({
                                 memberId: m._id as Id<"members">,
                                 regenerate: !!m.profileLink,

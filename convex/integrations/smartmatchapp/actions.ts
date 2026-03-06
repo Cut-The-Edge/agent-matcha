@@ -67,6 +67,7 @@ export const handleMatchAdded = internalAction({
           location: apiData.location,
           gender: apiData.gender,
           profileData: apiData.smaProfile,
+
           tier: apiData.tier,
           profileComplete: apiData.profileComplete,
           matchmakerNotes: apiData.matchmakerNotes,
@@ -98,6 +99,7 @@ export const handleMatchAdded = internalAction({
           location: apiData.location,
           gender: apiData.gender,
           profileData: apiData.smaProfile,
+
           tier: apiData.tier,
           profileComplete: apiData.profileComplete,
           matchmakerNotes: apiData.matchmakerNotes,
@@ -244,10 +246,14 @@ export const handleClientSync = internalAction({
     const needsFullProfile =
       !existing || existing.firstName === "Unknown" || !existing.firstName;
 
+    // Debounce: skip API call if member was synced in the last 60s
+    // (SMA often sends client_updated + client_profile_updated for the same change)
+    const recentlySynced = existing?.lastSyncedAt && (Date.now() - existing.lastSyncedAt < 60_000);
+
     let syncData: Record<string, any> = { ...mapped };
 
     // API fallback: fetch full profile if member is new or has placeholder data
-    if (needsFullProfile) {
+    if (needsFullProfile && !recentlySynced) {
       try {
         console.log(
           `SMA ${args.event}: fetching full profile for client ${args.smaClientId} (API fallback)`
@@ -276,6 +282,7 @@ export const handleClientSync = internalAction({
         location: syncData.location,
         gender: syncData.gender,
         profileData: syncData.smaProfile,
+
         tier: syncData.tier,
         profileComplete: syncData.profileComplete,
         matchmakerNotes: syncData.matchmakerNotes,
@@ -431,10 +438,7 @@ export const syncMemberIntros = internalAction({
     const introData = await fetchAndMapIntroductions(
       args.smaClientId,
       async (smaId: string) => {
-        const m = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId });
-        return m && m.firstName && m.firstName !== "Unknown"
-          ? `${m.firstName}${m.lastName ? ` ${m.lastName}` : ""}`
-          : null;
+        return await ctx.runQuery(internal.members.queries.lookupPartnerNameInternal, { smaId });
       },
     );
     await ctx.runMutation(internal.members.mutations.syncIntrosInternal, {
@@ -490,6 +494,7 @@ export const fetchProfile = internalAction({
       location: apiData.location,
       gender: apiData.gender,
       profileData: apiData.smaProfile,
+
       tier: apiData.tier,
       profileComplete: apiData.profileComplete,
       matchmakerNotes: apiData.matchmakerNotes,
@@ -523,6 +528,7 @@ export const syncMember = action({
         location: apiData.location,
         gender: apiData.gender,
         profileData: apiData.smaProfile,
+  
         tier: apiData.tier,
         profileComplete: apiData.profileComplete,
         matchmakerNotes: apiData.matchmakerNotes,
@@ -534,10 +540,7 @@ export const syncMember = action({
       const introData = await fetchAndMapIntroductions(
         args.smaClientId,
         async (smaId: string) => {
-          const m = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId });
-          return m && m.firstName && m.firstName !== "Unknown"
-            ? `${m.firstName}${m.lastName ? ` ${m.lastName}` : ""}`
-            : null;
+          return await ctx.runQuery(internal.members.queries.lookupPartnerNameInternal, { smaId });
         },
       );
       await ctx.runMutation(internal.members.mutations.syncIntrosInternal, {
@@ -606,6 +609,7 @@ export const syncAllMembersBackground = internalAction({
             location: apiData.location,
             gender: apiData.gender,
             profileData: apiData.smaProfile,
+  
             tier: apiData.tier,
             profileComplete: apiData.profileComplete,
             matchmakerNotes: apiData.matchmakerNotes,
@@ -634,10 +638,7 @@ export const syncAllMembersBackground = internalAction({
         const introData = await fetchAndMapIntroductions(
           smaClientId,
           async (smaId: string) => {
-            const m = await ctx.runQuery(internal.members.queries.getBySmaIdInternal, { smaId });
-            return m && m.firstName && m.firstName !== "Unknown"
-              ? `${m.firstName}${m.lastName ? ` ${m.lastName}` : ""}`
-              : null;
+            return await ctx.runQuery(internal.members.queries.lookupPartnerNameInternal, { smaId });
           },
         );
         await ctx.runMutation(internal.members.mutations.syncIntrosInternal, {
@@ -707,6 +708,7 @@ export const triggerMaleFlowForMatch = internalAction({
           location: apiData.location,
           gender: apiData.gender,
           profileData: apiData.smaProfile,
+
           tier: apiData.tier,
           profileComplete: apiData.profileComplete,
           matchmakerNotes: apiData.matchmakerNotes,
@@ -731,6 +733,7 @@ export const triggerMaleFlowForMatch = internalAction({
           location: apiData.location,
           gender: apiData.gender,
           profileData: apiData.smaProfile,
+
           tier: apiData.tier,
           profileComplete: apiData.profileComplete,
           matchmakerNotes: apiData.matchmakerNotes,

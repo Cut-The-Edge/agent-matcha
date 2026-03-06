@@ -112,7 +112,8 @@ export default defineSchema({
     matchDueDate: v.optional(v.string()),
   })
     .index("by_member", ["memberSmaId"])
-    .index("by_smaMatchId", ["smaMatchId"]),
+    .index("by_smaMatchId", ["smaMatchId"])
+    .index("by_partnerSmaId", ["partnerSmaId"]),
 
   // -- Matches (§7.1 Match Status Values) --
   matches: defineTable({

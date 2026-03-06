@@ -21,11 +21,11 @@ const PROFILE_FIELD_MAP: Record<string, string> = {
   prof_163: "occupation",
   prof_131: "birthdate",
   prof_233: "age",
-  prof_144: "religion",        // Select → { choice, choice_label }
+  prof_144: "religion",        // Select
   prof_187: "jewishObservance", // MultiSelect
   prof_133: "ethnicity",       // Select
   prof_142: "relationshipStatus", // Select
-  prof_170: "height",
+  prof_170: "height",          // Height (ft & in) → mm number
   prof_161: "languages",
   prof_174: "hasChildren",     // Select
   prof_19:  "wantChildren",    // Select
@@ -48,6 +48,22 @@ const PROFILE_FIELD_MAP: Record<string, string> = {
   prof_176: "instagram",
   prof_177: "tiktok",
   prof_178: "linkedin",
+  // Additional profile fields
+  prof_172: "sexualOrientation",  // Select
+  prof_136: "hairColor",          // Select
+  prof_169: "eyeColor",           // Select
+  prof_23:  "smoke",              // Select
+  prof_24:  "drinkAlcohol",       // Select
+  prof_50:  "hasPets",            // Select
+  prof_236: "lookingForPartner",  // Select
+  prof_191: "organizations",      // MultiSelect
+  prof_192: "personalGrowth",     // Long Text
+  prof_193: "whatYouNotice",      // Long Text
+  prof_158: "income",             // Select
+  prof_181: "nationality",        // Short Text
+  prof_234: "topValues",          // MultiSelect
+  prof_167: "educationLevel",     // Select
+  prof_183: "collegeDetails",     // Long Text
 };
 
 /**
@@ -69,24 +85,37 @@ function mapTier(membershipType: any): "free" | "member" | "vip" {
 function extractValue(field: any): any {
   if (field == null || field.value == null) return null;
   const val = field.value;
-  const type = field.type;
+  const type = (field.type ?? "").toLowerCase();
 
-  if (type === "Select") {
+  if (type === "select") {
     return val.choice_label ?? val.label ?? null;
   }
-  if (type === "MultiSelect" && Array.isArray(val)) {
-    return val.map((v: any) => v.choice_label ?? v.label).join(", ");
+  if (type === "multiselect" || type === "multi_select") {
+    if (Array.isArray(val)) {
+      return val.map((v: any) => v.choice_label ?? v.label).filter(Boolean).join(", ");
+    }
+    // Single object instead of array
+    if (val.choice_label || val.label) {
+      return val.choice_label ?? val.label;
+    }
   }
-  if (type === "Image") {
+  if (type === "image") {
     return val; // { name, url } — caller extracts .url
   }
-  if (type === "Location") {
+  if (type === "location") {
     return {
       country: val.country || undefined,
       city: val.city || undefined,
       state: val.state || undefined,
       zipCode: val.zip_code || undefined,
     };
+  }
+  // Height (ft & in) — SMA stores as mm, convert to readable string
+  if (type.includes("height") && typeof val === "number") {
+    const totalInches = Math.round(val / 25.4);
+    const feet = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${feet}'${inches}"`;
   }
   // Short Text, Long Text, PhoneNumber, Email, Birthday, etc.
   return val;

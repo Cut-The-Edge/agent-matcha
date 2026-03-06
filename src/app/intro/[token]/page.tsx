@@ -135,14 +135,13 @@ export default function IntroProfilePage() {
                   label="If you selected Jewish, what level of observance do you most identify with? Please select all that a"
                   badges={profile.jewishObservance}
                 />
-                <FieldRow label="What is your political affiliation?" value={profile.politicalAffiliation} />
                 <FieldRow
                   label="Choose 6 of the following that best describe your interests"
                   badges={profile.interests}
                 />
                 <FieldRow
                   label="Current Relationship Status"
-                  badges={profile.currentRelationshipStatus || profile.relationshipStatus}
+                  badges={profile.currentRelationshipStatus}
                 />
                 <FieldRow label="Do you have children?" value={profile.hasChildren} />
                 <FieldRow label="Do you want (more) children?" value={profile.wantChildren} />
@@ -150,15 +149,6 @@ export default function IntroProfilePage() {
                   label="How would your friends describe you? Please list 3-5 adjectives."
                   value={profile.friendsDescribe}
                 />
-                <FieldRow label="Height" value={profile.height ? String(profile.height) : undefined} />
-                <FieldRow label="Languages spoken" value={profile.languages} />
-                <FieldRow label="Ethnicity" value={profile.ethnicity} />
-                <FieldRow label="Career overview" value={profile.careerOverview} />
-                <FieldRow label="Upbringing & family values" value={profile.upbringing} />
-                <FieldRow label="Day in your life" value={profile.dayInLife} />
-                <FieldRow label="Weekend preferences" value={profile.weekendPreferences} />
-                <FieldRow label="Relationship history overview" value={profile.relationshipHistory} />
-                <FieldRow label="Children details" value={profile.childrenDetails} />
               </div>
             </div>
           </div>

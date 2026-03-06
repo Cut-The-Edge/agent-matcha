@@ -177,6 +177,37 @@ export const getBySmaId = query({
 });
 
 /**
+ * Look up a partner's display name by SMA ID.
+ * Checks the members table first, then falls back to cached partnerName
+ * in smaIntroductions. Returns null if no name found.
+ * Used to avoid redundant SMA API calls for partner name resolution.
+ */
+export const lookupPartnerNameInternal = internalQuery({
+  args: { smaId: v.string() },
+  handler: async (ctx, args) => {
+    // 1. Check members table (most reliable source)
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_smaId", (q) => q.eq("smaId", args.smaId))
+      .first();
+    if (member && member.firstName && member.firstName !== "Unknown") {
+      return `${member.firstName}${member.lastName ? ` ${member.lastName}` : ""}`;
+    }
+
+    // 2. Fall back to cached partner name from any smaIntroductions record
+    const intro = await ctx.db
+      .query("smaIntroductions")
+      .withIndex("by_partnerSmaId", (q) => q.eq("partnerSmaId", args.smaId))
+      .first();
+    if (intro?.partnerName) {
+      return intro.partnerName;
+    }
+
+    return null;
+  },
+});
+
+/**
  * Get a member by their SmartMatchApp ID (no auth required — internal use only).
  */
 export const getBySmaIdInternal = internalQuery({

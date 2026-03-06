@@ -177,8 +177,7 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
           matchStatusId: payload?.status?.id,
         }
       );
-      // Re-sync intro counts for affected members
-      await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncIntrosForMatch, { smaMatchId: smaIntroId });
+      // Local records updated above — skip full API re-sync to save API quota
     }
     return new Response(
       JSON.stringify({ ok: true, event: "match_updated", scheduled: true }),
@@ -210,8 +209,7 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
           groupId: payload?.group?.id,
         }
       );
-      // Re-sync intro counts for affected members
-      await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncIntrosForMatch, { smaMatchId: smaIntroId });
+      // Local records updated above — skip full API re-sync to save API quota
 
       // Trigger flow when moved to "Automated Intro"
       if (payload?.group?.name === "Automated Intro") {
