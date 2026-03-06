@@ -54,6 +54,7 @@ import type * as integrations_smartmatchapp_client from "../integrations/smartma
 import type * as integrations_smartmatchapp_contacts from "../integrations/smartmatchapp/contacts.js";
 import type * as integrations_smartmatchapp_matches from "../integrations/smartmatchapp/matches.js";
 import type * as integrations_smartmatchapp_notes from "../integrations/smartmatchapp/notes.js";
+import type * as integrations_smartmatchapp_queries from "../integrations/smartmatchapp/queries.js";
 import type * as integrations_smartmatchapp_webhook from "../integrations/smartmatchapp/webhook.js";
 import type * as integrations_stripe_callbacks from "../integrations/stripe/callbacks.js";
 import type * as integrations_stripe_checkout from "../integrations/stripe/checkout.js";
@@ -140,6 +141,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/smartmatchapp/contacts": typeof integrations_smartmatchapp_contacts;
   "integrations/smartmatchapp/matches": typeof integrations_smartmatchapp_matches;
   "integrations/smartmatchapp/notes": typeof integrations_smartmatchapp_notes;
+  "integrations/smartmatchapp/queries": typeof integrations_smartmatchapp_queries;
   "integrations/smartmatchapp/webhook": typeof integrations_smartmatchapp_webhook;
   "integrations/stripe/callbacks": typeof integrations_stripe_callbacks;
   "integrations/stripe/checkout": typeof integrations_stripe_checkout;

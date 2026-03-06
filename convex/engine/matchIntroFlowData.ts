@@ -43,7 +43,7 @@ export const nodes = [
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_upsell_intro" },
       ],
       // No Response: 2-day timeout starts the structured follow-up sequence (Day 2/5/7/8)
-      timeout: 172800000, // 2 days
+      timeout: 60000, // TEST: 1 minute (was 2 days)
       timeoutEdgeId: "edge_timeout_day2",
     },
   },
@@ -453,17 +453,6 @@ export const nodes = [
 
   // §6 — FLOW D: STRUCTURED FOLLOW-UP SEQUENCE (Day 2 → 5 → 7 → 8 expire)
   {
-    nodeId: "msg_followup_day2",
-    type: "message",
-    label: "Follow-up Day 2",
-    position: { x: -800, y: 800 },
-    config: {
-      template:
-        "Just checking in on the introduction I sent over for {{matchFirstName}}. Introductions remain open for 7 days, so when you have a moment let me know if you're interested or not.",
-      channel: "whatsapp",
-    },
-  },
-  {
     nodeId: "decision_response_day2",
     type: "decision",
     label: "Response (Day 2)",
@@ -476,19 +465,8 @@ export const nodes = [
         { value: "not_interested", label: "Not interested", edgeId: "edge_day2_not_interested" },
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day2_upsell" },
       ],
-      timeout: 259200000, // 3 days
+      timeout: 60000, // TEST: 1 minute (was 3 days)
       timeoutEdgeId: "edge_timeout_day5",
-    },
-  },
-  {
-    nodeId: "msg_followup_day5",
-    type: "message",
-    label: "Follow-up Day 5",
-    position: { x: -800, y: 1800 },
-    config: {
-      template:
-        "Circling back on {{matchFirstName}}. This introduction will expire in a couple of days, so let me know if you'd like to proceed or pass before it closes.",
-      channel: "whatsapp",
     },
   },
   {
@@ -504,19 +482,8 @@ export const nodes = [
         { value: "not_interested", label: "Not interested", edgeId: "edge_day5_not_interested" },
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day5_upsell" },
       ],
-      timeout: 172800000, // 2 days
+      timeout: 60000, // TEST: 1 minute (was 2 days)
       timeoutEdgeId: "edge_timeout_day7",
-    },
-  },
-  {
-    nodeId: "msg_followup_day7",
-    type: "message",
-    label: "Follow-up Day 7",
-    position: { x: -800, y: 2800 },
-    config: {
-      template:
-        "Quick final check on {{matchFirstName}}. Since introductions remain open for 7 days, I'll be moving this match to Past Introductions today if I don't hear back. Just let me know if you'd like to move forward before it expires.",
-      channel: "whatsapp",
     },
   },
   {
@@ -532,7 +499,7 @@ export const nodes = [
         { value: "not_interested", label: "Not interested", edgeId: "edge_day7_not_interested" },
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day7_upsell" },
       ],
-      timeout: 86400000, // 1 day
+      timeout: 60000, // TEST: 1 minute (was 1 day)
       timeoutEdgeId: "edge_timeout_day8",
     },
   },
@@ -626,18 +593,15 @@ export const edges = [
   { edgeId: "e_interested_prepay_action", source: "msg_interested_prepayment", target: "action_create_payment" },
 
   // §6 Structured follow-up chain (Day 2 → 5 → 7 → 8 expire)
-  { edgeId: "edge_timeout_day2", source: "decision_response", target: "msg_followup_day2", label: "No response (Day 2)" },
-  { edgeId: "e_day2_decision", source: "msg_followup_day2", target: "decision_response_day2" },
+  { edgeId: "edge_timeout_day2", source: "decision_response", target: "decision_response_day2", label: "No response (Day 2)" },
   { edgeId: "edge_day2_interested", source: "decision_response_day2", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_day2_not_interested", source: "decision_response_day2", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_day2_upsell", source: "decision_response_day2", target: "decision_upsell", label: "More info / intro" },
-  { edgeId: "edge_timeout_day5", source: "decision_response_day2", target: "msg_followup_day5", label: "No response (Day 5)" },
-  { edgeId: "e_day5_decision", source: "msg_followup_day5", target: "decision_response_day5" },
+  { edgeId: "edge_timeout_day5", source: "decision_response_day2", target: "decision_response_day5", label: "No response (Day 5)" },
   { edgeId: "edge_day5_interested", source: "decision_response_day5", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_day5_not_interested", source: "decision_response_day5", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_day5_upsell", source: "decision_response_day5", target: "decision_upsell", label: "More info / intro" },
-  { edgeId: "edge_timeout_day7", source: "decision_response_day5", target: "msg_followup_day7", label: "No response (Day 7)" },
-  { edgeId: "e_day7_decision", source: "msg_followup_day7", target: "decision_response_day7" },
+  { edgeId: "edge_timeout_day7", source: "decision_response_day5", target: "decision_response_day7", label: "No response (Day 7)" },
   { edgeId: "edge_day7_interested", source: "decision_response_day7", target: "decision_interested_outreach", label: "I'm interested" },
   { edgeId: "edge_day7_not_interested", source: "decision_response_day7", target: "decision_why_not", label: "Not interested" },
   { edgeId: "edge_day7_upsell", source: "decision_response_day7", target: "decision_upsell", label: "More info / intro" },

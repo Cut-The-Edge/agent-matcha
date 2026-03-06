@@ -164,6 +164,7 @@ export const processMatchCreated = internalMutation({
         timestamps: { flowStarted: Date.now() },
         metadata: {
           memberFirstName: maleMember.firstName,
+          matchFirstName: matchName,
           matchName,
           profileLink,
           matchId: String(matchId),
@@ -282,6 +283,7 @@ export const startFlowForMaleMember = internalMutation({
         timestamps: { flowStarted: Date.now() },
         metadata: {
           memberFirstName: maleMember.firstName,
+          matchFirstName: matchName,
           matchName,
           profileLink,
           matchId: String(args.matchId),

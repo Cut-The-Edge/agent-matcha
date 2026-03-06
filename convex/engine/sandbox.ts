@@ -83,6 +83,7 @@ export const startSandboxFlow = mutation({
       timestamps: { flowStarted: now },
       metadata: {
         memberFirstName: memberA.firstName,
+        matchFirstName: memberB ? memberB.firstName : "Test Partner",
         matchName: memberB ? memberB.firstName : "Test Partner",
         profileLink: introProfileLink,
         matchId: String(matchId),
@@ -134,6 +135,7 @@ export const startSandboxFlow = mutation({
         timestamps: { flowStarted: now },
         metadata: {
           memberFirstName: memberB.firstName,
+          matchFirstName: memberA.firstName,
           matchName: memberA.firstName,
           profileLink: introProfileLink,
           matchId: String(matchId),
