@@ -98,6 +98,18 @@ export const handleCheckoutCompleted = internalMutation({
           });
         }
 
+        // Move match to "Active" group in SMA CRM (no pending group exists)
+        if (instance.matchId) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.smartmatchapp.actions.updateMatchInSma,
+            {
+              matchId: instance.matchId,
+              finalStatus: "active",
+            }
+          );
+        }
+
         // Advance the flow past the payment-waiting step
         await ctx.scheduler.runAfter(
           0,

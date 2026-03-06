@@ -336,7 +336,25 @@ export const executeActionNode = internalMutation({
           );
         }
 
-        // 5. Increment member rejection count + store on context for condition check
+        // 5. Schedule LLM-generated notes upload to SMA Files API
+        //    2s delay lets analyzeFeedback (scheduled at 0) land first
+        if (instance.matchId && instance.memberId) {
+          await ctx.scheduler.runAfter(
+            2000,
+            internal.integrations.smartmatchapp.notes.uploadNotesToSma,
+            {
+              matchId: instance.matchId,
+              memberId: instance.memberId,
+              feedbackId,
+              decision,
+              categories: primaryCategories.length > 0 ? primaryCategories : undefined,
+              subCategories: Object.keys(subCategories).length > 0 ? subCategories : undefined,
+              freeText,
+            }
+          );
+        }
+
+        // 6. Increment member rejection count + store on context for condition check
         if (instance.memberId && decision === "not_interested") {
           // Read current count synchronously so the downstream condition node
           // sees the correct value (the async incrementRejectionCount may not
@@ -424,6 +442,19 @@ export const executeActionNode = internalMutation({
               {
                 matchId: instance.matchId,
                 finalStatus,
+              }
+            );
+          }
+
+          // Schedule LLM-generated notes upload to SMA
+          if (instance.memberId) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.integrations.smartmatchapp.notes.uploadNotesToSma,
+              {
+                matchId: instance.matchId,
+                memberId: instance.memberId,
+                decision: responseType || finalStatus,
               }
             );
           }
@@ -552,6 +583,19 @@ export const executeActionNode = internalMutation({
             internal.integrations.smartmatchapp.actions.updateMatchInSma,
             { matchId: instance.matchId, finalStatus: expireStatus }
           );
+
+          // Schedule LLM-generated notes upload to SMA
+          if (instance.memberId) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.integrations.smartmatchapp.notes.uploadNotesToSma,
+              {
+                matchId: instance.matchId,
+                memberId: instance.memberId,
+                decision: "no_response",
+              }
+            );
+          }
         }
 
         actionResult = {

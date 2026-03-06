@@ -322,6 +322,18 @@ const STATUS_TO_GROUP_KEYWORD: Record<string, string> = {
  *
  * Needs: the SMA match ID (from the match's smaIntroId) and both member SMA IDs.
  */
+/**
+ * Map our internal status to SMA match status ID.
+ * SMA dropdown: 1 = Interested, 2 = Not Interested
+ */
+const STATUS_TO_MATCH_STATUS: Record<string, string> = {
+  active: "1",       // Interested — paid upsell / active intro
+  interested: "1",   // Interested
+  rejected: "2",     // Not Interested
+  past: "2",         // Not Interested — expired / no response
+  not_interested: "2",
+};
+
 export const updateMatchInSma = internalAction({
   args: {
     matchId: v.id("matches"),
@@ -389,14 +401,22 @@ export const updateMatchInSma = internalAction({
 
     const groupId = existingIntro.groupId;
 
-    // We need to find the SMA match record ID. The smaIntroId is the SMA match ID.
-    // SMA API: PUT /clients/<client_id>/matches/<match_id>/ with { group: groupId }
+    // Resolve match status ID (Interested / Not Interested)
+    const matchStatusId = STATUS_TO_MATCH_STATUS[args.finalStatus] ||
+      STATUS_TO_MATCH_STATUS[args.finalStatus.toLowerCase()];
+
+    // Build update fields: group + optional match status
+    const updateFields: Record<string, string> = { group: String(groupId) };
+    if (matchStatusId) {
+      updateFields.status = matchStatusId;
+    }
+
+    // SMA API: PUT /clients/<client_id>/matches/<match_id>/
     try {
-      await updateClientMatch(clientSmaId, smaMatchId, {
-        group: String(groupId),
-      });
+      await updateClientMatch(clientSmaId, smaMatchId, updateFields);
       console.log(
-        `updateMatchInSma: moved match ${smaMatchId} to group ${groupId} (${args.finalStatus}) for client ${clientSmaId}`
+        `updateMatchInSma: moved match ${smaMatchId} to group ${groupId} (${args.finalStatus})` +
+        `${matchStatusId ? `, status=${matchStatusId}` : ""} for client ${clientSmaId}`
       );
 
       // Also update the partner side
@@ -408,9 +428,7 @@ export const updateMatchInSma = internalAction({
             (m: any) => m.match?.id === clientSmaId || m.client?.id === clientSmaId
           );
           if (partnerMatch) {
-            await updateClientMatch(partnerSmaId, partnerMatch.id, {
-              group: String(groupId),
-            });
+            await updateClientMatch(partnerSmaId, partnerMatch.id, updateFields);
             console.log(
               `updateMatchInSma: also moved partner match ${partnerMatch.id} for client ${partnerSmaId}`
             );
@@ -420,7 +438,7 @@ export const updateMatchInSma = internalAction({
         }
       }
 
-      return { success: true, groupId };
+      return { success: true, groupId, matchStatusId };
     } catch (err: any) {
       console.error(`updateMatchInSma: SMA API failed:`, err.message);
       return { success: false, reason: err.message };
