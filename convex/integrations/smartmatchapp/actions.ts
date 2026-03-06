@@ -10,7 +10,7 @@ import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { fetchAndMapClient, fetchAndMapIntroductions } from "./contacts";
-import { getClientMatches, smaGet } from "./client";
+import { getClientMatches, updateClientMatch } from "./client";
 
 /**
  * Handle a match_added event from SMA.
@@ -291,6 +291,133 @@ export const handleClientSync = internalAction({
       action: result.action,
       mappedFields: syncData,
     };
+  },
+});
+
+/**
+ * Map a final_status keyword to the SMA group name substring used in groupNameToKey.
+ */
+const STATUS_TO_GROUP_KEYWORD: Record<string, string> = {
+  rejected: "Rejected",
+  past: "Past",
+  active: "Active",
+  successful: "Successful",
+  potential: "Potential",
+  notSuitable: "Not Suitable",
+  automated: "Automated",
+};
+
+/**
+ * Update a match's group in SMA CRM.
+ *
+ * Called by the flow executor after sync_to_sma / update_match_status actions
+ * to move matches between groups (Automated Intro → Rejected, Past, etc.).
+ *
+ * Needs: the SMA match ID (from the match's smaIntroId) and both member SMA IDs.
+ */
+export const updateMatchInSma = internalAction({
+  args: {
+    matchId: v.id("matches"),
+    finalStatus: v.string(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Read match to get smaIntroId and member IDs
+    const match = await ctx.runQuery(internal.matches.queries.getInternal, {
+      matchId: args.matchId,
+    });
+
+    if (!match) {
+      console.warn(`updateMatchInSma: match ${args.matchId} not found`);
+      return { success: false, reason: "match_not_found" };
+    }
+
+    if (!match.smaIntroId) {
+      console.warn(`updateMatchInSma: match ${args.matchId} has no smaIntroId — skipping SMA sync`);
+      return { success: false, reason: "no_sma_intro_id" };
+    }
+
+    // Get the SMA match ID (the numeric intro ID from SMA)
+    const smaMatchId = parseInt(match.smaIntroId, 10);
+    if (isNaN(smaMatchId)) {
+      // Sandbox matches have smaIntroId like "sandbox-1234" — skip SMA sync
+      console.log(`updateMatchInSma: skipping sandbox match ${match.smaIntroId}`);
+      return { success: false, reason: "sandbox_match" };
+    }
+
+    // Get member SMA IDs to know which client to update
+    const memberA = await ctx.runQuery(internal.members.queries.getInternal, {
+      memberId: match.memberAId,
+    });
+    const memberB = await ctx.runQuery(internal.members.queries.getInternal, {
+      memberId: match.memberBId,
+    });
+
+    if (!memberA?.smaId) {
+      console.warn(`updateMatchInSma: memberA has no smaId for match ${args.matchId}`);
+      return { success: false, reason: "no_sma_ids" };
+    }
+
+    const clientSmaId = parseInt(memberA.smaId, 10);
+    const partnerSmaId = memberB?.smaId ? parseInt(memberB.smaId, 10) : 0;
+
+    // Resolve target group ID by looking up existing smaIntroductions records
+    const keyword = STATUS_TO_GROUP_KEYWORD[args.finalStatus] ||
+      STATUS_TO_GROUP_KEYWORD[args.finalStatus.toLowerCase()] ||
+      args.finalStatus;
+
+    // Find an smaIntroduction record with a matching group name to get the real group ID
+    const existingIntro = await ctx.runQuery(
+      internal.integrations.smartmatchapp.queries.findGroupIdByName,
+      { keyword }
+    );
+
+    if (!existingIntro) {
+      console.warn(
+        `updateMatchInSma: could not resolve group ID for "${args.finalStatus}" (keyword: ${keyword}). ` +
+        `No smaIntroductions records with a matching group name found.`
+      );
+      return { success: false, reason: "unknown_group_id" };
+    }
+
+    const groupId = existingIntro.groupId;
+
+    // We need to find the SMA match record ID. The smaIntroId is the SMA match ID.
+    // SMA API: PUT /clients/<client_id>/matches/<match_id>/ with { group: groupId }
+    try {
+      await updateClientMatch(clientSmaId, smaMatchId, {
+        group: String(groupId),
+      });
+      console.log(
+        `updateMatchInSma: moved match ${smaMatchId} to group ${groupId} (${args.finalStatus}) for client ${clientSmaId}`
+      );
+
+      // Also update the partner side
+      if (partnerSmaId) {
+        // Find the partner's match record for this same intro
+        try {
+          const partnerMatches = await getClientMatches(partnerSmaId);
+          const partnerMatch = partnerMatches?.objects?.find(
+            (m: any) => m.match?.id === clientSmaId || m.client?.id === clientSmaId
+          );
+          if (partnerMatch) {
+            await updateClientMatch(partnerSmaId, partnerMatch.id, {
+              group: String(groupId),
+            });
+            console.log(
+              `updateMatchInSma: also moved partner match ${partnerMatch.id} for client ${partnerSmaId}`
+            );
+          }
+        } catch (err) {
+          console.warn(`updateMatchInSma: failed to update partner side:`, err);
+        }
+      }
+
+      return { success: true, groupId };
+    } catch (err: any) {
+      console.error(`updateMatchInSma: SMA API failed:`, err.message);
+      return { success: false, reason: err.message };
+    }
   },
 });
 

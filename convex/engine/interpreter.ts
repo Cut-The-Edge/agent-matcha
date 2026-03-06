@@ -49,9 +49,11 @@ export const advanceFlow = internalMutation({
     if (
       instance.status !== INSTANCE_STATUS.ACTIVE
     ) {
-      throw new Error(
-        `Flow instance ${args.flowInstanceId} is not active (status: ${instance.status})`
+      // Flow already completed/expired — stale advanceFlow call, safe to ignore
+      console.log(
+        `advanceFlow: instance ${args.flowInstanceId} already ${instance.status}, skipping`
       );
+      return;
     }
 
     const flowDef = await ctx.db.get(instance.flowDefinitionId);

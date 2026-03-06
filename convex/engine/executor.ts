@@ -324,7 +324,19 @@ export const executeActionNode = internalMutation({
           });
         }
 
-        // 4. Increment member rejection count + store on context for condition check
+        // 4. Schedule SMA API call to move match group in CRM
+        if (instance.matchId) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.smartmatchapp.actions.updateMatchInSma,
+            {
+              matchId: instance.matchId,
+              finalStatus: args.params?.final_status || "rejected",
+            }
+          );
+        }
+
+        // 5. Increment member rejection count + store on context for condition check
         if (instance.memberId && decision === "not_interested") {
           // Read current count synchronously so the downstream condition node
           // sees the correct value (the async incrementRejectionCount may not
@@ -403,6 +415,19 @@ export const executeActionNode = internalMutation({
           }
 
           await ctx.db.patch(instance.matchId, patch);
+
+          // Schedule SMA API call to move match group in CRM
+          if (finalStatus) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.integrations.smartmatchapp.actions.updateMatchInSma,
+              {
+                matchId: instance.matchId,
+                finalStatus,
+              }
+            );
+          }
+
           actionResult = {
             type: "update_match_status",
             matchId: instance.matchId,
@@ -505,27 +530,34 @@ export const executeActionNode = internalMutation({
       }
 
       case "expire_match": {
-        // Move match to "expired" status after 8-day follow-up sequence
+        // Move match to "expired/past" status after 8-day follow-up sequence
+        const expireStatus = args.params?.final_status || args.params?.target_status || "past";
         if (instance.matchId) {
           await ctx.db.patch(instance.matchId, {
-            status: args.params?.target_status || "expired",
+            status: expireStatus,
             responseType: args.params?.response_type || "no_response",
             matchNotes: {
               member_id: instance.memberId,
               response_type: "no_response",
               note: args.params?.note || "No response after follow-up sequence.",
-              actions: args.params?.actions || [],
-              final_status: "expired",
+              final_status: expireStatus,
               timestamp: new Date().toISOString(),
             },
             updatedAt: Date.now(),
           });
+
+          // Sync to SMA CRM
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.smartmatchapp.actions.updateMatchInSma,
+            { matchId: instance.matchId, finalStatus: expireStatus }
+          );
         }
 
         actionResult = {
           type: "expire_match",
           matchId: instance.matchId,
-          status: "expired",
+          status: expireStatus,
         };
         break;
       }

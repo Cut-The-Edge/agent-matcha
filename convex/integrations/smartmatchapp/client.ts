@@ -97,6 +97,19 @@ export async function smaPut(path: string, data: Record<string, string>): Promis
   return true;
 }
 
+/**
+ * Update a client match (move group, change status, etc.).
+ * PUT /api3/clients/<client_id>/matches/<match_id>/
+ * Returns true on 204.
+ */
+export async function updateClientMatch(
+  clientId: number,
+  matchId: number,
+  fields: Record<string, string>,
+): Promise<boolean> {
+  return smaPut(`/clients/${clientId}/matches/${matchId}/`, fields);
+}
+
 // ── High-level helpers ──────────────────────────────────────────────
 
 /**

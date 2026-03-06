@@ -37,6 +37,16 @@ const ACTION_TYPES = [
   { value: "schedule_recalibration", label: "Schedule Recalibration" },
 ]
 
+const MATCH_STATUSES = [
+  { value: "active", label: "Active Introductions" },
+  { value: "rejected", label: "Rejected Introductions" },
+  { value: "past", label: "Past Introductions" },
+  { value: "potential", label: "Potential Introductions" },
+  { value: "successful", label: "Successful Matches" },
+  { value: "notSuitable", label: "Not Suitable" },
+  { value: "automated", label: "Automated Intro" },
+]
+
 export function PropertiesPanel() {
   const { selectedNode, updateNodeData, deselectNode, deleteNode } =
     useFlowEditorStore()
@@ -430,12 +440,30 @@ function ActionFields({
               onChange={(e) => updateParam(key, e.target.value, value as string)}
               placeholder="Key"
             />
-            <Input
-              className="flex-1"
-              value={value as string}
-              onChange={(e) => updateParam(key, key, e.target.value)}
-              placeholder="Value"
-            />
+            {key === "final_status" ? (
+              <Select
+                value={value as string}
+                onValueChange={(v) => updateParam(key, key, v)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {MATCH_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                className="flex-1"
+                value={value as string}
+                onChange={(e) => updateParam(key, key, e.target.value)}
+                placeholder="Value"
+              />
+            )}
             <Button
               variant="ghost"
               size="sm"

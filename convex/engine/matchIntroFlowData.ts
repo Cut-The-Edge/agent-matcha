@@ -12,7 +12,7 @@
  */
 
 export const FLOW_NAME = "Match Introduction Flow";
-export const FLOW_TYPE = "match_introduction";
+export const FLOW_TYPE = "match_feedback";
 export const FLOW_DESCRIPTION =
   "WhatsApp Matchmaking Follow-Up Agent — triggered when a new match is assigned. " +
   "Sends profile link, collects structured feedback through 4 response flows: " +
@@ -283,10 +283,6 @@ export const nodes = [
       actionType: "sync_to_sma",
       params: {
         final_status: "rejected",
-        actions: [
-          "Move match: Active Introductions → Rejected Introductions",
-          "Write all collected reasons + sub-selections to Match Notes",
-        ],
       },
     },
   },
@@ -557,15 +553,11 @@ export const nodes = [
     label: "Expire + Past Intro",
     position: { x: -800, y: 4200 },
     config: {
-      actionType: "expire_match",
+      actionType: "update_match_status",
       params: {
-        target_status: "expired",
+        final_status: "past",
         response_type: "no_response",
         note: "No response after 8-day follow-up sequence. Moved to Past Introductions.",
-        actions: [
-          "Move match: Active Introductions → Past Introductions",
-          "Log expiry reason in Match Notes",
-        ],
       },
     },
   },
