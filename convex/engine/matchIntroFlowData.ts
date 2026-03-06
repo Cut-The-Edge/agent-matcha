@@ -43,7 +43,7 @@ export const nodes = [
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_upsell_intro" },
       ],
       // No Response: 2-day timeout starts the structured follow-up sequence (Day 2/5/7/8)
-      timeout: 60000, // TEST: 1 minute (was 2 days)
+      timeout: 172800000, // 2 days
       timeoutEdgeId: "edge_timeout_day2",
     },
   },
@@ -61,7 +61,7 @@ export const nodes = [
         { value: "interested_yes", label: "Yes, start outreach", edgeId: "edge_interested_yes" },
         { value: "interested_pass", label: "Actually I'll pass", edgeId: "edge_interested_pass" },
       ],
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutEdgeId: "edge_nudge_interested_outreach",
     },
   },
@@ -97,7 +97,7 @@ export const nodes = [
         { value: "gut_feeling", label: "Can't explain it", edgeId: "edge_gut_feeling" },
         { value: "other", label: "Something else", edgeId: "edge_other" },
       ],
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutEdgeId: "edge_nudge_why_not",
     },
   },
@@ -113,7 +113,7 @@ export const nodes = [
       prompt: "Is this person outside your physical type?",
       categories: ["Yes", "Somewhat", "No"],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -127,7 +127,7 @@ export const nodes = [
       prompt: "Based on what you read, what felt misaligned?",
       categories: ["Values didn't feel aligned", "Didn't feel depth", "Hard to picture compatibility from the bio"],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -147,7 +147,7 @@ export const nodes = [
         "Work-life balance concerns",
       ],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -165,7 +165,7 @@ export const nodes = [
         "Practice style felt different than mine",
       ],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -186,7 +186,7 @@ export const nodes = [
         "Divorce / prior marriage hesitation",
       ],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -206,7 +206,7 @@ export const nodes = [
         "I want to relocate, but only for the right fit",
       ],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -226,7 +226,7 @@ export const nodes = [
         "Just no initial excitement",
       ],
       allowFreeText: false,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -240,7 +240,7 @@ export const nodes = [
       prompt: "No problem — feel free to type it out or send a voice note, and we'll take it from here.",
       categories: [],
       allowFreeText: true,
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
     },
   },
@@ -257,7 +257,7 @@ export const nodes = [
         { value: "more_reasons_yes", label: "Yes", edgeId: "edge_more_yes" },
         { value: "more_reasons_no", label: "No", edgeId: "edge_more_no" },
       ],
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutEdgeId: "edge_nudge_more_reasons",
     },
   },
@@ -307,7 +307,7 @@ export const nodes = [
         { value: "upsell_yes", label: "Yes, start outreach", edgeId: "edge_upsell_yes" },
         { value: "upsell_no", label: "No thanks, I'll pass", edgeId: "edge_upsell_no" },
       ],
-      timeout: 86400000,
+      timeout: 86400000, // 24h
       timeoutEdgeId: "edge_nudge_upsell",
     },
   },
@@ -437,6 +437,92 @@ export const nodes = [
       channel: "whatsapp",
     },
   },
+  // ── Re-Ask Decision Nodes ─────────────────────────────────────────────────
+  // After nudge with no response, re-ask the same question one more time.
+  // If still no response after timeout, expire the match.
+  {
+    nodeId: "decision_reask_why_not",
+    type: "decision",
+    label: "Re-Ask: Why Not Interested?",
+    position: { x: 3400, y: 1200 },
+    config: {
+      question:
+        "Totally understand. To help us refine your future matches, would you mind sharing what didn't feel right?",
+      options: [
+        { value: "physical", label: "Physical attraction", edgeId: "edge_reask_physical" },
+        { value: "bio", label: "Bio didn't resonate", edgeId: "edge_reask_bio" },
+        { value: "career", label: "Career ambitions mismatch", edgeId: "edge_reask_career" },
+        { value: "religious", label: "Religious level mismatch", edgeId: "edge_reask_religious" },
+        { value: "age", label: "Age preference", edgeId: "edge_reask_age" },
+        { value: "location", label: "Location", edgeId: "edge_reask_location" },
+        { value: "gut_feeling", label: "Can't explain it", edgeId: "edge_reask_gut_feeling" },
+        { value: "other", label: "Something else", edgeId: "edge_reask_other" },
+      ],
+      timeout: 86400000, // 24h
+      timeoutEdgeId: "edge_reask_why_not_expire",
+    },
+  },
+  {
+    nodeId: "decision_reask_more_reasons",
+    type: "decision",
+    label: "Re-Ask: Anything Else?",
+    position: { x: 3400, y: 2800 },
+    config: {
+      question: "Got it, thank you. Is there anything else that didn't feel right?",
+      options: [
+        { value: "more_reasons_yes", label: "Yes", edgeId: "edge_reask_more_yes" },
+        { value: "more_reasons_no", label: "No", edgeId: "edge_reask_more_no" },
+      ],
+      timeout: 86400000, // 24h
+      timeoutEdgeId: "edge_reask_more_reasons_expire",
+    },
+  },
+  {
+    nodeId: "decision_reask_upsell",
+    type: "decision",
+    label: "Re-Ask: Curated Outreach",
+    position: { x: 5900, y: 1200 },
+    config: {
+      question:
+        "At this stage, what you've received is the full profile we're able to share.\n\nIf you'd like to go deeper, we offer a Curated Outreach service — we personally reach out to this person on your behalf, share a bit about you, and gauge their interest before making a formal introduction.\n\nHow it works:\n- Total cost: $250\n- $125 upfront to initiate outreach\n- $125 only if the other party is interested in connecting\n\nNo guarantees — but we present you intentionally and always do our best. Would you like to activate this?",
+      options: [
+        { value: "upsell_yes", label: "Yes, start outreach", edgeId: "edge_reask_upsell_yes" },
+        { value: "upsell_no", label: "No thanks, I'll pass", edgeId: "edge_reask_upsell_no" },
+      ],
+      timeout: 86400000, // 24h
+      timeoutEdgeId: "edge_reask_upsell_expire",
+    },
+  },
+  {
+    nodeId: "decision_reask_interested_outreach",
+    type: "decision",
+    label: "Re-Ask: Outreach Decision",
+    position: { x: -100, y: 1700 },
+    config: {
+      question:
+        "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
+      options: [
+        { value: "interested_yes", label: "Yes, start outreach", edgeId: "edge_reask_interested_yes" },
+        { value: "interested_pass", label: "Actually I'll pass", edgeId: "edge_reask_interested_pass" },
+      ],
+      timeout: 86400000, // 24h
+      timeoutEdgeId: "edge_reask_interested_outreach_expire",
+    },
+  },
+
+  // ── Mid-Flow Expire Message ───────────────────────────────────────────────
+  {
+    nodeId: "msg_midflow_expire",
+    type: "message",
+    label: "Mid-Flow Expire",
+    position: { x: 3400, y: 3400 },
+    config: {
+      template:
+        "No worries — since I haven't heard back, I'll close this out for now and move {{matchFirstName}} to Past Introductions. If anything changes, just message me and we can pick back up.",
+      channel: "whatsapp",
+    },
+  },
+
   {
     nodeId: "action_notify_admin_outreach",
     type: "action",
@@ -465,7 +551,7 @@ export const nodes = [
         { value: "not_interested", label: "Not interested", edgeId: "edge_day2_not_interested" },
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day2_upsell" },
       ],
-      timeout: 60000, // TEST: 1 minute (was 3 days)
+      timeout: 259200000, // 3 days
       timeoutEdgeId: "edge_timeout_day5",
     },
   },
@@ -482,7 +568,7 @@ export const nodes = [
         { value: "not_interested", label: "Not interested", edgeId: "edge_day5_not_interested" },
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day5_upsell" },
       ],
-      timeout: 60000, // TEST: 1 minute (was 2 days)
+      timeout: 172800000, // 2 days
       timeoutEdgeId: "edge_timeout_day7",
     },
   },
@@ -499,7 +585,7 @@ export const nodes = [
         { value: "not_interested", label: "Not interested", edgeId: "edge_day7_not_interested" },
         { value: "upsell_intro", label: "More info / intro", edgeId: "edge_day7_upsell" },
       ],
-      timeout: 60000, // TEST: 1 minute (was 1 day)
+      timeout: 86400000, // 1 day
       timeoutEdgeId: "edge_timeout_day8",
     },
   },
@@ -659,11 +745,45 @@ export const edges = [
 
   // Decision nudge timeout edges (timeout → nudge → loop back)
   { edgeId: "edge_nudge_why_not", source: "decision_why_not", target: "msg_nudge_why_not", label: "Timeout nudge" },
-  { edgeId: "e_nudge_why_not_loop", source: "msg_nudge_why_not", target: "decision_why_not" },
+  { edgeId: "e_nudge_why_not_loop", source: "msg_nudge_why_not", target: "decision_reask_why_not" },
   { edgeId: "edge_nudge_more_reasons", source: "decision_more_reasons", target: "msg_nudge_more_reasons", label: "Timeout nudge" },
-  { edgeId: "e_nudge_more_reasons_loop", source: "msg_nudge_more_reasons", target: "decision_more_reasons" },
+  { edgeId: "e_nudge_more_reasons_loop", source: "msg_nudge_more_reasons", target: "decision_reask_more_reasons" },
   { edgeId: "edge_nudge_upsell", source: "decision_upsell", target: "msg_nudge_upsell", label: "Timeout nudge" },
-  { edgeId: "e_nudge_upsell_loop", source: "msg_nudge_upsell", target: "decision_upsell" },
+  { edgeId: "e_nudge_upsell_loop", source: "msg_nudge_upsell", target: "decision_reask_upsell" },
   { edgeId: "edge_nudge_interested_outreach", source: "decision_interested_outreach", target: "msg_nudge_interested_outreach", label: "Timeout nudge" },
-  { edgeId: "e_nudge_interested_outreach_loop", source: "msg_nudge_interested_outreach", target: "decision_interested_outreach" },
+  { edgeId: "e_nudge_interested_outreach_loop", source: "msg_nudge_interested_outreach", target: "decision_reask_interested_outreach" },
+
+  // ── Re-ask Decision → Option Edges ──────────────────────────────────────
+  // (member clicks a button on the re-asked question after nudge)
+
+  // decision_reask_why_not → same 8 feedback nodes
+  { edgeId: "edge_reask_physical", source: "decision_reask_why_not", target: "fb_physical", label: "Physical" },
+  { edgeId: "edge_reask_bio", source: "decision_reask_why_not", target: "fb_bio", label: "Bio" },
+  { edgeId: "edge_reask_career", source: "decision_reask_why_not", target: "fb_career", label: "Career" },
+  { edgeId: "edge_reask_religious", source: "decision_reask_why_not", target: "fb_religious", label: "Religious" },
+  { edgeId: "edge_reask_age", source: "decision_reask_why_not", target: "fb_age", label: "Age" },
+  { edgeId: "edge_reask_location", source: "decision_reask_why_not", target: "fb_location", label: "Location" },
+  { edgeId: "edge_reask_gut_feeling", source: "decision_reask_why_not", target: "fb_gut_feeling", label: "Gut feeling" },
+  { edgeId: "edge_reask_other", source: "decision_reask_why_not", target: "fb_other", label: "Other" },
+
+  // decision_reask_more_reasons → Yes (back to original why_not) / No (closing)
+  { edgeId: "edge_reask_more_yes", source: "decision_reask_more_reasons", target: "decision_why_not", label: "Yes" },
+  { edgeId: "edge_reask_more_no", source: "decision_reask_more_reasons", target: "msg_closing", label: "No" },
+
+  // decision_reask_upsell → Yes (initiate) / No (pass)
+  { edgeId: "edge_reask_upsell_yes", source: "decision_reask_upsell", target: "msg_upsell_initiate", label: "Yes, activate" },
+  { edgeId: "edge_reask_upsell_no", source: "decision_reask_upsell", target: "msg_upsell_pass", label: "No thanks, I'll pass" },
+
+  // decision_reask_interested_outreach → Yes (prepayment) / No (pass)
+  { edgeId: "edge_reask_interested_yes", source: "decision_reask_interested_outreach", target: "msg_interested_prepayment", label: "Yes, start outreach" },
+  { edgeId: "edge_reask_interested_pass", source: "decision_reask_interested_outreach", target: "msg_upsell_pass", label: "Actually I'll pass" },
+
+  // ── Re-ask Timeout → Mid-Flow Expire ────────────────────────────────────
+  { edgeId: "edge_reask_why_not_expire", source: "decision_reask_why_not", target: "msg_midflow_expire", label: "Timeout → expire" },
+  { edgeId: "edge_reask_more_reasons_expire", source: "decision_reask_more_reasons", target: "msg_midflow_expire", label: "Timeout → expire" },
+  { edgeId: "edge_reask_upsell_expire", source: "decision_reask_upsell", target: "msg_midflow_expire", label: "Timeout → expire" },
+  { edgeId: "edge_reask_interested_outreach_expire", source: "decision_reask_interested_outreach", target: "msg_midflow_expire", label: "Timeout → expire" },
+
+  // Mid-flow expire → reuse existing expire action + end
+  { edgeId: "e_midflow_expire_action", source: "msg_midflow_expire", target: "action_expire" },
 ];

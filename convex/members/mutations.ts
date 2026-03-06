@@ -533,6 +533,28 @@ export const syncIntrosInternal = internalMutation({
           .first();
 
         if (partner) {
+          // De-dup guard: skip if a match between these members already exists
+          // (handleMatchAdded may have just created it)
+          const existingByMembers = await ctx.db
+            .query("matches")
+            .withIndex("by_memberA", (q) => q.eq("memberAId", member._id))
+            .filter((q) => q.eq(q.field("memberBId"), partner._id))
+            .first();
+          const existingReverse = !existingByMembers
+            ? await ctx.db
+                .query("matches")
+                .withIndex("by_memberA", (q) => q.eq("memberAId", partner._id))
+                .filter((q) => q.eq(q.field("memberBId"), member._id))
+                .first()
+            : null;
+          if (existingByMembers || existingReverse) {
+            // Match already exists — update smaIntroId if needed and skip creation
+            const existing = existingByMembers || existingReverse;
+            if (existing && !existing.smaIntroId) {
+              await ctx.db.patch(existing._id, { smaIntroId, updatedAt: Date.now() });
+            }
+            continue;
+          }
           const now = Date.now();
           const status = GROUP_STATUS_MAP[intro.group] ?? "active";
           const introToken = crypto.randomUUID();

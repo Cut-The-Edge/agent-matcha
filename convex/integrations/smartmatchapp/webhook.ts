@@ -114,9 +114,10 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
       }
     );
 
-    // Re-sync intro counts for both sides
-    await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncMemberIntros, { smaClientId: clientId });
-    await ctx.scheduler.runAfter(0, internal.integrations.smartmatchapp.actions.syncMemberIntros, { smaClientId: matchId });
+    // Re-sync intro counts for both sides (delay 10s so handleMatchAdded
+    // creates the match first — avoids duplicate match creation in syncIntrosInternal)
+    await ctx.scheduler.runAfter(10000, internal.integrations.smartmatchapp.actions.syncMemberIntros, { smaClientId: clientId });
+    await ctx.scheduler.runAfter(10000, internal.integrations.smartmatchapp.actions.syncMemberIntros, { smaClientId: matchId });
 
     return new Response(
       JSON.stringify({ ok: true, event: "match_added", scheduled: true }),
