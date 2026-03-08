@@ -7,13 +7,14 @@ Entry point for the LiveKit Agents worker. Run with:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 
 from dotenv import load_dotenv
 
-from livekit import agents, api, rtc
+from livekit import agents, rtc
 from livekit.agents import (
     AgentSession,
     Agent,
@@ -32,10 +33,9 @@ from call_handler import CallHandler, setup_transcript_listeners
 from persona import (
     SYSTEM_PROMPT,
     INBOUND_GREETING_INSTRUCTIONS,
-    OUTBOUND_GREETING_INSTRUCTIONS,
     LLM_MODEL,
 )
-from flows.intake import EXISTING_MEMBER_CONTEXT, NEW_CALLER_CONTEXT
+from flows.intake import EXISTING_MEMBER_CONTEXT, UNKNOWN_CALLER_CONTEXT
 
 load_dotenv()
 
@@ -56,29 +56,6 @@ class MatchaAgent(Agent):
         super().__init__(instructions=SYSTEM_PROMPT)
         self._convex = convex
         self._call_handler = call_handler
-
-    @function_tool()
-    async def check_member_profile(
-        self,
-        context: RunContext,
-        phone_number: str,
-    ) -> dict:
-        """Look up a caller's profile in the Club Allenby database by phone number.
-
-        Args:
-            phone_number: The caller's phone number in E.164 format (e.g. +15551234567).
-        """
-        member = await self._convex.lookup_member_by_phone(phone_number)
-        if member:
-            return {
-                "found": True,
-                "firstName": member.get("firstName"),
-                "lastName": member.get("lastName"),
-                "tier": member.get("tier"),
-                "status": member.get("status"),
-                "profileComplete": member.get("profileComplete"),
-            }
-        return {"found": False}
 
     @function_tool()
     async def save_intake_data(
@@ -107,6 +84,50 @@ class MatchaAgent(Agent):
         day_in_life: str | None = None,
         hobbies: str | None = None,
         additional_notes: str | None = None,
+        # New expanded fields
+        height: str | None = None,
+        hair_color: str | None = None,
+        eye_color: str | None = None,
+        smoke: str | None = None,
+        drink_alcohol: str | None = None,
+        pets: str | None = None,
+        languages: str | None = None,
+        political_affiliation: str | None = None,
+        education_level: str | None = None,
+        college_details: str | None = None,
+        weekend_preferences: str | None = None,
+        friends_describe: str | None = None,
+        organizations: str | None = None,
+        personal_growth: str | None = None,
+        what_you_notice: str | None = None,
+        instagram: str | None = None,
+        children_details: str | None = None,
+        long_distance: str | None = None,
+        nationality: str | None = None,
+        sexual_orientation: str | None = None,
+        birthdate: str | None = None,
+        career_overview: str | None = None,
+        relationship_status: str | None = None,
+        income: str | None = None,
+        upbringing: str | None = None,
+        # Partner preference fields (what they want in a partner)
+        pref_seeking: str | None = None,
+        pref_sexual_orientation: str | None = None,
+        pref_relationship_status: str | None = None,
+        pref_ethnicity: str | None = None,
+        pref_religion: str | None = None,
+        pref_education: str | None = None,
+        pref_income: str | None = None,
+        pref_height_range: str | None = None,
+        pref_hair_color: str | None = None,
+        pref_eye_color: str | None = None,
+        pref_political: str | None = None,
+        pref_smoking: str | None = None,
+        pref_drinking: str | None = None,
+        pref_children: str | None = None,
+        pref_relocating: str | None = None,
+        pref_partner_values: str | None = None,
+        pref_partner_interests: str | None = None,
     ) -> dict:
         """Save all profile information gathered during the intake call.
         Call this ONCE at the end of the conversation after saying goodbye,
@@ -136,6 +157,48 @@ class MatchaAgent(Agent):
             day_in_life: What a typical day looks like for them.
             hobbies: Interests, hobbies, fitness habits.
             additional_notes: Anything else noteworthy from the conversation.
+            height: Height (e.g. "5'10", "178cm").
+            hair_color: Hair color.
+            eye_color: Eye color.
+            smoke: Smoking habits.
+            drink_alcohol: Drinking habits.
+            pets: Whether they have pets and what kind.
+            languages: Languages spoken.
+            political_affiliation: Political leaning or affiliation.
+            education_level: Highest education level.
+            college_details: College/university details.
+            weekend_preferences: How they spend weekends.
+            friends_describe: How their friends would describe them.
+            organizations: Organizations or communities they belong to.
+            personal_growth: Personal growth interests or journey.
+            what_you_notice: What they first notice in a person.
+            instagram: Instagram handle.
+            children_details: Details about their children.
+            long_distance: Willingness for long distance (yes/no/maybe).
+            nationality: Nationality or cultural background.
+            sexual_orientation: Sexual orientation.
+            birthdate: Date of birth (YYYY-MM-DD if possible).
+            career_overview: Career overview and trajectory.
+            relationship_status: Current relationship status.
+            income: Income level or range.
+            upbringing: Upbringing and family values background.
+            pref_seeking: Gender they're seeking (male/female/non-binary).
+            pref_sexual_orientation: Preferred sexual orientation of partner.
+            pref_relationship_status: Preferred relationship status of partner.
+            pref_ethnicity: Preferred ethnicity of partner.
+            pref_religion: Preferred religion of partner.
+            pref_education: Preferred education level of partner.
+            pref_income: Preferred income level of partner.
+            pref_height_range: Preferred height range (e.g. "5'4-6'0").
+            pref_hair_color: Preferred hair color of partner.
+            pref_eye_color: Preferred eye color of partner.
+            pref_political: Preferred political affiliation of partner.
+            pref_smoking: Would they date a smoker (yes socially/yes regularly/no).
+            pref_drinking: Would they date a drinker (yes socially/yes regularly/no).
+            pref_children: Would they date someone with children (no/yes not impacting/shared custody/dependent).
+            pref_relocating: Open to relocating (yes/no/maybe).
+            pref_partner_values: Top values they want in partner (e.g. trust, respect, communication).
+            pref_partner_interests: Interests they want in partner (e.g. travel, hiking, dining out).
         """
         call_id = self._call_handler.call_id
         if not call_id:
@@ -166,33 +229,165 @@ class MatchaAgent(Agent):
             ("dayInLife", day_in_life),
             ("hobbies", hobbies),
             ("additionalNotes", additional_notes),
+            # New expanded fields
+            ("height", height),
+            ("hairColor", hair_color),
+            ("eyeColor", eye_color),
+            ("smoke", smoke),
+            ("drinkAlcohol", drink_alcohol),
+            ("hasPets", pets),
+            ("languages", languages),
+            ("politicalAffiliation", political_affiliation),
+            ("educationLevel", education_level),
+            ("collegeDetails", college_details),
+            ("weekendPreferences", weekend_preferences),
+            ("friendsDescribe", friends_describe),
+            ("organizations", organizations),
+            ("personalGrowth", personal_growth),
+            ("whatYouNotice", what_you_notice),
+            ("instagram", instagram),
+            ("childrenDetails", children_details),
+            ("longDistance", long_distance),
+            ("nationality", nationality),
+            ("sexualOrientation", sexual_orientation),
+            ("birthdate", birthdate),
+            ("careerOverview", career_overview),
+            ("relationshipStatus", relationship_status),
+            ("income", income),
+            ("upbringing", upbringing),
+            # Partner preference fields
+            ("prefSeeking", pref_seeking),
+            ("prefSexualOrientation", pref_sexual_orientation),
+            ("prefRelationshipStatus", pref_relationship_status),
+            ("prefEthnicity", pref_ethnicity),
+            ("prefReligion", pref_religion),
+            ("prefEducation", pref_education),
+            ("prefIncome", pref_income),
+            ("prefHeightRange", pref_height_range),
+            ("prefHairColor", pref_hair_color),
+            ("prefEyeColor", pref_eye_color),
+            ("prefPolitical", pref_political),
+            ("prefSmoking", pref_smoking),
+            ("prefDrinking", pref_drinking),
+            ("prefChildren", pref_children),
+            ("prefRelocating", pref_relocating),
+            ("prefPartnerValues", pref_partner_values),
+            ("prefPartnerInterests", pref_partner_interests),
         ]:
             if val is not None:
                 data[key] = val
 
         if not data:
+            logger.info("[save_intake_data] No data provided — skipping save")
             return {"saved": False, "reason": "no data provided"}
 
+        logger.info("[save_intake_data] Saving %d fields: %s", len(data), list(data.keys()))
         await self._convex.save_intake_data(call_id=call_id, data=data)
+        logger.info("[save_intake_data] Successfully saved to Convex")
         return {"saved": True}
 
     @function_tool()
     async def end_call(self, context: RunContext) -> str:
         """End the conversation. Call this after you've said goodbye and
         after you've called save_intake_data with the collected information."""
-        import asyncio
+        logger.info("[end_call] Agent initiating call end — waiting 3s for goodbye audio")
         await asyncio.sleep(3)
+        # Must call on_call_end BEFORE shutdown — shutdown kills the process immediately
+        logger.info("[end_call] Sending call-ended to Convex before shutdown")
+        await self._call_handler.on_call_end()
+        logger.info("[end_call] Calling shutdown()")
         get_job_context().shutdown()
         return "Call ended."
 
 
-# ── Member context builder ────────────────────────────────────────────
+# ── SMA Profile Field Definitions ─────────────────────────────────────
+
+# Maps our human-readable keys (from SMA PROFILE_FIELD_MAP) to display labels
+# grouped by category for the system prompt.
+SMA_PROFILE_FIELDS: dict[str, tuple[str, str]] = {
+    # key: (display_label, category)
+    # Basic Information
+    "gender": ("Gender", "Basic Information"),
+    "sexualOrientation": ("Sexual Orientation", "Basic Information"),
+    "birthdate": ("Birthdate", "Basic Information"),
+    "age": ("Age", "Basic Information"),
+    "relationshipStatus": ("Relationship Status", "Basic Information"),
+    "ethnicity": ("Ethnicity", "Basic Information"),
+    "height": ("Height", "Basic Information"),
+    "hairColor": ("Hair Color", "Basic Information"),
+    "eyeColor": ("Eye Color", "Basic Information"),
+    "languages": ("Languages", "Basic Information"),
+    "politicalAffiliation": ("Political Affiliation", "Basic Information"),
+    "smoke": ("Smoke", "Basic Information"),
+    "drinkAlcohol": ("Drink Alcohol", "Basic Information"),
+    "hasPets": ("Pets", "Basic Information"),
+    "longDistance": ("Open to Long Distance", "Basic Information"),
+    "lookingForPartner": ("Looking for Partner", "Basic Information"),
+    # Interests & Social Life
+    "interests": ("Interests", "Interests & Social Life"),
+    "dayInLife": ("Day in Life", "Interests & Social Life"),
+    "weekendPreferences": ("Weekend Preferences", "Interests & Social Life"),
+    "friendsDescribe": ("How Friends Describe", "Interests & Social Life"),
+    "organizations": ("Organizations", "Interests & Social Life"),
+    "personalGrowth": ("Personal Growth", "Interests & Social Life"),
+    "whatYouNotice": ("What You Notice in a Person", "Interests & Social Life"),
+    # Career
+    "occupation": ("Occupation", "Career"),
+    "careerOverview": ("Career Overview", "Career"),
+    "income": ("Income", "Career"),
+    # Background & Education
+    "nationality": ("Nationality", "Background & Education"),
+    "religion": ("Religion", "Background & Education"),
+    "jewishObservance": ("Jewish Observance", "Background & Education"),
+    "topValues": ("Top 3 Values", "Background & Education"),
+    "upbringing": ("Upbringing & Family Values", "Background & Education"),
+    "educationLevel": ("Education Level", "Background & Education"),
+    "collegeDetails": ("College Details", "Background & Education"),
+    # Family & Relationships
+    "currentRelationshipStatus": ("Current Relationship Status", "Family & Relationships"),
+    "relationshipHistory": ("Relationship History", "Family & Relationships"),
+    "hasChildren": ("Has Children", "Family & Relationships"),
+    "childrenDetails": ("Children Details", "Family & Relationships"),
+    "wantChildren": ("Want Children", "Family & Relationships"),
+}
+
+SMA_PREFERENCE_FIELDS: dict[str, str] = {
+    # key: display_label
+    "seekingPartner": "Seeking Partner Who Is",
+    "sexualOrientationPref": "Sexual Orientation Preference",
+    "ageRange": "Age Range Preference",
+    "relationshipStatusPref": "Relationship Status Preference",
+    "ethnicityPref": "Ethnicity Preference",
+    "religionPref": "Religion Preference",
+    "educationPref": "Education Preference",
+    "incomePref": "Income Preference",
+    "heightRange": "Height Range",
+    "hairColorPref": "Hair Color Preference",
+    "eyeColorPref": "Eye Color Preference",
+    "politicalPref": "Political Preference",
+    "smokingPref": "Smoking Preference",
+    "drinkingPref": "Drinking Preference",
+    "childrenPref": "Children Preference",
+    "willingToRelocate": "Open to Relocating",
+    "partnerValues": "Partner Values",
+    "partnerInterests": "Partner Interests",
+    "partnerPersonality": "Partner Personality Description",
+    "physicalCharacteristics": "Physical Characteristics",
+}
+
+# Priority fields to highlight when missing
+_HIGH_PRIORITY_MISSING = {
+    "ethnicity", "religion", "jewishObservance", "relationshipHistory",
+    "occupation", "location", "age", "height",
+}
 
 # Labels for camelCase extractedData keys → human-readable names
+# (expanded to include all new fields)
 _INTAKE_LABELS: dict[str, str] = {
     "firstName": "First name",
     "lastName": "Last name",
     "age": "Age",
+    "birthdate": "Birthdate",
     "location": "Location",
     "hometown": "Hometown",
     "willingToRelocate": "Willing to relocate",
@@ -213,11 +408,35 @@ _INTAKE_LABELS: dict[str, str] = {
     "dayInLife": "Day in life",
     "hobbies": "Hobbies",
     "additionalNotes": "Additional notes",
+    "height": "Height",
+    "hairColor": "Hair color",
+    "eyeColor": "Eye color",
+    "smoke": "Smoke",
+    "drinkAlcohol": "Drink alcohol",
+    "hasPets": "Pets",
+    "languages": "Languages",
+    "politicalAffiliation": "Political affiliation",
+    "educationLevel": "Education level",
+    "collegeDetails": "College details",
+    "weekendPreferences": "Weekend preferences",
+    "friendsDescribe": "How friends describe",
+    "organizations": "Organizations",
+    "personalGrowth": "Personal growth",
+    "whatYouNotice": "What you notice",
+    "instagram": "Instagram",
+    "childrenDetails": "Children details",
+    "longDistance": "Long distance",
+    "nationality": "Nationality",
+    "sexualOrientation": "Sexual orientation",
+    "careerOverview": "Career overview",
+    "relationshipStatus": "Relationship status",
+    "income": "Income",
+    "upbringing": "Upbringing",
 }
 
 
 def _build_member_context(member: dict) -> str:
-    """Build a rich '## Caller context' block from full member data."""
+    """Build a rich '## Caller context' block from full member data including SMA profile."""
     lines = [
         "## Caller context",
         EXISTING_MEMBER_CONTEXT,
@@ -231,6 +450,21 @@ def _build_member_context(member: dict) -> str:
             f" | Profile complete: {'Yes' if member.get('profileComplete') else 'No'}"
         ),
     ]
+
+    # Client details from SMA (email, created date, assigned matchmakers)
+    client_details = member.get("clientDetails")
+    if client_details:
+        details_parts = []
+        if client_details.get("id"):
+            details_parts.append(f"SMA ID: {client_details['id']}")
+        if client_details.get("created"):
+            details_parts.append(f"Joined: {client_details['created'][:10]}")
+        if client_details.get("assignedUsers"):
+            names = ", ".join(u.get("name", "") for u in client_details["assignedUsers"] if u.get("name"))
+            if names:
+                details_parts.append(f"Assigned to: {names}")
+        if details_parts:
+            lines.append(" | ".join(details_parts))
 
     # Matchmaker notes
     if member.get("matchmakerNotes"):
@@ -251,24 +485,100 @@ def _build_member_context(member: dict) -> str:
             count = recal.get("feedbackCount", "?")
             lines.append(f"Key patterns: {patterns} (from {count} feedback responses)")
 
-    # Previous intake data
-    prev = member.get("previousIntake")
-    if prev and isinstance(prev, dict):
-        intake_lines = []
+    # ── SMA Profile Data ──────────────────────────────────────────
+    sma_profile = member.get("smaProfile") or {}
+    sma_prefs = member.get("smaPreferences") or {}
+    prev_intake = member.get("previousIntake") or {}
+
+    # Merge all data sources: SMA profile + SMA prefs + previous intake
+    # SMA data takes priority, previous intake fills gaps
+    all_data: dict[str, any] = {}
+    all_data.update(prev_intake)  # lowest priority
+    all_data.update(sma_profile)  # higher priority
+    # Preferences go into their own section
+
+    # Build filled and missing lists by category
+    filled_by_cat: dict[str, list[str]] = {}
+    missing_high: list[str] = []
+    missing_other: list[str] = []
+
+    for key, (label, category) in SMA_PROFILE_FIELDS.items():
+        val = all_data.get(key)
+        if val is not None and val != "" and val != {}:
+            # Format location specially
+            if isinstance(val, dict) and "city" in val:
+                display = ", ".join(
+                    v for v in [val.get("city"), val.get("state"), val.get("country")]
+                    if v
+                )
+            else:
+                display = str(val)
+            filled_by_cat.setdefault(category, []).append(f"{label}: {display}")
+        else:
+            if key in _HIGH_PRIORITY_MISSING:
+                missing_high.append(label)
+            else:
+                missing_other.append(label)
+
+    # Show filled fields grouped by category
+    if any(filled_by_cat.values()):
+        lines += ["", "**SMA Profile — Filled fields:**"]
+        for cat in ["Basic Information", "Interests & Social Life", "Career",
+                     "Background & Education", "Family & Relationships"]:
+            if cat in filled_by_cat:
+                lines.append(f"  {cat}:")
+                for item in filled_by_cat[cat]:
+                    lines.append(f"    - {item}")
+
+    # Show missing fields
+    if missing_high or missing_other:
+        lines += ["", "**Missing fields (PRIORITY — collect these):**"]
+        if missing_high:
+            lines.append(f"  High priority: {', '.join(missing_high)}")
+        if missing_other:
+            lines.append(f"  Secondary: {', '.join(missing_other)}")
+
+    # Show SMA preferences
+    pref_filled: list[str] = []
+    pref_missing: list[str] = []
+    for key, label in SMA_PREFERENCE_FIELDS.items():
+        val = sma_prefs.get(key)
+        if val is not None and val != "" and val != {}:
+            pref_filled.append(f"{label}: {val}")
+        else:
+            pref_missing.append(label)
+
+    if pref_filled:
+        lines += ["", "**Partner Preferences (filled):**"]
+        for item in pref_filled:
+            lines.append(f"  - {item}")
+
+    if pref_missing:
+        lines += ["", "**Partner Preferences (missing):**"]
+        lines.append(f"  {', '.join(pref_missing)}")
+
+    # Previous intake data (fields not already shown from SMA)
+    if prev_intake:
+        extra_intake = []
+        sma_keys = set(SMA_PROFILE_FIELDS.keys()) | set(SMA_PREFERENCE_FIELDS.keys())
         for key, label in _INTAKE_LABELS.items():
-            val = prev.get(key)
+            if key in sma_keys:
+                continue  # already shown above
+            val = prev_intake.get(key)
             if val is not None and val != "":
-                intake_lines.append(f"{label}: {val}")
-        if intake_lines:
-            lines += ["", "**Known profile data (from previous intake):**"]
-            lines += intake_lines
+                extra_intake.append(f"{label}: {val}")
+        if extra_intake:
+            lines += ["", "**Additional data from previous calls:**"]
+            lines += extra_intake
 
     # Guidance for the agent
     lines += [
         "",
         "**Guidance:**",
         "- Do NOT re-ask questions where you already have data above",
-        "- Focus on gaps (fields not listed above) and confirming if existing info is still current",
+        "- Focus on filling MISSING fields through natural conversation — don't interrogate",
+        "- Prioritize high-priority missing fields first",
+        "- Confirm if existing info is still current when relevant",
         "- If recalibrating, explore the patterns noted above",
     ]
 
@@ -286,38 +596,18 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Parse dispatch metadata
     phone_number: str | None = None
-    is_outbound = False
     is_sandbox = False
+    logger.info("[entrypoint] Connected to room: %s", ctx.room.name)
     if ctx.job.metadata:
         try:
             meta = json.loads(ctx.job.metadata)
             phone_number = meta.get("phone_number")
             is_sandbox = meta.get("sandbox", False)
-            # Only treat as outbound SIP if phone_number is set and NOT a sandbox call
-            is_outbound = phone_number is not None and not is_sandbox
+            logger.info("[entrypoint] Dispatch metadata: phone=%s sandbox=%s", phone_number, is_sandbox)
         except (json.JSONDecodeError, AttributeError):
-            pass
+            logger.warning("[entrypoint] Failed to parse dispatch metadata: %s", ctx.job.metadata)
 
-    # For outbound calls, place the call via SIP (skip for sandbox — browser is already connected)
-    if is_outbound and phone_number:
-        outbound_trunk_id = os.environ.get("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "")
-        try:
-            await ctx.api.sip.create_sip_participant(
-                api.CreateSIPParticipantRequest(
-                    room_name=ctx.room.name,
-                    sip_trunk_id=outbound_trunk_id,
-                    sip_call_to=phone_number,
-                    participant_identity=phone_number,
-                    wait_until_answered=True,
-                )
-            )
-            logger.info("Outbound call answered: %s", phone_number)
-        except Exception as e:
-            logger.error("Outbound call failed: %s", e)
-            ctx.shutdown()
-            return
-
-    # Wait for a participant to join (inbound) or use the one we just created (outbound)
+    # Wait for a participant to join
     caller_phone = phone_number or call_handler.get_caller_phone(ctx.room)
 
     # Log call start
@@ -333,10 +623,44 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
         sip_call_id=sip_call_id,
         phone=caller_phone,
-        direction="outbound" if is_outbound else "inbound",
+        direction="inbound",
         lk_api=ctx.api,
         sandbox=is_sandbox,
     )
+
+    # Fetch fresh SMA profile + client details for full context
+    if call_handler.member and call_handler.member.get("_id"):
+        logger.info("[entrypoint] Member found: %s (id=%s, smaId=%s)",
+                     call_handler.member.get("firstName"),
+                     call_handler.member.get("_id"),
+                     call_handler.member.get("smaId"))
+        # Always fetch fresh data from SMA so agent has the latest profile
+        if call_handler.member.get("smaId"):
+            logger.info("[entrypoint] Fetching fresh SMA profile + client details")
+            try:
+                result = await convex.fetch_sma_profile(call_handler.member["_id"])
+                if result:
+                    call_handler.member["smaProfile"] = result.get("smaProfile", {})
+                    call_handler.member["smaPreferences"] = result.get("smaPreferences", {})
+                    call_handler.member["clientDetails"] = result.get("clientDetails")
+                    logger.info("[entrypoint] Fetched SMA: %d profile fields, %d pref fields, details=%s",
+                                len(call_handler.member.get("smaProfile", {})),
+                                len(call_handler.member.get("smaPreferences", {})),
+                                "yes" if result.get("clientDetails") else "no")
+            except Exception as e:
+                logger.warning("[entrypoint] Failed to fetch SMA profile (non-fatal): %s", e)
+                # Fall back to cached data if available
+                cached = call_handler.member.get("smaProfile") or {}
+                if cached:
+                    # Cached data has preferences nested inside
+                    prefs = cached.pop("preferences", {}) if isinstance(cached.get("preferences"), dict) else {}
+                    call_handler.member["smaProfile"] = cached
+                    call_handler.member["smaPreferences"] = prefs
+                    logger.info("[entrypoint] Using cached profile: %d fields", len(cached))
+        else:
+            logger.info("[entrypoint] Member has no smaId — no SMA data to fetch")
+    else:
+        logger.info("[entrypoint] No member match — caller is unknown")
 
     # Build the agent
     agent = MatchaAgent(convex=convex, call_handler=call_handler)
@@ -345,7 +669,7 @@ async def entrypoint(ctx: agents.JobContext):
     if call_handler.member:
         agent._instructions += "\n\n" + _build_member_context(call_handler.member)
     else:
-        agent._instructions += f"\n\n## Caller context\n{NEW_CALLER_CONTEXT}"
+        agent._instructions += f"\n\n## Caller context\n{UNKNOWN_CALLER_CONTEXT}"
 
     # Create and start the session
     session = AgentSession(
@@ -363,12 +687,13 @@ async def entrypoint(ctx: agents.JobContext):
     # Wire up transcript streaming
     setup_transcript_listeners(session, call_handler)
 
-    # Handle session end
+    # Use an event to keep entrypoint alive until session closes
+    session_closed = asyncio.Event()
+
     @session.on("close")
     def on_close(*args):
-        import asyncio
-        asyncio.create_task(call_handler.on_call_end())
-        asyncio.create_task(convex.close())
+        logger.info("[session:close] Session closed — signaling entrypoint to run cleanup")
+        session_closed.set()
 
     await session.start(
         agent=agent,
@@ -378,11 +703,20 @@ async def entrypoint(ctx: agents.JobContext):
         ),
     )
 
-    # Greet (inbound only — for outbound, let the person speak first)
-    if not is_outbound:
-        await session.generate_reply(
-            instructions=INBOUND_GREETING_INSTRUCTIONS,
-        )
+    # Greet the caller
+    await session.generate_reply(
+        instructions=INBOUND_GREETING_INSTRUCTIONS,
+    )
+
+    # Block here until the session closes (user hangs up or agent calls end_call)
+    # This keeps the event loop alive so cleanup can run
+    await session_closed.wait()
+
+    # Now run cleanup — the event loop is still alive because entrypoint hasn't returned
+    logger.info("[entrypoint] Session ended — running on_call_end + cleanup")
+    await call_handler.on_call_end()
+    await convex.close()
+    logger.info("[entrypoint] Cleanup complete")
 
 
 if __name__ == "__main__":

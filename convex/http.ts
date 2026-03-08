@@ -11,8 +11,7 @@ import {
   callEndedHandler,
   transcriptSegmentHandler,
   saveIntakeDataHandler,
-  lookupMemberHandler,
-  escalateHandler,
+  fetchSmaProfileHandler,
 } from "./voice/http";
 
 const http = httpRouter();
@@ -43,8 +42,7 @@ http.route({ path: "/voice/call-started", method: "POST", handler: callStartedHa
 http.route({ path: "/voice/call-ended", method: "POST", handler: callEndedHandler });
 http.route({ path: "/voice/transcript-segment", method: "POST", handler: transcriptSegmentHandler });
 http.route({ path: "/voice/save-intake-data", method: "POST", handler: saveIntakeDataHandler });
-http.route({ path: "/voice/lookup-member", method: "POST", handler: lookupMemberHandler });
-http.route({ path: "/voice/escalate", method: "POST", handler: escalateHandler });
+http.route({ path: "/voice/fetch-sma-profile", method: "POST", handler: fetchSmaProfileHandler });
 
 // ── Stripe webhook (uses @convex-dev/stripe built-in registration) ─
 registerStripeRoutes(http, components.stripe, {

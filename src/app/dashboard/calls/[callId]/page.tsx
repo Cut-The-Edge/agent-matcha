@@ -9,6 +9,7 @@ import {
   PhoneOutgoing,
   Clock,
   Flag,
+  RefreshCw,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,6 +52,10 @@ export default function CallDetailPage({
 
   const { mutateWithAuth: flagCall } = useAuthMutation(
     api.voice.mutations.flagCall
+  )
+
+  const { mutateWithAuth: triggerSync } = useAuthMutation(
+    api.voice.mutations.triggerSmaSync
   )
 
   if (call === undefined) {
@@ -120,10 +125,30 @@ export default function CallDetailPage({
             </p>
           </div>
         </div>
-        <Button variant="outline" onClick={handleFlag}>
-          <Flag className="mr-2 size-4" />
-          Flag for Review
-        </Button>
+        <div className="flex gap-2">
+          {call.extractedData && call.memberId && (
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await triggerSync({
+                    callId: callId as Id<"phoneCalls">,
+                  })
+                  toast.success("SMA sync triggered — check Convex logs")
+                } catch {
+                  toast.error("Failed to trigger sync")
+                }
+              }}
+            >
+              <RefreshCw className="mr-2 size-4" />
+              Sync CRM
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleFlag}>
+            <Flag className="mr-2 size-4" />
+            Flag for Review
+          </Button>
+        </div>
       </div>
 
       {/* Call info cards */}

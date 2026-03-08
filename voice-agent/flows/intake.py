@@ -52,15 +52,15 @@ STAGES = {
 }
 
 EXISTING_MEMBER_CONTEXT = (
-    "This caller is an existing Club Allenby member. They may be calling "
-    "about a current match, to update their preferences, or to check in. "
-    "Acknowledge them by name, ask how things are going, and see what "
-    "brings them in today."
+    "This is an existing Club Allenby member with SMA profile data "
+    "pre-loaded. Review their filled fields above and focus conversation "
+    "on filling missing profile gaps. Don't re-ask what you already know — "
+    "confirm key details are still current and dig deeper into gaps."
 )
 
-NEW_CALLER_CONTEXT = (
-    "This is a new caller who is not yet in the system. They're likely "
-    "interested in learning about Club Allenby and potentially joining. "
-    "Focus on getting to know them and building their profile through "
+UNKNOWN_CALLER_CONTEXT = (
+    "This caller was not found in the system by phone number. They may be "
+    "a new prospect or an existing member calling from a different number. "
+    "Start by getting to know them and building their profile through "
     "natural conversation."
 )

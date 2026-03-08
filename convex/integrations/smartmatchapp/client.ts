@@ -77,7 +77,14 @@ export async function smaPost(path: string, data?: Record<string, string>): Prom
 export async function smaPut(path: string, data: Record<string, string>): Promise<boolean> {
   const form = new URLSearchParams();
   for (const [key, val] of Object.entries(data)) {
-    form.append(key, val);
+    // Multiselect fields may have comma-separated IDs (e.g. "6,10") — each needs its own append
+    if (val.includes(",") && /^\d+(,\d+)+$/.test(val.trim())) {
+      for (const id of val.split(",")) {
+        form.append(key, id.trim());
+      }
+    } else {
+      form.append(key, val);
+    }
   }
 
   const resp = await fetch(`${SMA_BASE_URL}${path}`, {

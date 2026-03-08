@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { api } from "../../../convex/_generated/api"
 import { useAuthQuery } from "@/hooks/use-auth-query"
 import { cn } from "@/lib/utils"
@@ -28,6 +28,19 @@ function ActiveCallUI({
   const { state, audioTrack } = useVoiceAssistant()
   const room = useRoomContext()
   const [micEnabled, setMicEnabled] = useState(true)
+
+  // Auto-disconnect when the agent leaves the room (e.g. agent calls end_call)
+  useEffect(() => {
+    const handler = () => {
+      // If no remote participants remain, the agent has left
+      if (room.remoteParticipants.size === 0) {
+        room.disconnect()
+        onDisconnect()
+      }
+    }
+    room.on("participantDisconnected", handler)
+    return () => { room.off("participantDisconnected", handler) }
+  }, [room, onDisconnect])
 
   const agentStateLabel =
     state === "listening"

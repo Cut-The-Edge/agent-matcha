@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 
 /**
  * Log a new phone call (called by voice agent via HTTP).
@@ -105,22 +106,6 @@ export const saveIntakeData = internalMutation({
 });
 
 /**
- * Record an escalation on a call.
- */
-export const recordEscalation = internalMutation({
-  args: {
-    callId: v.id("phoneCalls"),
-    reason: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.callId, {
-      escalationReason: args.reason,
-      status: "transferred",
-    });
-  },
-});
-
-/**
  * Flag a call for quality review (called from dashboard).
  */
 export const flagCall = mutation({
@@ -139,6 +124,23 @@ export const flagCall = mutation({
         qualityFlags: [...existing, args.flag],
       });
     }
+  },
+});
+
+/**
+ * Manually trigger SMA CRM sync for a call (debug/dashboard use).
+ */
+export const triggerSmaSync = mutation({
+  args: {
+    sessionToken: v.optional(v.string()),
+    callId: v.id("phoneCalls"),
+  },
+  handler: async (ctx, args) => {
+    const call = await ctx.db.get(args.callId);
+    if (!call) throw new Error("Call not found");
+    await ctx.scheduler.runAfter(0, internal.voice.actions.syncCallToSMA, {
+      callId: args.callId,
+    });
   },
 });
 
@@ -168,6 +170,22 @@ export const updateMemberFromCall = internalMutation({
     }
 
     await ctx.db.patch(args.memberId, patch);
+  },
+});
+
+/**
+ * Update a member's profileData from SMA fetch.
+ */
+export const updateMemberProfileData = internalMutation({
+  args: {
+    memberId: v.id("members"),
+    profileData: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.memberId, {
+      profileData: args.profileData,
+      updatedAt: Date.now(),
+    });
   },
 });
 

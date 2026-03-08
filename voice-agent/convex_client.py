@@ -84,10 +84,10 @@ class ConvexClient:
 
     # ── Member operations ─────────────────────────────────────────────
 
-    async def lookup_member_by_phone(self, phone: str) -> dict[str, Any] | None:
-        """Look up a member by phone number."""
-        result = await self._post("/voice/lookup-member", {"phone": phone})
-        return result.get("member")
+    async def fetch_sma_profile(self, member_id: str) -> dict[str, Any] | None:
+        """Fetch fresh SMA profile data for a member."""
+        result = await self._post("/voice/fetch-sma-profile", {"memberId": member_id})
+        return result
 
     async def save_intake_data(
         self,
@@ -99,20 +99,6 @@ class ConvexClient:
         return await self._post("/voice/save-intake-data", {
             "callId": call_id,
             "data": data,
-        })
-
-    # ── Escalation ────────────────────────────────────────────────────
-
-    async def escalate(
-        self,
-        *,
-        call_id: str,
-        reason: str,
-    ) -> dict[str, Any]:
-        """Trigger an escalation notification."""
-        return await self._post("/voice/escalate", {
-            "callId": call_id,
-            "reason": reason,
         })
 
     # ── Cleanup ───────────────────────────────────────────────────────

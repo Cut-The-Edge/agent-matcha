@@ -10,6 +10,7 @@ import { internal } from "../_generated/api";
 export const callStartedHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
   const { livekitRoomId, sipCallId, phone, direction, sandbox } = body;
+  console.log("[callStarted] Room=%s phone=%s sandbox=%s direction=%s", livekitRoomId, phone, sandbox, direction);
 
   // Look up member by phone
   let member = null;
@@ -20,26 +21,32 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
     });
     if (member) {
       memberId = member._id;
+      console.log("[callStarted] Member found: %s (id=%s)", member.firstName, memberId);
+    } else {
+      console.log("[callStarted] No member found for phone: %s", phone);
     }
   }
 
   // Log the call
   const callId = await ctx.runMutation(internal.voice.mutations.logCall, {
     livekitRoomId,
-    sipCallId,
+    sipCallId: sipCallId ?? undefined,
     memberId,
     phone,
     direction: direction ?? "inbound",
     sandbox: sandbox ?? undefined,
   });
+  console.log("[callStarted] Call logged: callId=%s", callId);
 
   // Fetch rich member context (full profile + previous intake data)
   let memberContext = null;
   if (memberId) {
     memberContext = await ctx.runQuery(
-      internal.voice.queries.getMemberContext,
+      internal.voice.queries.getMemberFullContext,
       { memberId }
     );
+    console.log("[callStarted] Member context loaded: smaId=%s profileFields=%d",
+      memberContext?.smaId, Object.keys(memberContext?.smaProfile || {}).length);
   }
 
   return new Response(
@@ -58,6 +65,8 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
 export const callEndedHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
   const { callId, duration, transcript, status, egressId } = body;
+  console.log("[callEnded] callId=%s duration=%ds segments=%d status=%s",
+    callId, duration, Array.isArray(transcript) ? transcript.length : 0, status);
 
   await ctx.runMutation(internal.voice.mutations.updateCall, {
     callId,
@@ -67,13 +76,9 @@ export const callEndedHandler = httpAction(async (ctx, request) => {
     egressId: egressId ?? undefined,
   });
 
-  // Trigger AI summary generation
+  // Trigger AI summary generation (syncCallToSMA is scheduled at the end of generateSummary)
+  console.log("[callEnded] Scheduling generateSummary");
   await ctx.scheduler.runAfter(0, internal.voice.actions.generateSummary, {
-    callId,
-  });
-
-  // Trigger SMA sync
-  await ctx.scheduler.runAfter(0, internal.voice.actions.syncCallToSMA, {
     callId,
   });
 
@@ -96,7 +101,7 @@ export const transcriptSegmentHandler = httpAction(async (ctx, request) => {
     speaker,
     text,
     timestamp,
-    confidence,
+    confidence: confidence ?? undefined,
   });
 
   return new Response(JSON.stringify({ ok: true }), {
@@ -112,6 +117,7 @@ export const transcriptSegmentHandler = httpAction(async (ctx, request) => {
 export const saveIntakeDataHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
   const { callId, data } = body;
+  console.log("[saveIntakeData] callId=%s fields: %s", callId, Object.keys(data || {}).join(", "));
 
   await ctx.runMutation(internal.voice.mutations.saveIntakeData, {
     callId,
@@ -125,49 +131,18 @@ export const saveIntakeDataHandler = httpAction(async (ctx, request) => {
 });
 
 /**
- * POST /voice/lookup-member
- * Look up a member by phone number.
+ * POST /voice/fetch-sma-profile
+ * Fetch a member's SMA profile and preferences, store in profileData.
  */
-export const lookupMemberHandler = httpAction(async (ctx, request) => {
+export const fetchSmaProfileHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { phone } = body;
+  const { memberId } = body;
 
-  const member = await ctx.runQuery(
-    internal.voice.queries.lookupMemberByPhone,
-    { phone }
-  );
-
-  return new Response(
-    JSON.stringify({
-      member: member
-        ? {
-            _id: member._id,
-            firstName: member.firstName,
-            lastName: member.lastName,
-            tier: member.tier,
-            status: member.status,
-            profileComplete: member.profileComplete,
-          }
-        : null,
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } }
-  );
-});
-
-/**
- * POST /voice/escalate
- * Record an escalation and trigger notification.
- */
-export const escalateHandler = httpAction(async (ctx, request) => {
-  const body = await request.json();
-  const { callId, reason } = body;
-
-  await ctx.runMutation(internal.voice.mutations.recordEscalation, {
-    callId,
-    reason,
+  const result = await ctx.runAction(internal.voice.actions.fetchSmaProfile, {
+    memberId,
   });
 
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify(result ?? {}), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });

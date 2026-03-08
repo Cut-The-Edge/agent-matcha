@@ -184,11 +184,22 @@ export const getActiveCalls = query({
 export const lookupMemberByPhone = internalQuery({
   args: { phone: v.string() },
   handler: async (ctx, args) => {
-    const member = await ctx.db
+    // 1. Try exact index match
+    const exact = await ctx.db
       .query("members")
       .withIndex("by_phone", (q) => q.eq("phone", args.phone))
       .first();
-    return member;
+    if (exact) return exact;
+
+    // 2. Fallback: strip to digits-only and scan all members
+    const digits = args.phone.replace(/\D/g, "");
+    if (digits.length < 7) return null;
+
+    const all = await ctx.db.query("members").collect();
+    return all.find((m) => {
+      if (!m.phone) return false;
+      return m.phone.replace(/\D/g, "") === digits;
+    }) ?? null;
   },
 });
 
@@ -238,6 +249,44 @@ export const getMemberContext = internalQuery({
       rejectionCount: member.rejectionCount,
       recalibrationSummary: member.recalibrationSummary,
       previousIntake,
+    };
+  },
+});
+
+/**
+ * Get full member context including SMA data for the voice agent.
+ * Extends getMemberContext with smaId and profileData.
+ */
+export const getMemberFullContext = internalQuery({
+  args: { memberId: v.id("members") },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) return null;
+
+    const latestCall = await ctx.db
+      .query("phoneCalls")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .order("desc")
+      .first();
+
+    const previousIntake =
+      latestCall?.status === "completed" && latestCall.extractedData
+        ? latestCall.extractedData
+        : null;
+
+    return {
+      _id: member._id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      tier: member.tier,
+      status: member.status,
+      profileComplete: member.profileComplete,
+      matchmakerNotes: member.matchmakerNotes,
+      rejectionCount: member.rejectionCount,
+      recalibrationSummary: member.recalibrationSummary,
+      previousIntake,
+      smaId: member.smaId,
+      smaProfile: member.profileData ?? null,
     };
   },
 });

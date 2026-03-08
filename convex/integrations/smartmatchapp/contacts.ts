@@ -82,7 +82,7 @@ function mapTier(membershipType: any): "free" | "member" | "vip" {
 /**
  * Extract a flat value from an SMA field based on its type.
  */
-function extractValue(field: any): any {
+export function extractValue(field: any): any {
   if (field == null || field.value == null) return null;
   const val = field.value;
   const type = (field.type ?? "").toLowerCase();

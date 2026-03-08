@@ -39,6 +39,7 @@ class CallHandler:
         self._transcript: list[dict[str, Any]] = []
         self._start_time: float = 0
         self._egress_id: str | None = None
+        self._ended: bool = False
 
     async def on_call_start(
         self,
@@ -166,10 +167,18 @@ class CallHandler:
         AI summary generation (which also extracts profile data from
         the transcript as a safety net).
         """
+        if self._ended:
+            logger.info("[on_call_end] Already ended — skipping duplicate")
+            return
+        self._ended = True
+
         duration = int(time.time() - self._start_time) if self._start_time else 0
+        logger.info("[on_call_end] Call ending — status=%s duration=%ds segments=%d call_id=%s",
+                     status, duration, len(self._transcript), self.call_id)
 
         if self.call_id:
             try:
+                logger.info("[on_call_end] Sending call-ended to Convex (triggers generateSummary → syncCallToSMA)")
                 await self._convex.call_ended(
                     call_id=self.call_id,
                     duration=duration,
@@ -178,15 +187,15 @@ class CallHandler:
                     egress_id=self._egress_id,
                 )
                 logger.info(
-                    "Call ended: call_id=%s duration=%ds segments=%d",
+                    "[on_call_end] Successfully sent — call_id=%s duration=%ds segments=%d",
                     self.call_id,
                     duration,
                     len(self._transcript),
                 )
             except Exception as e:
-                logger.error("Failed to log call end: %s", e)
+                logger.error("[on_call_end] Failed to send call-ended to Convex: %s", e)
         else:
-            logger.warning("Call ended without a call_id — transcript not saved")
+            logger.warning("[on_call_end] No call_id — transcript not saved (call-started probably failed)")
 
     def get_caller_phone(self, room: rtc.Room) -> str | None:
         """Extract the caller's phone number from the SIP participant identity."""

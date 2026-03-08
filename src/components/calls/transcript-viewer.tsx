@@ -162,15 +162,32 @@ export function TranscriptViewer({
             </CardHeader>
             <CardContent>
               <dl className="space-y-2">
-                {Object.entries(extractedData).map(([key, value]) => (
-                  <div key={key}>
-                    <dt className="text-xs text-muted-foreground capitalize">
-                      {key.replace(/([A-Z])/g, " $1").trim()}
-                    </dt>
-                    <dd className="text-sm">{String(value)}</dd>
-                    <Separator className="mt-2" />
-                  </div>
-                ))}
+                {(() => {
+                  // Flatten nested objects and deduplicate keys
+                  const flat = new Map<string, unknown>()
+                  for (const [key, value] of Object.entries(extractedData)) {
+                    if (value && typeof value === "object" && !Array.isArray(value)) {
+                      for (const [innerKey, innerVal] of Object.entries(value as Record<string, unknown>)) {
+                        flat.set(innerKey, innerVal)
+                      }
+                    } else {
+                      flat.set(key, value)
+                    }
+                  }
+                  return [...flat.entries()]
+                    .filter(([, value]) => value != null && value !== "" && String(value).toLowerCase() !== "n/a")
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <dt className="text-xs text-muted-foreground capitalize">
+                          {key.replace(/([A-Z])/g, " $1").trim()}
+                        </dt>
+                        <dd className="text-sm">
+                          {Array.isArray(value) ? value.join(", ") : String(value)}
+                        </dd>
+                        <Separator className="mt-2" />
+                      </div>
+                    ))
+                })()}
               </dl>
             </CardContent>
           </Card>
