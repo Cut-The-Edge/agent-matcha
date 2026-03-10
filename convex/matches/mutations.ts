@@ -262,16 +262,20 @@ export const updateMatchFromSma = internalMutation({
     if (args.smaStatusId !== undefined) updates.smaStatusId = args.smaStatusId;
     if (args.smaStatusName !== undefined) updates.smaStatusName = args.smaStatusName;
 
-    // Auto-map SMA group → our internal status for terminal groups
+    // Auto-map SMA group → our internal status for terminal groups.
+    // Skip auto-mapping if the match has an active payment / outreach in progress
+    // to prevent SMA echo-back webhooks from overwriting our deliberate status.
     const GROUP_STATUS_MAP: Record<string, string> = {
       "Rejected Introductions": "rejected",
       "Not Suitable": "rejected",
       "Past Introductions": "past",
       "Successful Matches": "completed",
+      "Active Introductions": "active",
     };
 
     const groupName = args.smaGroupName;
-    if (groupName && GROUP_STATUS_MAP[groupName]) {
+    const protectedStatuses = new Set(["pending", "active"]);
+    if (groupName && GROUP_STATUS_MAP[groupName] && !protectedStatuses.has(match.status)) {
       updates.status = GROUP_STATUS_MAP[groupName];
     }
 
