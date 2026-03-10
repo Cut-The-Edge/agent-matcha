@@ -22,6 +22,11 @@ import type {
   EndNodeConfig,
   FlowContext,
 } from "./types";
+import {
+  WA_TEMPLATES,
+  resolveTemplateVariables,
+  type TemplateKey,
+} from "../integrations/twilio/templates";
 
 /**
  * Look up a member's WhatsApp phone number.
@@ -44,6 +49,7 @@ export const executeMessageNode = internalMutation({
     template: v.string(),
     channel: v.string(),
     mediaUrl: v.optional(v.string()),
+    templateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
@@ -72,15 +78,35 @@ export const executeMessageNode = internalMutation({
       // Schedule Twilio send
       const phone = await getMemberPhone(ctx, instance.memberId);
       if (phone) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.integrations.twilio.whatsapp.sendTextMessage,
-          {
-            to: phone,
-            body: resolvedMessage,
-            whatsappMessageId: messageId,
-          }
-        );
+        // Use pre-approved template if templateKey is specified
+        const tplKey = args.templateKey as TemplateKey | undefined;
+        if (tplKey && tplKey in WA_TEMPLATES) {
+          const tpl = WA_TEMPLATES[tplKey];
+          const contentVariables = resolveTemplateVariables(
+            tpl.variables,
+            context
+          );
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.templates.sendTemplateMessage,
+            {
+              to: phone,
+              contentSid: tpl.contentSid,
+              contentVariables,
+              whatsappMessageId: messageId,
+            }
+          );
+        } else {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.whatsapp.sendTextMessage,
+            {
+              to: phone,
+              body: resolvedMessage,
+              whatsappMessageId: messageId,
+            }
+          );
+        }
       }
     }
 
@@ -122,6 +148,7 @@ export const executeDecisionNode = internalMutation({
     ),
     timeout: v.optional(v.number()),
     timeoutEdgeId: v.optional(v.string()),
+    templateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
@@ -152,22 +179,47 @@ export const executeDecisionNode = internalMutation({
         createdAt: Date.now(),
       });
 
-      // Schedule Twilio send with interactive buttons/list
       const phone = await getMemberPhone(ctx, instance.memberId);
       if (phone) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.integrations.twilio.interactive.sendInteractiveMessage,
-          {
-            to: phone,
-            question: resolvedQuestion,
-            options: args.options.map((opt) => ({
-              value: opt.value,
-              label: opt.label,
-            })),
-            whatsappMessageId: messageId,
-          }
-        );
+        // Use pre-approved template if templateKey is specified
+        const tplKey = args.templateKey as TemplateKey | undefined;
+        if (tplKey && tplKey in WA_TEMPLATES) {
+          const tpl = WA_TEMPLATES[tplKey];
+          const contentVariables = resolveTemplateVariables(
+            tpl.variables,
+            context
+          );
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.interactive.sendInteractiveMessage,
+            {
+              to: phone,
+              question: resolvedQuestion,
+              options: args.options.map((opt) => ({
+                value: opt.value,
+                label: opt.label,
+              })),
+              whatsappMessageId: messageId,
+              contentSid: tpl.contentSid,
+              contentVariables,
+            }
+          );
+        } else {
+          // Session mode: numbered text fallback (no junk templates)
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.interactive.sendInteractiveMessage,
+            {
+              to: phone,
+              question: resolvedQuestion,
+              options: args.options.map((opt) => ({
+                value: opt.value,
+                label: opt.label,
+              })),
+              whatsappMessageId: messageId,
+            }
+          );
+        }
       }
     }
 
@@ -913,6 +965,7 @@ export const executeReminderMessage = internalMutation({
     flowInstanceId: v.id("flowInstances"),
     nodeId: v.string(),
     template: v.string(),
+    templateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const instance = await ctx.db.get(args.flowInstanceId);
@@ -938,15 +991,35 @@ export const executeReminderMessage = internalMutation({
       // Schedule Twilio send
       const phone = await getMemberPhone(ctx, instance.memberId);
       if (phone) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.integrations.twilio.whatsapp.sendTextMessage,
-          {
-            to: phone,
-            body: resolvedMessage,
-            whatsappMessageId: messageId,
-          }
-        );
+        // Use pre-approved template if templateKey is specified
+        const tplKey = args.templateKey as TemplateKey | undefined;
+        if (tplKey && tplKey in WA_TEMPLATES) {
+          const tpl = WA_TEMPLATES[tplKey];
+          const contentVariables = resolveTemplateVariables(
+            tpl.variables,
+            context
+          );
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.templates.sendTemplateMessage,
+            {
+              to: phone,
+              contentSid: tpl.contentSid,
+              contentVariables,
+              whatsappMessageId: messageId,
+            }
+          );
+        } else {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.whatsapp.sendTextMessage,
+            {
+              to: phone,
+              body: resolvedMessage,
+              whatsappMessageId: messageId,
+            }
+          );
+        }
       }
     }
 

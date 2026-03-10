@@ -335,11 +335,11 @@ export const syncFromSmaInternal = internalMutation({
     smaId: v.string(),
     firstName: v.string(),
     lastName: v.optional(v.string()),
-    middleName: v.optional(v.string()),
-    email: v.optional(v.string()),
-    phone: v.optional(v.string()),
-    whatsappId: v.optional(v.string()),
-    profilePictureUrl: v.optional(v.string()),
+    middleName: v.optional(v.union(v.string(), v.null())),
+    email: v.optional(v.union(v.string(), v.null())),
+    phone: v.optional(v.union(v.string(), v.null())),
+    whatsappId: v.optional(v.union(v.string(), v.null())),
+    profilePictureUrl: v.optional(v.union(v.string(), v.null())),
     location: v.optional(v.object({
       country: v.optional(v.string()),
       city: v.optional(v.string()),
@@ -352,7 +352,7 @@ export const syncFromSmaInternal = internalMutation({
       v.union(v.literal("free"), v.literal("member"), v.literal("vip"))
     ),
     profileComplete: v.optional(v.boolean()),
-    matchmakerNotes: v.optional(v.string()),
+    matchmakerNotes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -370,18 +370,18 @@ export const syncFromSmaInternal = internalMutation({
       };
 
       if (args.firstName) updates.firstName = args.firstName;
-      if (args.lastName !== undefined) updates.lastName = args.lastName;
-      if (args.middleName !== undefined) updates.middleName = args.middleName;
-      if (args.email !== undefined) updates.email = args.email;
-      if (args.phone !== undefined) updates.phone = args.phone;
-      if (args.whatsappId !== undefined) updates.whatsappId = args.whatsappId;
-      if (args.profilePictureUrl !== undefined) updates.profilePictureUrl = args.profilePictureUrl;
-      if (args.location !== undefined) updates.location = args.location;
-      if (args.gender !== undefined) updates.gender = args.gender;
-      if (args.profileData !== undefined) updates.profileData = args.profileData;
-      if (args.tier !== undefined) updates.tier = args.tier;
-      if (args.profileComplete !== undefined) updates.profileComplete = args.profileComplete;
-      if (args.matchmakerNotes !== undefined) updates.matchmakerNotes = args.matchmakerNotes;
+      if (args.lastName != null) updates.lastName = args.lastName;
+      if (args.middleName != null) updates.middleName = args.middleName;
+      if (args.email != null) updates.email = args.email;
+      if (args.phone != null) updates.phone = args.phone;
+      if (args.whatsappId != null) updates.whatsappId = args.whatsappId;
+      if (args.profilePictureUrl != null) updates.profilePictureUrl = args.profilePictureUrl;
+      if (args.location != null) updates.location = args.location;
+      if (args.gender != null) updates.gender = args.gender;
+      if (args.profileData != null) updates.profileData = args.profileData;
+      if (args.tier != null) updates.tier = args.tier;
+      if (args.profileComplete != null) updates.profileComplete = args.profileComplete;
+      if (args.matchmakerNotes != null) updates.matchmakerNotes = args.matchmakerNotes;
 
       await ctx.db.patch(existing._id, updates);
       return { memberId: existing._id, action: "updated" as const };
@@ -389,18 +389,18 @@ export const syncFromSmaInternal = internalMutation({
       const memberId = await ctx.db.insert("members", {
         smaId: args.smaId,
         firstName: args.firstName || "Unknown",
-        middleName: args.middleName,
-        lastName: args.lastName,
-        email: args.email,
-        phone: args.phone,
-        whatsappId: args.whatsappId,
-        profilePictureUrl: args.profilePictureUrl,
-        location: args.location,
-        gender: args.gender,
-        profileData: args.profileData,
+        middleName: args.middleName ?? undefined,
+        lastName: args.lastName ?? undefined,
+        email: args.email ?? undefined,
+        phone: args.phone ?? undefined,
+        whatsappId: args.whatsappId ?? undefined,
+        profilePictureUrl: args.profilePictureUrl ?? undefined,
+        location: args.location ?? undefined,
+        gender: args.gender ?? undefined,
+        profileData: args.profileData ?? undefined,
         tier: args.tier ?? "free",
         profileComplete: args.profileComplete ?? false,
-        matchmakerNotes: args.matchmakerNotes,
+        matchmakerNotes: args.matchmakerNotes ?? undefined,
         rejectionCount: 0,
         status: "active",
         lastSyncedAt: now,

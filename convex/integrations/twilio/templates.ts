@@ -1,0 +1,178 @@
+"use node";
+// @ts-nocheck
+/**
+ * Pre-Approved WhatsApp Content Templates (Twilio Console)
+ *
+ * These are permanent, Meta-approved templates. They work outside the 24h
+ * session window. NEVER create templates on-the-fly — use these instead.
+ *
+ * Each template has a ContentSid (assigned by Twilio) and a list of
+ * variable names that must be resolved from the flow context before sending.
+ */
+
+import { v } from "convex/values";
+import { internalAction } from "../../_generated/server";
+import { internal } from "../../_generated/api";
+import { toWhatsAppFormat } from "./config";
+
+// ============================================================================
+// Template Registry
+// ============================================================================
+
+export const WA_TEMPLATES = {
+  // matcha_match_intro — "Hey {{1}}! Great news — we have a potential match..."
+  // Buttons: "Yes, tell me more!" (interested) / "Not right now" (not_now)
+  MATCH_INTRO: {
+    contentSid: "HX223e495be05f09fa7dc56f05610df67b",
+    variables: ["memberName"],
+  },
+
+  // matcha_match_nudge — "Hey {{1}}, just checking in..."
+  MATCH_NUDGE: {
+    contentSid: "HX8715beeee12a1b184928bf9b5d90124b",
+    variables: ["memberName"],
+  },
+
+  // matcha_match_decision — "Hey {{1}}, we think you and {{2}} could be a great match!"
+  // Buttons: "I'm interested!" / "Not for me" / "Tell me more"
+  MATCH_DECISION: {
+    contentSid: "HXccf3eaee4c50958995cb2a1c48406967",
+    variables: ["memberName", "matchName"],
+  },
+
+  // matcha_welcome — "Hey {{1}}! Welcome to Club Allenby..."
+  WELCOME: {
+    contentSid: "HXc0a86dde028e42b5678481fedc0151d2",
+    variables: ["memberName"],
+  },
+
+  // matcha_match_expired — "Hey {{1}}, we noticed you haven't had a chance..."
+  MATCH_EXPIRED: {
+    contentSid: "HX6d2e86534a07b302c1d68c7768f99f81",
+    variables: ["memberName"],
+  },
+} as const;
+
+export type TemplateKey = keyof typeof WA_TEMPLATES;
+
+// ============================================================================
+// sendTemplateMessage — Send a pre-approved template via Twilio Messages API
+// ============================================================================
+
+export const sendTemplateMessage = internalAction({
+  args: {
+    to: v.string(),
+    contentSid: v.string(),
+    contentVariables: v.string(), // JSON string: {"1": "value1", "2": "value2"}
+    whatsappMessageId: v.optional(v.id("whatsappMessages")),
+  },
+  handler: async (ctx, args) => {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+    const authToken = process.env.TWILIO_AUTH_TOKEN!;
+    const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER!;
+
+    const authHeader =
+      "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+
+    const to = toWhatsAppFormat(args.to);
+    const from = fromNumber.startsWith("whatsapp:")
+      ? fromNumber
+      : `whatsapp:${fromNumber}`;
+
+    console.log(
+      `[templates] Sending template ${args.contentSid} to ${to}`,
+      "variables:", args.contentVariables
+    );
+
+    const messageParams = new URLSearchParams({
+      To: to,
+      From: from,
+      ContentSid: args.contentSid,
+      ContentVariables: args.contentVariables,
+    });
+
+    try {
+      const response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: authHeader,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: messageParams.toString(),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error(
+          `[templates] Send failed (${response.status}):`,
+          JSON.stringify(data)
+        );
+        return { twilioSid: null, status: "failed", interactive: false };
+      }
+
+      console.log(`[templates] Sent! SID=${data.sid}, status=${data.status}`);
+
+      if (args.whatsappMessageId && data.sid) {
+        await ctx.runMutation(
+          internal.integrations.twilio.callbacks.updateMessageSid,
+          { messageId: args.whatsappMessageId, twilioSid: data.sid }
+        );
+      }
+
+      return {
+        twilioSid: data.sid,
+        status: data.status,
+        contentSid: args.contentSid,
+        interactive: true,
+      };
+    } catch (error: any) {
+      console.error("[templates] Unexpected error:", error?.message || error);
+      return { twilioSid: null, status: "failed", interactive: false };
+    }
+  },
+});
+
+// ============================================================================
+// resolveTemplateVariables — Map flow context to Twilio template variables
+// ============================================================================
+
+/**
+ * Resolves template variable names (e.g. ["memberName", "matchName"])
+ * from the flow context into a Twilio ContentVariables JSON string.
+ *
+ * Twilio uses positional keys: {"1": "Alice", "2": "Bob"}
+ */
+export function resolveTemplateVariables(
+  variableNames: readonly string[],
+  context: Record<string, any>
+): string {
+  const variables: Record<string, string> = {};
+
+  for (let i = 0; i < variableNames.length; i++) {
+    const name = variableNames[i];
+    // Check metadata first (memberFirstName, matchFirstName, etc.)
+    const value =
+      context.metadata?.[name] ??
+      context.metadata?.[toFirstNameKey(name)] ??
+      context[name] ??
+      context[toFirstNameKey(name)] ??
+      "";
+    variables[String(i + 1)] = String(value);
+  }
+
+  return JSON.stringify(variables);
+}
+
+/**
+ * Map generic variable names to firstName variants used in context.
+ * e.g. "memberName" → "memberFirstName"
+ */
+function toFirstNameKey(key: string): string {
+  if (key === "memberName") return "memberFirstName";
+  if (key === "matchName") return "matchFirstName";
+  return key;
+}

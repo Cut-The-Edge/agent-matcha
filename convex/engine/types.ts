@@ -79,6 +79,7 @@ export interface MessageNodeConfig {
   template: string;
   channel: "whatsapp" | "sms" | "email";
   mediaUrl?: string;
+  templateKey?: string;
 }
 
 export interface DecisionNodeConfig {
@@ -90,6 +91,7 @@ export interface DecisionNodeConfig {
   }>;
   timeout?: number;
   timeoutEdgeId?: string;
+  templateKey?: string;
 }
 
 export interface FeedbackCollectNodeConfig {

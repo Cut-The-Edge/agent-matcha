@@ -1496,6 +1496,7 @@ async function executeNodeSideEffects(
           template: config.template,
           channel: config.channel || "whatsapp",
           mediaUrl: config.mediaUrl,
+          templateKey: config.templateKey,
         }
       );
       break;
@@ -1513,6 +1514,7 @@ async function executeNodeSideEffects(
           options: config.options,
           timeout: config.timeout,
           timeoutEdgeId: config.timeoutEdgeId,
+          templateKey: config.templateKey,
         }
       );
       break;

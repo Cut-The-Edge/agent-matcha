@@ -61,10 +61,12 @@ import type * as integrations_stripe_checkout from "../integrations/stripe/check
 import type * as integrations_stripe_config from "../integrations/stripe/config.js";
 import type * as integrations_stripe_webhooks from "../integrations/stripe/webhooks.js";
 import type * as integrations_twilio_callbacks from "../integrations/twilio/callbacks.js";
+import type * as integrations_twilio_cleanupTemplates from "../integrations/twilio/cleanupTemplates.js";
 import type * as integrations_twilio_config from "../integrations/twilio/config.js";
 import type * as integrations_twilio_groups from "../integrations/twilio/groups.js";
 import type * as integrations_twilio_interactive from "../integrations/twilio/interactive.js";
 import type * as integrations_twilio_lookups from "../integrations/twilio/lookups.js";
+import type * as integrations_twilio_templates from "../integrations/twilio/templates.js";
 import type * as integrations_twilio_webhooks from "../integrations/twilio/webhooks.js";
 import type * as integrations_twilio_whatsapp from "../integrations/twilio/whatsapp.js";
 import type * as matches_mutations from "../matches/mutations.js";
@@ -148,10 +150,12 @@ declare const fullApi: ApiFromModules<{
   "integrations/stripe/config": typeof integrations_stripe_config;
   "integrations/stripe/webhooks": typeof integrations_stripe_webhooks;
   "integrations/twilio/callbacks": typeof integrations_twilio_callbacks;
+  "integrations/twilio/cleanupTemplates": typeof integrations_twilio_cleanupTemplates;
   "integrations/twilio/config": typeof integrations_twilio_config;
   "integrations/twilio/groups": typeof integrations_twilio_groups;
   "integrations/twilio/interactive": typeof integrations_twilio_interactive;
   "integrations/twilio/lookups": typeof integrations_twilio_lookups;
+  "integrations/twilio/templates": typeof integrations_twilio_templates;
   "integrations/twilio/webhooks": typeof integrations_twilio_webhooks;
   "integrations/twilio/whatsapp": typeof integrations_twilio_whatsapp;
   "matches/mutations": typeof matches_mutations;
