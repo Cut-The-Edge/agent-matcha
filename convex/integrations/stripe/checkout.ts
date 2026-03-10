@@ -78,7 +78,7 @@ export const createCheckoutAndNotify = internalAction({
           internal.integrations.twilio.whatsapp.sendTextMessage,
           {
             to: phone,
-            body: `Great, I'll initiate the outreach on your behalf! To get started, please complete the first payment below.\n\n${url}\n\nThis is a one-time payment of $${(args.amount / 100).toFixed(2)}.`,
+            body: `To get started, please complete the first $${(args.amount / 100).toFixed(2)} payment here:\n\n${url}`,
           }
         );
       }

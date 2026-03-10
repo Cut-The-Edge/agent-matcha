@@ -320,7 +320,7 @@ export const nodes = [
     position: { x: 4200, y: 1700 },
     config: {
       template:
-        "Great. I'll initiate the outreach on your behalf. To begin, please complete the first $125 payment here:\n\nOnce confirmed, we'll connect with them directly, gather additional insight, and present you intentionally. I'll keep you updated as soon as we know more.\n\nIf there's anything specific you'd like us to ask or emphasize about you, send it here before we reach out.",
+        "I'll reach out to them directly on your behalf, share a bit about you, and gauge their interest before any formal introduction is made. I'll keep you updated as soon as I hear back.\n\nIf there's anything specific you'd like us to ask or emphasize about you, feel free to send it now.",
       channel: "whatsapp",
     },
   },
