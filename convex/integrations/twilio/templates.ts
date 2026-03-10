@@ -23,7 +23,7 @@ export const WA_TEMPLATES = {
   // matcha_match_intro — "Hey {{1}}! 🎉 We found a new match for you. Here's their profile: {{2}}"
   // Buttons: "I'm interested" / "Not interested" / "More info / intro"
   MATCH_INTRO: {
-    contentSid: "HXb65b96217a21a7628043ebdc0d24e303",
+    contentSid: "HX77524f0a50860e996b0e4811bd2e9ace",
     variables: ["memberName", "profileLink"],
   },
 

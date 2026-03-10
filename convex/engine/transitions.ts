@@ -350,11 +350,16 @@ export const handleMemberResponse = internalMutation({
       return { handled: false, reason: "no_active_flow" };
     }
 
-    // Find the instance that's waiting for input
-    const waitingInstance = instances.find((inst) => {
+    // Find the instance that's waiting for input.
+    // Prefer real (non-sandbox) instances over sandbox ones so that a
+    // leftover sandbox flow doesn't steal replies meant for a real match.
+    const waitingInstances = instances.filter((inst) => {
       const context = inst.context as FlowContext;
       return context.waitingForInput;
     });
+    const waitingInstance =
+      waitingInstances.find((inst) => !(inst.context as FlowContext).metadata?.sandbox) ??
+      waitingInstances[0];
 
     if (!waitingInstance) {
       return { handled: false, reason: "not_waiting_for_input" };

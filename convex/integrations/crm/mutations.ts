@@ -74,6 +74,37 @@ export const processMatchCreated = internalMutation({
       .filter((q) => q.eq(q.field("status"), "active"))
       .first();
 
+    // De-dup: if a match record already exists for this smaMatchId, use it
+    // instead of creating a duplicate (SMA can fire match_added + match_group_changed)
+    if (args.smaMatchId) {
+      const existing = await ctx.db
+        .query("matches")
+        .withIndex("by_smaIntroId", (q) => q.eq("smaIntroId", args.smaMatchId))
+        .first();
+      if (existing) {
+        if (existing.flowTriggered) {
+          return { matchId: existing._id, flowInstancesStarted: 0 };
+        }
+        // Match exists but flow wasn't triggered yet — fall through to trigger it
+        const baseUrl = process.env.APP_URL || "https://app.matchaagent.com";
+        const profileLink = `${baseUrl}/intro/${existing.introToken}`;
+        const maleMember =
+          memberA.gender === "male" ? memberA :
+          memberB.gender === "male" ? memberB : null;
+        const femaleMember =
+          memberA.gender === "female" ? memberA :
+          memberB.gender === "female" ? memberB : null;
+        if (maleMember && args.smaGroupName === "Automated Intro") {
+          const result = await ctx.runMutation(
+            internal.integrations.crm.mutations.startFlowForMaleMember,
+            { matchId: existing._id }
+          );
+          return { matchId: existing._id, flowInstancesStarted: result.started ? 1 : 0 };
+        }
+        return { matchId: existing._id, flowInstancesStarted: 0 };
+      }
+    }
+
     // Generate intro token for the public profile page
     const introToken = crypto.randomUUID();
 
