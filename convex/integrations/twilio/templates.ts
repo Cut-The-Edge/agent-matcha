@@ -20,11 +20,11 @@ import { toWhatsAppFormat } from "./config";
 // ============================================================================
 
 export const WA_TEMPLATES = {
-  // matcha_match_intro — "Hey {{1}}! Great news — we have a potential match..."
-  // Buttons: "Yes, tell me more!" (interested) / "Not right now" (not_now)
+  // matcha_match_intro — "Hey {{1}}! 🎉 We found a new match for you. Here's their profile: {{2}}"
+  // Buttons: "I'm interested" / "Not interested" / "More info / intro"
   MATCH_INTRO: {
-    contentSid: "HX223e495be05f09fa7dc56f05610df67b",
-    variables: ["memberName"],
+    contentSid: "HXb65b96217a21a7628043ebdc0d24e303",
+    variables: ["memberName", "profileLink"],
   },
 
   // matcha_match_nudge — "Hey {{1}}, just checking in..."

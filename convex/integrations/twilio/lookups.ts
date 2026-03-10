@@ -42,13 +42,17 @@ export const findMemberByPhone = internalQuery({
     if (exact) return exact;
 
     // 2. Fallback: strip to digits-only and scan all members
+    // Compare last 10 digits to handle +1 country code mismatches
+    // e.g. stored "7542026432" matches incoming "+17542026432"
     const digits = args.phone.replace(/\D/g, "");
     if (digits.length < 7) return null;
+    const last10 = digits.slice(-10);
 
     const all = await ctx.db.query("members").collect();
     return all.find((m) => {
       if (!m.phone) return false;
-      return m.phone.replace(/\D/g, "") === digits;
+      const memberDigits = m.phone.replace(/\D/g, "");
+      return memberDigits === digits || memberDigits.slice(-10) === last10;
     }) ?? null;
   },
 });
