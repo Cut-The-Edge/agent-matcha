@@ -380,26 +380,54 @@ export const updateMatchInSma = internalAction({
     const clientSmaId = parseInt(memberA.smaId, 10);
     const partnerSmaId = memberB?.smaId ? parseInt(memberB.smaId, 10) : 0;
 
-    // Resolve target group ID by looking up existing smaIntroductions records
+    // Resolve target group ID by fetching real groups from SMA API.
+    // We call getClientMatches to discover all group { id, name } pairs,
+    // then match by keyword. This avoids stale fallback IDs.
     const keyword = STATUS_TO_GROUP_KEYWORD[args.finalStatus] ||
       STATUS_TO_GROUP_KEYWORD[args.finalStatus.toLowerCase()] ||
       args.finalStatus;
+    const keywordLower = keyword.toLowerCase();
 
-    // Find an smaIntroduction record with a matching group name to get the real group ID
-    const existingIntro = await ctx.runQuery(
-      internal.integrations.smartmatchapp.queries.findGroupIdByName,
-      { keyword }
-    );
+    let groupId: number | null = null;
 
-    if (!existingIntro) {
+    try {
+      const clientMatches = await getClientMatches(clientSmaId);
+      const groups = new Map<string, number>();
+      for (const m of clientMatches?.objects ?? []) {
+        if (m.group?.id && m.group?.name) {
+          groups.set(m.group.name.toLowerCase(), m.group.id);
+        }
+      }
+      // Find group whose name contains the keyword (e.g. "active" → "Active Introductions")
+      for (const [name, id] of groups) {
+        if (name.includes(keywordLower)) {
+          groupId = id;
+          console.log(`updateMatchInSma: resolved "${keyword}" → group ${id} (${name}) from API`);
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn(`updateMatchInSma: failed to fetch groups from API, trying local fallback:`, err);
+    }
+
+    // Fallback to local DB lookup if API didn't return the group
+    if (!groupId) {
+      const existingIntro = await ctx.runQuery(
+        internal.integrations.smartmatchapp.queries.findGroupIdByName,
+        { keyword }
+      );
+      if (existingIntro) {
+        groupId = existingIntro.groupId;
+        console.log(`updateMatchInSma: resolved "${keyword}" → group ${groupId} from local fallback`);
+      }
+    }
+
+    if (!groupId) {
       console.warn(
-        `updateMatchInSma: could not resolve group ID for "${args.finalStatus}" (keyword: ${keyword}). ` +
-        `No smaIntroductions records with a matching group name found.`
+        `updateMatchInSma: could not resolve group ID for "${args.finalStatus}" (keyword: ${keyword}).`
       );
       return { success: false, reason: "unknown_group_id" };
     }
-
-    const groupId = existingIntro.groupId;
 
     // Resolve match status ID (Interested / Not Interested)
     const matchStatusId = STATUS_TO_MATCH_STATUS[args.finalStatus] ||
