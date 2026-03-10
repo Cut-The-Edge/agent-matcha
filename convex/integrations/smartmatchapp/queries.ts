@@ -14,13 +14,13 @@ import { internalQuery } from "../../_generated/server";
  * These should match the SMA admin's configured match groups.
  */
 const FALLBACK_GROUP_IDS: Record<string, number> = {
-  successful: 1,
-  active: 2,
-  potential: 3,
-  rejected: 4,
-  past: 5,
+  active: 1,
+  past: 2,
+  "not suitable": 3,
+  potential: 4,
+  rejected: 5,
+  successful: 6,
   automated: 7,
-  "not suitable": 8,
 };
 
 /**
