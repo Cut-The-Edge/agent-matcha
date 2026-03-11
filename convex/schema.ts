@@ -197,6 +197,10 @@ export default defineSchema({
     mediaUrl: v.optional(v.string()),
     mediaContentType: v.optional(v.string()),
     transcription: v.optional(v.string()),
+    audioDuration: v.optional(v.number()),
+    transcriptionConfidence: v.optional(v.number()),
+    transcriptionSummary: v.optional(v.string()),
+    reviewFlag: v.optional(v.union(v.literal("low_confidence"), v.literal("long_note"))),
     status: v.union(
       v.literal("sent"),
       v.literal("delivered"),
@@ -208,6 +212,17 @@ export default defineSchema({
     .index("by_match", ["matchId"])
     .index("by_member", ["memberId"])
     .index("by_created", ["createdAt"]),
+
+  // -- Voice Note Batches (sequential voice note grouping) --
+  voiceNoteBatches: defineTable({
+    memberId: v.id("members"),
+    messageIds: v.array(v.id("whatsappMessages")),
+    status: v.union(v.literal("collecting"), v.literal("routed")),
+    schedulerJobId: v.optional(v.id("_scheduled_functions")),
+    createdAt: v.number(),
+    routedAt: v.optional(v.number()),
+  })
+    .index("by_member_status", ["memberId", "status"]),
 
   // -- Payments --
   payments: defineTable({
