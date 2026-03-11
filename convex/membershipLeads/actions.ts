@@ -9,6 +9,7 @@ import {
   downloadClientFile,
   deleteClientFile,
 } from "../integrations/smartmatchapp/client";
+import { WA_TEMPLATES } from "../integrations/twilio/templates";
 
 // ── SMA Membership Type mapping ─────────────────────────────────────
 // prof_197 = Membership Type field in SMA
@@ -34,45 +35,9 @@ function sanitizeName(name: string): string {
     .slice(0, 50);           // Limit length
 }
 
-// ── WhatsApp message templates ──────────────────────────────────────
-
-function buildApprovalMessage(name: string, tier: string): string {
-  const safeName = sanitizeName(name);
-  const tierLabel = tier === "vip" ? "VIP Matchmaking" : "Membership";
-  return (
-    `Hey ${safeName}! Great news from Club Allenby!\n\n` +
-    `Dani reviewed your profile and we'd love to welcome you to our ${tierLabel} program. ` +
-    `She'll be reaching out personally to walk you through everything and get you set up.\n\n` +
-    `Looking forward to finding you an amazing match!`
-  );
-}
-
-function buildDenialMessage(name: string): string {
-  const safeName = sanitizeName(name);
-  return (
-    `Hey ${safeName}, thanks so much for your interest in Club Allenby's membership program!\n\n` +
-    `After reviewing your profile, we think the best approach for you right now is to stay on our ` +
-    `free matching tier. This way, when we spot a match we're truly excited about for you, ` +
-    `we'll reach out personally.\n\n` +
-    `We're still actively matching for you and looking out for that perfect connection. ` +
-    `Feel free to reach out anytime if your situation changes!\n\n` +
-    `Warmly,\nThe Club Allenby Team`
-  );
-}
-
-function buildExpiredMessage(name: string): string {
-  const safeName = sanitizeName(name);
-  return (
-    `Hey ${safeName}, thanks for your interest in Club Allenby's membership options!\n\n` +
-    `We wanted to follow up — our team has been busy but we haven't forgotten about you. ` +
-    `For now, you're on our free matching tier and we're actively looking for great matches for you.\n\n` +
-    `If you're still interested in our membership or VIP programs, just let us know and ` +
-    `Dani will reach out to walk you through everything.\n\n` +
-    `Warmly,\nThe Club Allenby Team`
-  );
-}
-
 // ── Send outcome WhatsApp message ───────────────────────────────────
+// Uses pre-approved Twilio Content Templates (registered in templates.ts)
+// so messages work outside the 24h WhatsApp session window.
 
 export const sendOutcomeMessage = internalAction({
   args: {
@@ -113,14 +78,21 @@ export const sendOutcomeMessage = internalAction({
       return;
     }
 
-    // Build message based on outcome
-    let body: string;
+    // Resolve template + variables based on outcome
+    const safeName = sanitizeName(lead.prospectName);
+    let contentSid: string;
+    let contentVariables: string;
+
     if (args.outcome === "approved") {
-      body = buildApprovalMessage(lead.prospectName, lead.tierInterest);
+      const tierLabel = lead.tierInterest === "vip" ? "VIP Matchmaking" : "Membership";
+      contentSid = WA_TEMPLATES.LEAD_APPROVED.contentSid;
+      contentVariables = JSON.stringify({ "1": safeName, "2": tierLabel });
     } else if (args.outcome === "expired") {
-      body = buildExpiredMessage(lead.prospectName);
+      contentSid = WA_TEMPLATES.LEAD_EXPIRED.contentSid;
+      contentVariables = JSON.stringify({ "1": safeName });
     } else {
-      body = buildDenialMessage(lead.prospectName);
+      contentSid = WA_TEMPLATES.LEAD_DENIED.contentSid;
+      contentVariables = JSON.stringify({ "1": safeName });
     }
 
     // Try sending with retry
@@ -128,8 +100,8 @@ export const sendOutcomeMessage = internalAction({
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         await ctx.runAction(
-          internal.integrations.twilio.whatsapp.sendTextMessage,
-          { to: phone, body }
+          internal.integrations.twilio.templates.sendTemplateMessage,
+          { to: phone, contentSid, contentVariables }
         );
 
         await ctx.runMutation(
@@ -138,7 +110,7 @@ export const sendOutcomeMessage = internalAction({
         );
 
         console.log(
-          "[sendOutcomeMessage] Sent %s message to %s for lead %s (attempt %d)",
+          "[sendOutcomeMessage] Sent %s template to %s for lead %s (attempt %d)",
           args.outcome, phone, args.leadId, attempt
         );
         return; // Success — exit
@@ -159,7 +131,7 @@ export const sendOutcomeMessage = internalAction({
     console.error("[sendOutcomeMessage] All retries exhausted for lead:", args.leadId);
     await ctx.runMutation(internal.membershipLeads.mutations.logSendFailure, {
       leadId: args.leadId,
-      reason: `WhatsApp send failed after ${MAX_RETRIES} attempts: ${lastError}`,
+      reason: `WhatsApp template send failed after ${MAX_RETRIES} attempts: ${lastError}`,
     });
   },
 });

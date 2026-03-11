@@ -51,6 +51,36 @@ export const WA_TEMPLATES = {
     contentSid: "HX6d2e86534a07b302c1d68c7768f99f81",
     variables: ["memberName"],
   },
+
+  // ── Membership Lead Outcome Templates ────────────────────────────
+
+  // club_allenby_lead_approved — "Hey {{1}}! Great news from Club Allenby!
+  // Dani reviewed your profile and we'd love to welcome you to our {{2}} program.
+  // She'll be reaching out personally to walk you through everything and get you set up.
+  // Looking forward to finding you an amazing match!"
+  // Variables: {{1}} = prospect name, {{2}} = tier label (Membership / VIP Matchmaking)
+  LEAD_APPROVED: {
+    contentSid: "HX400b21928ddce63a71f0960543593d7e",
+    variables: ["prospectName", "tierLabel"],
+  },
+
+  // club_allenby_lead_denied — "Hey {{1}}, thanks so much for your interest in
+  // Club Allenby's membership program! After reviewing your profile, we think the
+  // best approach for you right now is to stay on our free matching tier..."
+  // Variables: {{1}} = prospect name
+  LEAD_DENIED: {
+    contentSid: "HX46d359e1808a1046626e29c30bec88b4",
+    variables: ["prospectName"],
+  },
+
+  // club_allenby_lead_expired — "Hey {{1}}, thanks for your interest in Club Allenby's
+  // membership options! We wanted to follow up — our team has been busy but we haven't
+  // forgotten about you. For now, you're on our free matching tier..."
+  // Variables: {{1}} = prospect name
+  LEAD_EXPIRED: {
+    contentSid: "HX8f8054ae35aa32dd260a3f7b8326ea29",
+    variables: ["prospectName"],
+  },
 } as const;
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;
