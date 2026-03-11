@@ -390,6 +390,32 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // -- Membership/VIP Leads --
+  membershipLeads: defineTable({
+    memberId: v.optional(v.id("members")),
+    callId: v.optional(v.id("phoneCalls")),
+    tierInterest: v.union(v.literal("member"), v.literal("vip")),
+    prospectName: v.string(),
+    prospectPhone: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("denied"),
+      v.literal("expired"),
+    ),
+    createdAt: v.number(),
+    slaDeadline: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.string()),
+    adminNotes: v.optional(v.string()),
+    whatsappMessageSent: v.boolean(),
+    smaNoteSynced: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_member", ["memberId"])
+    .index("by_slaDeadline", ["status", "slaDeadline"]),
+
   // -- Flow Engine: Execution Logs --
   flowExecutionLogs: defineTable({
     instanceId: v.id("flowInstances"),

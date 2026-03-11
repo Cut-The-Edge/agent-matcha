@@ -179,6 +179,7 @@ Do NOT only look for explicit statements. INFER fields from context:
 | marriageTimeline | text | "within 2-3 years" |
 | instagram | handle | "@davidcohen" |
 | additionalNotes | text | any other relevant info |
+| membershipInterest | "member" or "vip" or null | Set to "member" if caller expressed interest in Membership, "vip" if interested in VIP Matchmaking. Only set if clearly expressed. |
 
 ### PREFERENCES — What they want in a PARTNER
 | Key | Format/Type | Examples |
@@ -309,6 +310,25 @@ Respond with ONLY valid JSON. No markdown, no code fences, no explanation.`,
         callId: args.callId,
         status: "completed",
         qualityFlags: flags,
+      });
+    }
+
+    // Check for membership interest and create a lead if found
+    const rawMembershipInterest = (merged.membershipInterest as string | undefined)?.toLowerCase().trim();
+    const membershipInterest = rawMembershipInterest === "member" || rawMembershipInterest === "vip"
+      ? rawMembershipInterest : undefined;
+    if (membershipInterest) {
+      const prospectName = [merged.firstName, merged.lastName]
+        .filter(Boolean)
+        .join(" ") || "Unknown caller";
+
+      console.log("[generateSummary] Membership interest detected: %s for %s", membershipInterest, prospectName);
+      await ctx.runMutation(internal.membershipLeads.mutations.createFromCall, {
+        memberId: call.memberId || undefined,
+        callId: args.callId,
+        tierInterest: membershipInterest,
+        prospectName,
+        prospectPhone: call.phone || undefined,
       });
     }
 

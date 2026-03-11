@@ -35,7 +35,11 @@ from persona import (
     INBOUND_GREETING_INSTRUCTIONS,
     LLM_MODEL,
 )
-from flows.intake import EXISTING_MEMBER_CONTEXT, UNKNOWN_CALLER_CONTEXT
+from flows.intake import (
+    EXISTING_MEMBER_MOSTLY_COMPLETE,
+    EXISTING_MEMBER_INCOMPLETE,
+    UNKNOWN_CALLER_CONTEXT,
+)
 
 load_dotenv()
 
@@ -128,6 +132,7 @@ class MatchaAgent(Agent):
         pref_relocating: str | None = None,
         pref_partner_values: str | None = None,
         pref_partner_interests: str | None = None,
+        membership_interest: str | None = None,
     ) -> dict:
         """Save all profile information gathered during the intake call.
         Call this ONCE at the end of the conversation after saying goodbye,
@@ -199,6 +204,7 @@ class MatchaAgent(Agent):
             pref_relocating: Open to relocating (yes/no/maybe).
             pref_partner_values: Top values they want in partner (e.g. trust, respect, communication).
             pref_partner_interests: Interests they want in partner (e.g. travel, hiking, dining out).
+            membership_interest: If the caller expressed interest in a paid tier — "member" for Membership or "vip" for VIP Matchmaking. Only set if they clearly expressed interest.
         """
         call_id = self._call_handler.call_id
         if not call_id:
@@ -273,6 +279,8 @@ class MatchaAgent(Agent):
             ("prefRelocating", pref_relocating),
             ("prefPartnerValues", pref_partner_values),
             ("prefPartnerInterests", pref_partner_interests),
+            # Membership interest
+            ("membershipInterest", membership_interest),
         ]:
             if val is not None:
                 data[key] = val
@@ -436,10 +444,16 @@ _INTAKE_LABELS: dict[str, str] = {
 
 
 def _build_member_context(member: dict) -> str:
-    """Build a rich '## Caller context' block from full member data including SMA profile."""
+    """Build a rich '## Caller context' block from full member data including SMA profile.
+
+    Adapts the context instructions based on profile completeness:
+    - Mostly complete (>70% fields filled): Short update flow, no full intake
+    - Incomplete: Guided intake with gaps highlighted
+    """
+    # We'll determine completeness after counting fields below
     lines = [
         "## Caller context",
-        EXISTING_MEMBER_CONTEXT,
+        "",  # Placeholder — we'll insert the right context block later
         "",
         "**Basic info:**",
         (
@@ -571,16 +585,45 @@ def _build_member_context(member: dict) -> str:
             lines += ["", "**Additional data from previous calls:**"]
             lines += extra_intake
 
-    # Guidance for the agent
-    lines += [
-        "",
-        "**Guidance:**",
-        "- Do NOT re-ask questions where you already have data above",
-        "- Focus on filling MISSING fields through natural conversation — don't interrogate",
-        "- Prioritize high-priority missing fields first",
-        "- Confirm if existing info is still current when relevant",
-        "- If recalibrating, explore the patterns noted above",
-    ]
+    # Calculate profile completeness
+    total_fields = len(SMA_PROFILE_FIELDS) + len(SMA_PREFERENCE_FIELDS)
+    filled_count = sum(len(vals) for vals in filled_by_cat.values()) + len(pref_filled)
+    completeness = filled_count / total_fields if total_fields else 0
+
+    # Insert the right context block based on completeness
+    if completeness > 0.7:
+        lines[1] = EXISTING_MEMBER_MOSTLY_COMPLETE
+    else:
+        lines[1] = EXISTING_MEMBER_INCOMPLETE
+
+    # Guidance for the agent — adaptive based on completeness
+    if completeness > 0.7:
+        lines += [
+            "",
+            f"**Profile completeness: {int(completeness * 100)}% — mostly filled.**",
+            "",
+            "**Guidance:**",
+            "- This member's profile is mostly complete. Do NOT default to a full intake.",
+            "- Ask what brings them in today and adapt to their intent.",
+            "- If they want to update info, collect the changes and wrap up.",
+            "- If they want to upgrade membership, note it with membership_interest and let them know Dani will follow up.",
+            "- If they're open to chatting, you can fill remaining gaps naturally.",
+            "- Confirm if existing info is still current when relevant.",
+            "- If recalibrating, explore the patterns noted above.",
+        ]
+    else:
+        lines += [
+            "",
+            f"**Profile completeness: {int(completeness * 100)}% — significant gaps remain.**",
+            "",
+            "**Guidance:**",
+            "- Ask what brings them in today — handle their specific need first.",
+            "- Then offer to fill in profile gaps: 'While I have you, mind if we fill in a few things?'",
+            "- Do NOT re-ask questions where you already have data above.",
+            "- Prioritize high-priority missing fields first.",
+            "- Confirm if existing info is still current when relevant.",
+            "- If recalibrating, explore the patterns noted above.",
+        ]
 
     return "\n".join(lines)
 
@@ -703,9 +746,20 @@ async def entrypoint(ctx: agents.JobContext):
         ),
     )
 
-    # Greet the caller
+    # Greet the caller — adapt for returning vs new callers
+    if call_handler.member:
+        member_name = call_handler.member.get("firstName", "")
+        greeting = (
+            f"Greet {member_name} warmly by name — they're a returning member. "
+            f"Say something like 'Hey {member_name}! Great to hear from you again. "
+            f"How are you doing?' Do NOT re-introduce yourself or Club Allenby. "
+            f"Keep it brief and warm."
+        )
+    else:
+        greeting = INBOUND_GREETING_INSTRUCTIONS
+
     await session.generate_reply(
-        instructions=INBOUND_GREETING_INSTRUCTIONS,
+        instructions=greeting,
     )
 
     # Block here until the session closes (user hangs up or agent calls end_call)

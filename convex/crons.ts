@@ -9,4 +9,10 @@ crons.interval(
   internal.voice.recovery.recoverOrphanedCalls
 );
 
+crons.interval(
+  "expire overdue membership leads",
+  { hours: 2 },
+  internal.membershipLeads.mutations.expireOverdue
+);
+
 export default crons;

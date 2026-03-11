@@ -51,12 +51,34 @@ STAGES = {
     },
 }
 
-EXISTING_MEMBER_CONTEXT = (
-    "This is an existing Club Allenby member with SMA profile data "
-    "pre-loaded. Review their filled fields above and focus conversation "
-    "on filling missing profile gaps. Don't re-ask what you already know — "
-    "confirm key details are still current and dig deeper into gaps."
+# ── Context blocks for different caller types ────────────────────────
+
+EXISTING_MEMBER_MOSTLY_COMPLETE = (
+    "This is a returning Club Allenby member whose profile is mostly complete. "
+    "Do NOT follow the standard intake call structure. Instead:\n"
+    "1) Greet them warmly by name.\n"
+    "2) Ask 'What can I help you with today?' or 'What's new?'\n"
+    "3) Adapt to their intent:\n"
+    "   - If they want to update info (moved, new job, etc.), collect the changes and save them.\n"
+    "   - If they want to upgrade membership, note their interest (membership_interest field) "
+    "and let them know Dani will reach out with details.\n"
+    "   - If they have a question, answer what you can (no pricing — defer to Dani).\n"
+    "   - If they're open to chatting, fill a few remaining profile gaps naturally.\n"
+    "4) Keep it short unless they want to talk more.\n"
+    "Skip the housekeeping script, the big opening question, and the full deep dive."
 )
+
+EXISTING_MEMBER_INCOMPLETE = (
+    "This is an existing Club Allenby member but their profile has significant gaps. "
+    "Greet them warmly by name and acknowledge they're already part of Club Allenby. "
+    "Ask what brings them in today. If they have a specific need (update info, "
+    "upgrade membership, ask a question), handle that first. Then transition naturally: "
+    "'While I have you, mind if we fill in a few things for your profile?' "
+    "Follow the intake structure but skip any sections that are already filled."
+)
+
+# Keep the old constant for backwards compatibility
+EXISTING_MEMBER_CONTEXT = EXISTING_MEMBER_INCOMPLETE
 
 UNKNOWN_CALLER_CONTEXT = (
     "This caller was not found in the system by phone number. They may be "

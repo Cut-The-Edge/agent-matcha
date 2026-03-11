@@ -7,9 +7,18 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { useAuthQuery } from "@/hooks/use-auth-query"
+import { api } from "../../../convex/_generated/api"
+
+function LeadsBadge() {
+  const count = useAuthQuery(api.membershipLeads.queries.countPending, {})
+  if (!count) return null
+  return <SidebarMenuBadge>{count}</SidebarMenuBadge>
+}
 
 export function NavMain({
   items,
@@ -18,6 +27,7 @@ export function NavMain({
     title: string
     url: string
     icon?: LucideIcon
+    hasBadge?: boolean
   }[]
 }) {
   const pathname = usePathname()
@@ -40,6 +50,7 @@ export function NavMain({
                     <span>{item.title}</span>
                   </a>
                 </SidebarMenuButton>
+                {item.hasBadge && <LeadsBadge />}
               </SidebarMenuItem>
             )
           })}

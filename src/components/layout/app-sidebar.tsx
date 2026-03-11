@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Heart,
   Users,
+  UserPlus,
   MessageSquare,
   Phone,
   Workflow,
@@ -45,6 +46,12 @@ const data = {
       title: "Members",
       url: "/dashboard/members",
       icon: Users,
+    },
+    {
+      title: "Leads",
+      url: "/dashboard/leads",
+      icon: UserPlus,
+      hasBadge: true,
     },
     {
       title: "Conversations",
