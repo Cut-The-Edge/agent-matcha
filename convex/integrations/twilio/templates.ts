@@ -52,6 +52,41 @@ export const WA_TEMPLATES = {
     variables: ["memberName"],
   },
 
+  // ── No-Response Follow-Up Sequence Templates ──────────────────────
+
+  // matcha_followup_day2 — "Just checking in on the introduction I sent over for {{1}}..."
+  // Buttons: "I'm interested" / "Not interested" / "More info / intro"
+  FOLLOWUP_DAY2: {
+    contentSid: "HX3c75f62c4a8e5f360a17016b537a5baf",
+    variables: ["matchName"],
+  },
+
+  // matcha_followup_day5 — "Circling back on {{1}}..."
+  // Buttons: "I'm interested" / "Not interested" / "More info / intro"
+  FOLLOWUP_DAY5: {
+    contentSid: "HX1a079ddc4be6533b9e87194143abf4e6",
+    variables: ["matchName"],
+  },
+
+  // matcha_followup_day7 — "Quick final check on {{1}}..."
+  // Buttons: "I'm interested" / "Not interested" / "More info / intro"
+  FOLLOWUP_DAY7: {
+    contentSid: "HX49018ea5565668959f54bcfba0430e8b",
+    variables: ["matchName"],
+  },
+
+  // matcha_followup_expired — "Since I didn't hear back, I've moved {{1}} to Past Introductions..."
+  FOLLOWUP_EXPIRED: {
+    contentSid: "HX52392dda25612bdaf50408339145f59b",
+    variables: ["matchName"],
+  },
+
+  // matcha_midflow_expired — "No worries — since I haven't heard back, I'll close this out..."
+  MIDFLOW_EXPIRED: {
+    contentSid: "HXa9cee23b0b7409414934114a4ff5c155",
+    variables: ["matchName"],
+  },
+
   // ── Membership Lead Outcome Templates ────────────────────────────
 
   // club_allenby_lead_approved — "Hey {{1}}! Great news from Club Allenby!

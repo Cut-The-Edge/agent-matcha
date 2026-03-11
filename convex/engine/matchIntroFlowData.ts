@@ -525,7 +525,7 @@ export const nodes = [
       template:
         "No worries — since I haven't heard back, I'll close this out for now and move {{matchFirstName}} to Past Introductions. If anything changes, just message me and we can pick back up.",
       channel: "whatsapp",
-      templateKey: "MATCH_EXPIRED",
+      templateKey: "MIDFLOW_EXPIRED",
     },
   },
 
@@ -559,7 +559,7 @@ export const nodes = [
       ],
       timeout: 259200000, // 3 days
       timeoutEdgeId: "edge_timeout_day5",
-      templateKey: "MATCH_DECISION",
+      templateKey: "FOLLOWUP_DAY2",
     },
   },
   {
@@ -577,7 +577,7 @@ export const nodes = [
       ],
       timeout: 172800000, // 2 days
       timeoutEdgeId: "edge_timeout_day7",
-      templateKey: "MATCH_DECISION",
+      templateKey: "FOLLOWUP_DAY5",
     },
   },
   {
@@ -595,7 +595,7 @@ export const nodes = [
       ],
       timeout: 86400000, // 1 day
       timeoutEdgeId: "edge_timeout_day8",
-      templateKey: "MATCH_DECISION",
+      templateKey: "FOLLOWUP_DAY7",
     },
   },
   {
@@ -607,7 +607,7 @@ export const nodes = [
       template:
         "Since I didn't hear back, I've moved {{matchFirstName}} to Past Introductions to keep your queue clear. If you change your mind later, just message me their name and we can reopen it.",
       channel: "whatsapp",
-      templateKey: "MATCH_EXPIRED",
+      templateKey: "FOLLOWUP_EXPIRED",
     },
   },
   {
