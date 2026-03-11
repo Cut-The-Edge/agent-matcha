@@ -87,6 +87,35 @@ export const WA_TEMPLATES = {
     variables: ["matchName"],
   },
 
+  // ── Not-Interested Feedback Flow Templates ──────────────────────
+
+  // matcha_feedback_closing — "Got it {{1}}! That's helpful. We'll refine your
+  // preferences accordingly and circle back with your next match..."
+  // Variables: {{1}} = member first name
+  FEEDBACK_CLOSING: {
+    contentSid: "HXc31a71cbef8869ca862fd4edd87786fb",
+    variables: ["memberName"],
+  },
+
+  // matcha_recalibration_offer — "I want to pause before sending another profile.
+  // After three declines, it's usually helpful to recalibrate together..."
+  // Variables: {{1}} = booking link
+  RECALIBRATION_OFFER: {
+    contentSid: "HX558b25f396d087373d355405b30c83e6",
+    variables: ["recalibrationLink"],
+  },
+
+  // ── Payment Confirmation Template ───────────────────────────────
+  // Sent after Stripe webhook confirms payment — may be outside the
+  // 24h session window, so a pre-approved template is required.
+
+  // matcha_payment_confirmed — "Payment received — we'll initiate outreach shortly..."
+  // Variables: none (static message)
+  PAYMENT_CONFIRMED: {
+    contentSid: "HXf14ab867acedc0ac82ae8e37cc98c021",
+    variables: [] as const,
+  },
+
   // ── Membership Lead Outcome Templates ────────────────────────────
 
   // club_allenby_lead_approved — "Hey {{1}}! Great news from Club Allenby!

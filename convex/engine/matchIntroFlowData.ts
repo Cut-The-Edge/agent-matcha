@@ -57,9 +57,9 @@ export const nodes = [
     position: { x: 500, y: 1700 },
     config: {
       question:
-        "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
+        "Great — glad you're interested.\n\nBefore making the introduction, we typically connect with them directly, learn a bit more, and confirm the interest is mutual. It's part of how we curate introductions.\n\nWant me to do that?",
       options: [
-        { value: "interested_yes", label: "Yes, start outreach", edgeId: "edge_interested_yes" },
+        { value: "interested_yes", label: "Yes – initiate outreach", edgeId: "edge_interested_yes" },
         { value: "interested_pass", label: "Actually I'll pass", edgeId: "edge_interested_pass" },
       ],
       timeout: 86400000, // 24h
@@ -73,7 +73,7 @@ export const nodes = [
     position: { x: 500, y: 2200 },
     config: {
       template:
-        "Perfect — I can do that. I'll reach out to them directly, share a bit about you, and gauge their interest before making a formal introduction.\n\nIt's $250 total, split into two parts — $125 now to initiate the outreach, and $125 only if they're interested in connecting. You can activate it here:",
+        "Perfect — I can do that.\n\nI'll reach out to them directly, learn a bit more, and confirm they're open to the intro.\n\nIt's $250 total, split $125 now and $125 only if they're interested.\n\nYou can activate it here:",
       channel: "whatsapp",
     },
   },
@@ -87,11 +87,11 @@ export const nodes = [
     position: { x: 2000, y: 1200 },
     config: {
       question:
-        "Totally understand. To help us refine your future matches, would you mind sharing what didn't feel right?",
+        "Totally get it {{memberFirstName}} to help us refine future profiles, what about this introduction didn't resonate at first glance?",
       options: [
-        { value: "physical", label: "Physical attraction", edgeId: "edge_physical" },
+        { value: "physical", label: "Physical Attraction", edgeId: "edge_physical" },
         { value: "bio", label: "Bio didn't resonate", edgeId: "edge_bio" },
-        { value: "career", label: "Career ambitions mismatch", edgeId: "edge_career" },
+        { value: "career", label: "Career/ambition mismatch", edgeId: "edge_career" },
         { value: "religious", label: "Religious level mismatch", edgeId: "edge_religious" },
         { value: "age", label: "Age preference", edgeId: "edge_age" },
         { value: "location", label: "Location", edgeId: "edge_location" },
@@ -111,8 +111,8 @@ export const nodes = [
     position: { x: -400, y: 2000 },
     config: {
       feedbackType: "physical",
-      prompt: "Is this person outside your physical type?",
-      categories: ["Yes", "Somewhat", "No"],
+      prompt: "Is this outside your usual physical type?",
+      categories: ["Yes — not my type", "Somewhat — could grow on me", "No — just didn't feel a pull"],
       allowFreeText: false,
       timeout: 86400000, // 24h
       timeoutMessage: "Hey {{memberFirstName}}, still here whenever you're ready to share!",
@@ -139,7 +139,7 @@ export const nodes = [
     position: { x: 600, y: 2000 },
     config: {
       feedbackType: "career",
-      prompt: "Based on the career description, what felt off?",
+      prompt: "Based on their career description, what felt off?",
       categories: [
         "Not ambitious enough for me",
         "Too career-focused",
@@ -159,11 +159,11 @@ export const nodes = [
     position: { x: 1100, y: 2000 },
     config: {
       feedbackType: "religious",
-      prompt: "Based on how they describe their observance, what felt off?",
+      prompt: "Based on how they described their observance, what felt off?",
       categories: [
         "More observant than I'm comfortable with",
         "Less observant than I prefer",
-        "Practice style felt different than mine",
+        "Practice style felt different from mine",
       ],
       allowFreeText: false,
       timeout: 86400000, // 24h
@@ -177,7 +177,7 @@ export const nodes = [
     position: { x: 1600, y: 2000 },
     config: {
       feedbackType: "age",
-      prompt: "What felt misaligned about that life stage?",
+      prompt: "What felt misaligned about life stage?",
       categories: [
         "I want someone more established",
         "I want someone more flexible / early stage",
@@ -204,7 +204,7 @@ export const nodes = [
         "I'm only open to same-city matches",
         "I'm open to distance, but not that city",
         "I don't want to relocate",
-        "I want to relocate, but only for the right fit",
+        "I would relocate, but only for the right fit",
       ],
       allowFreeText: false,
       timeout: 86400000, // 24h
@@ -218,7 +218,7 @@ export const nodes = [
     position: { x: 2600, y: 2000 },
     config: {
       feedbackType: "gut_feeling",
-      prompt: "If you had to categorize it, what was it more?",
+      prompt: "If you had to categorize it, was it more:",
       categories: [
         "Physical hesitation",
         "Lifestyle hesitation",
@@ -238,7 +238,7 @@ export const nodes = [
     position: { x: 3100, y: 2000 },
     config: {
       feedbackType: "other",
-      prompt: "No problem — feel free to type it out or send a voice note, and we'll take it from here.",
+      prompt: "That would be great! Please respond to this message with why you didn't want to move forward with this match.",
       categories: [],
       allowFreeText: true,
       timeout: 86400000, // 24h
@@ -271,8 +271,9 @@ export const nodes = [
     position: { x: 2000, y: 3500 },
     config: {
       template:
-        "Thanks for sharing — this really helps us dial in your matches. We'll use this to refine who we send your way next. Talk soon!",
+        "Got it {{memberFirstName}}! That's helpful. We'll refine your preferences accordingly and circle back with your next match.\n\nRemember, some of the strongest matches aren't always obvious on paper — but we'll keep refining intentionally.",
       channel: "whatsapp",
+      templateKey: "FEEDBACK_CLOSING",
     },
   },
   {
@@ -303,16 +304,16 @@ export const nodes = [
     position: { x: 4500, y: 1200 },
     config: {
       question:
-        "At this stage, what you've received is the full profile we're able to share.\n\nIf you'd like to go deeper, we offer a Curated Outreach service — we personally reach out to this person on your behalf, share a bit about you, and gauge their interest before making a formal introduction.\n\nHow it works:\n- Total cost: $250\n- $125 upfront to initiate outreach\n- $125 only if the other party is interested in connecting\n\nNo guarantees — but we present you intentionally and always do our best. Would you like to activate this?",
+        "At this stage, what you've received is the full profile on file.\n\nIf you'd like us to go deeper and personally represent you, we can initiate a curated outreach. We'll connect with them directly, gather additional insight, and present you intentionally.\n\nThe service is $250 total — split 50/50, with the second half only due if they agree to connect. No guarantees here, but we always do our best.\n\nJust let me know and I'll activate it.",
       options: [
-        { value: "upsell_yes", label: "Yes, start outreach", edgeId: "edge_upsell_yes" },
-        { value: "upsell_no", label: "No thanks, I'll pass", edgeId: "edge_upsell_no" },
+        { value: "upsell_yes", label: "Yes – initiate outreach", edgeId: "edge_upsell_yes" },
+        { value: "upsell_no", label: "No thank you, I'll pass for now", edgeId: "edge_upsell_no" },
       ],
       timeout: 86400000, // 24h
       timeoutEdgeId: "edge_nudge_upsell",
     },
   },
-  // §5.2 — Pre-payment message
+  // §5.2 — Pre-payment message (includes payment link inline per spec)
   {
     nodeId: "msg_upsell_initiate",
     type: "message",
@@ -320,7 +321,7 @@ export const nodes = [
     position: { x: 4200, y: 1700 },
     config: {
       template:
-        "I'll reach out to them directly on your behalf, share a bit about you, and gauge their interest before any formal introduction is made. I'll keep you updated as soon as I hear back.\n\nIf there's anything specific you'd like us to ask or emphasize about you, feel free to send it now.",
+        "Great. I'll initiate the outreach on your behalf.\n\nTo begin, please complete the first $125 payment here:",
       channel: "whatsapp",
     },
   },
@@ -346,8 +347,9 @@ export const nodes = [
     position: { x: 4200, y: 2600 },
     config: {
       template:
-        "Payment received — we'll initiate outreach shortly. Our team will review the match and reach out directly to learn more and present you intentionally. We'll update you as soon as we have an answer.",
+        "Payment received — we'll initiate outreach shortly.\n\nOur team will review the match and reach out directly to learn more and present you intentionally. We'll update you as soon as we have an answer.",
       channel: "whatsapp",
+      templateKey: "PAYMENT_CONFIRMED",
     },
   },
   {
@@ -452,11 +454,11 @@ export const nodes = [
     position: { x: 3400, y: 1200 },
     config: {
       question:
-        "Totally understand. To help us refine your future matches, would you mind sharing what didn't feel right?",
+        "Totally get it {{memberFirstName}} to help us refine future profiles, what about this introduction didn't resonate at first glance?",
       options: [
-        { value: "physical", label: "Physical attraction", edgeId: "edge_reask_physical" },
+        { value: "physical", label: "Physical Attraction", edgeId: "edge_reask_physical" },
         { value: "bio", label: "Bio didn't resonate", edgeId: "edge_reask_bio" },
-        { value: "career", label: "Career ambitions mismatch", edgeId: "edge_reask_career" },
+        { value: "career", label: "Career/ambition mismatch", edgeId: "edge_reask_career" },
         { value: "religious", label: "Religious level mismatch", edgeId: "edge_reask_religious" },
         { value: "age", label: "Age preference", edgeId: "edge_reask_age" },
         { value: "location", label: "Location", edgeId: "edge_reask_location" },
@@ -489,10 +491,10 @@ export const nodes = [
     position: { x: 5900, y: 1200 },
     config: {
       question:
-        "At this stage, what you've received is the full profile we're able to share.\n\nIf you'd like to go deeper, we offer a Curated Outreach service — we personally reach out to this person on your behalf, share a bit about you, and gauge their interest before making a formal introduction.\n\nHow it works:\n- Total cost: $250\n- $125 upfront to initiate outreach\n- $125 only if the other party is interested in connecting\n\nNo guarantees — but we present you intentionally and always do our best. Would you like to activate this?",
+        "At this stage, what you've received is the full profile on file.\n\nIf you'd like us to go deeper and personally represent you, we can initiate a curated outreach. We'll connect with them directly, gather additional insight, and present you intentionally.\n\nThe service is $250 total — split 50/50, with the second half only due if they agree to connect. No guarantees here, but we always do our best.\n\nJust let me know and I'll activate it.",
       options: [
-        { value: "upsell_yes", label: "Yes, start outreach", edgeId: "edge_reask_upsell_yes" },
-        { value: "upsell_no", label: "No thanks, I'll pass", edgeId: "edge_reask_upsell_no" },
+        { value: "upsell_yes", label: "Yes – initiate outreach", edgeId: "edge_reask_upsell_yes" },
+        { value: "upsell_no", label: "No thank you, I'll pass for now", edgeId: "edge_reask_upsell_no" },
       ],
       timeout: 86400000, // 24h
       timeoutEdgeId: "edge_reask_upsell_expire",
@@ -505,9 +507,9 @@ export const nodes = [
     position: { x: -100, y: 1700 },
     config: {
       question:
-        "Great — glad you're interested. Before making the introduction, we typically connect with them directly to learn a bit more and present you intentionally.\n\nWould you like us to initiate that outreach on your behalf?",
+        "Great — glad you're interested.\n\nBefore making the introduction, we typically connect with them directly, learn a bit more, and confirm the interest is mutual. It's part of how we curate introductions.\n\nWant me to do that?",
       options: [
-        { value: "interested_yes", label: "Yes, start outreach", edgeId: "edge_reask_interested_yes" },
+        { value: "interested_yes", label: "Yes – initiate outreach", edgeId: "edge_reask_interested_yes" },
         { value: "interested_pass", label: "Actually I'll pass", edgeId: "edge_reask_interested_pass" },
       ],
       timeout: 86400000, // 24h
@@ -651,8 +653,9 @@ export const nodes = [
     position: { x: 2500, y: 4900 },
     config: {
       template:
-        "I want to pause before sending another profile. After a few declines, it's usually helpful to recalibrate together so we don't keep missing.\n\nPlease book a quick alignment call here: {{recalibrationLink}}\n\nWe'll refine and move forward intentionally.",
+        "I want to pause before sending another profile. After three declines, it's usually helpful to recalibrate together so we don't keep missing.\n\nPlease book a quick alignment call here: {{recalibrationLink}}\n\nWe'll refine and move forward intentionally.",
       channel: "whatsapp",
+      templateKey: "RECALIBRATION_OFFER",
     },
   },
   {
@@ -684,7 +687,7 @@ export const edges = [
   { edgeId: "edge_upsell_intro", source: "decision_response", target: "decision_upsell", label: "More info / intro" },
 
   // §3 Interested → Decision → Payment (or Pass)
-  { edgeId: "edge_interested_yes", source: "decision_interested_outreach", target: "msg_interested_prepayment", label: "Yes, start outreach" },
+  { edgeId: "edge_interested_yes", source: "decision_interested_outreach", target: "msg_interested_prepayment", label: "Yes – initiate outreach" },
   { edgeId: "edge_interested_pass", source: "decision_interested_outreach", target: "msg_upsell_pass", label: "Actually I'll pass" },
   { edgeId: "e_interested_prepay_action", source: "msg_interested_prepayment", target: "action_create_payment" },
 
@@ -740,9 +743,9 @@ export const edges = [
   { edgeId: "e_recalibration_end", source: "action_recalibration", target: "end_recalibration" },
 
   // §5.1 Upsell → Yes / No
-  { edgeId: "edge_upsell_yes", source: "decision_upsell", target: "msg_upsell_initiate", label: "Yes, activate" },
+  { edgeId: "edge_upsell_yes", source: "decision_upsell", target: "msg_upsell_initiate", label: "Yes – initiate outreach" },
   { edgeId: "e_initiate_payment", source: "msg_upsell_initiate", target: "action_create_payment" },
-  { edgeId: "edge_upsell_no", source: "decision_upsell", target: "msg_upsell_pass", label: "No thanks, I'll pass" },
+  { edgeId: "edge_upsell_no", source: "decision_upsell", target: "msg_upsell_pass", label: "No thank you, I'll pass for now" },
 
   // §5.2 Upsell Yes → Payment → Confirmation → Admin Notify → End
   { edgeId: "e_payment_confirmed", source: "action_create_payment", target: "msg_payment_confirmed" },
@@ -781,11 +784,11 @@ export const edges = [
   { edgeId: "edge_reask_more_no", source: "decision_reask_more_reasons", target: "msg_closing", label: "No" },
 
   // decision_reask_upsell → Yes (initiate) / No (pass)
-  { edgeId: "edge_reask_upsell_yes", source: "decision_reask_upsell", target: "msg_upsell_initiate", label: "Yes, activate" },
-  { edgeId: "edge_reask_upsell_no", source: "decision_reask_upsell", target: "msg_upsell_pass", label: "No thanks, I'll pass" },
+  { edgeId: "edge_reask_upsell_yes", source: "decision_reask_upsell", target: "msg_upsell_initiate", label: "Yes – initiate outreach" },
+  { edgeId: "edge_reask_upsell_no", source: "decision_reask_upsell", target: "msg_upsell_pass", label: "No thank you, I'll pass for now" },
 
   // decision_reask_interested_outreach → Yes (prepayment) / No (pass)
-  { edgeId: "edge_reask_interested_yes", source: "decision_reask_interested_outreach", target: "msg_interested_prepayment", label: "Yes, start outreach" },
+  { edgeId: "edge_reask_interested_yes", source: "decision_reask_interested_outreach", target: "msg_interested_prepayment", label: "Yes – initiate outreach" },
   { edgeId: "edge_reask_interested_pass", source: "decision_reask_interested_outreach", target: "msg_upsell_pass", label: "Actually I'll pass" },
 
   // ── Re-ask Timeout → Mid-Flow Expire ────────────────────────────────────
