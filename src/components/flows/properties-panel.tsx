@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { X, Plus, Trash2 } from "lucide-react"
+import { X, Plus, Trash2, Lock } from "lucide-react"
 
 const FEEDBACK_CATEGORIES = [
   "physical_attraction",
@@ -166,6 +166,18 @@ function StartFields({
   )
 }
 
+function TemplateLockNotice({ templateKey }: { templateKey: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
+      <Lock className="mt-0.5 size-3 shrink-0 text-amber-600 dark:text-amber-400" />
+      <p className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
+        This message uses a pre-approved WhatsApp template (<span className="font-mono font-semibold">{templateKey}</span>).
+        Text and buttons can only be edited in the Twilio Content Template Builder.
+      </p>
+    </div>
+  )
+}
+
 function MessageFields({
   config,
   updateConfig,
@@ -173,8 +185,11 @@ function MessageFields({
   config: Record<string, any>
   updateConfig: (u: Record<string, any>) => void
 }) {
+  const isTemplateLocked = !!config.templateKey
+
   return (
     <>
+      {isTemplateLocked && <TemplateLockNotice templateKey={config.templateKey} />}
       <div className="space-y-2">
         <Label>Message Template</Label>
         <Textarea
@@ -182,10 +197,14 @@ function MessageFields({
           value={config.template || ""}
           onChange={(e) => updateConfig({ template: e.target.value })}
           placeholder="Enter message template text..."
+          disabled={isTemplateLocked}
+          className={isTemplateLocked ? "opacity-60" : ""}
         />
-        <p className="text-[10px] text-muted-foreground">
-          Use {"{{memberName}}"}, {"{{matchName}}"} for variables
-        </p>
+        {!isTemplateLocked && (
+          <p className="text-[10px] text-muted-foreground">
+            Use {"{{memberName}}"}, {"{{matchName}}"} for variables
+          </p>
+        )}
       </div>
       <div className="space-y-2">
         <Label>Channel</Label>
@@ -222,6 +241,7 @@ function DecisionFields({
   config: Record<string, any>
   updateConfig: (u: Record<string, any>) => void
 }) {
+  const isTemplateLocked = !!config.templateKey
   const options = (config.options || []) as Array<{
     value: string
     label: string
@@ -250,6 +270,7 @@ function DecisionFields({
 
   return (
     <>
+      {isTemplateLocked && <TemplateLockNotice templateKey={config.templateKey} />}
       <div className="space-y-2">
         <Label>Question Text</Label>
         <Textarea
@@ -257,15 +278,19 @@ function DecisionFields({
           value={config.question || ""}
           onChange={(e) => updateConfig({ question: e.target.value })}
           placeholder="Enter the decision question..."
+          disabled={isTemplateLocked}
+          className={isTemplateLocked ? "opacity-60" : ""}
         />
       </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label>Options</Label>
-          <Button variant="outline" size="sm" onClick={addOption}>
-            <Plus className="mr-1 size-3" />
-            Add
-          </Button>
+          {!isTemplateLocked && (
+            <Button variant="outline" size="sm" onClick={addOption}>
+              <Plus className="mr-1 size-3" />
+              Add
+            </Button>
+          )}
         </div>
         {options.map((opt, idx) => (
           <div key={idx} className="flex items-center gap-2">
@@ -274,20 +299,26 @@ function DecisionFields({
               value={opt.label}
               onChange={(e) => updateOption(idx, "label", e.target.value)}
               placeholder="Label"
+              disabled={isTemplateLocked}
+              {...(isTemplateLocked && { className: "flex-1 opacity-60" })}
             />
             <Input
               className="w-24"
               value={opt.value}
               onChange={(e) => updateOption(idx, "value", e.target.value)}
               placeholder="Value"
+              disabled={isTemplateLocked}
+              {...(isTemplateLocked && { className: "w-24 opacity-60" })}
             />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => removeOption(idx)}
-            >
-              <Trash2 className="size-3" />
-            </Button>
+            {!isTemplateLocked && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => removeOption(idx)}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            )}
           </div>
         ))}
       </div>
