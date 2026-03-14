@@ -91,7 +91,10 @@ export function OutboundCallDialog() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to place call")
-      toast.success("Outbound call initiated — dialing " + data.phone)
+      toast.success("Call in progress", {
+        description: `Dialing ${data.phone} — the agent will handle the conversation.`,
+        duration: 8000,
+      })
       setOpen(false)
       setPhone("")
       setNotes("")

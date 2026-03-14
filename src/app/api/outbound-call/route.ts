@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const livekitUrl = process.env.LIVEKIT_URL;
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
-    const outboundTrunkId = "ST_Efsb4mXWhDgN";
+    const outboundTrunkId = "ST_BXjTydasn632";
 
     if (!livekitUrl || !apiKey || !apiSecret) {
       return NextResponse.json(
@@ -45,9 +45,13 @@ export async function POST(req: NextRequest) {
     const random = Math.random().toString(36).slice(2, 8);
     const roomName = `outbound-${timestamp}-${random}`;
 
-    // Clean phone number — ensure E.164 format
-    let cleanPhone = phone.replace(/[^\d+]/g, "");
-    if (!cleanPhone.startsWith("+")) {
+    // Clean phone number — ensure E.164 format (+1XXXXXXXXXX)
+    let cleanPhone = phone.replace(/[^\d]/g, ""); // strip everything except digits
+    if (cleanPhone.length === 10) {
+      cleanPhone = `+1${cleanPhone}`; // US number without country code
+    } else if (cleanPhone.length === 11 && cleanPhone.startsWith("1")) {
+      cleanPhone = `+${cleanPhone}`; // US number with country code but no +
+    } else if (!cleanPhone.startsWith("+")) {
       cleanPhone = `+${cleanPhone}`;
     }
 
@@ -78,7 +82,6 @@ export async function POST(req: NextRequest) {
       roomName,
       {
         participantIdentity: `sip_${cleanPhone}`,
-        waitUntilAnswered: true,
       },
     );
 
