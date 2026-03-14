@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "livekit-agents>=1.2.0",
     "livekit-plugins-deepgram>=1.2.0",
-    # "livekit-plugins-cartesia>=1.0.0",  # TODO: re-enable when switching from Deepgram TTS
+    "livekit-plugins-cartesia>=1.2.0",
     "livekit-plugins-openai>=1.2.0",
     "livekit-plugins-silero>=1.2.0",
     "livekit-plugins-noise-cancellation>=0.2.0",
