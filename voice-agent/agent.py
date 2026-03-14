@@ -714,6 +714,8 @@ async def entrypoint(ctx: agents.JobContext):
         agent._instructions += f"\n\n## Caller context\n{UNKNOWN_CALLER_CONTEXT}"
 
     # Create and start the session
+    # VAD tuned for phone calls: higher threshold to ignore background noise,
+    # longer silence padding so it doesn't cut off mid-sentence
     session = AgentSession(
         stt=deepgram.STT(model="nova-3", language="multi"),
         llm=openai_plugin.LLM(
@@ -722,7 +724,11 @@ async def entrypoint(ctx: agents.JobContext):
             api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
         tts=deepgram.TTS(model="aura-2-asteria-en"),
-        vad=silero.VAD.load(),
+        vad=silero.VAD.load(
+            min_speech_duration=0.15,     # ignore very short sounds (< 150ms)
+            min_silence_duration=0.6,     # wait longer before deciding user stopped talking
+            activation_threshold=0.65,    # higher = less sensitive to background noise (default 0.5)
+        ),
         turn_detection=MultilingualModel(),
     )
 
