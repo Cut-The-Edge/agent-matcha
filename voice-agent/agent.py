@@ -38,6 +38,9 @@ from flows.intake import (
     EXISTING_MEMBER_MOSTLY_COMPLETE,
     EXISTING_MEMBER_INCOMPLETE,
     UNKNOWN_CALLER_CONTEXT,
+    OUTBOUND_GREETING,
+    OUTBOUND_CONTEXT,
+    OUTBOUND_BAD_TIME_INSTRUCTIONS,
 )
 
 load_dotenv()
@@ -639,13 +642,20 @@ async def entrypoint(ctx: agents.JobContext):
     # Parse dispatch metadata
     phone_number: str | None = None
     is_sandbox = False
+    call_direction = "inbound"
+    call_context: str | None = None
+    agent_notes: str | None = None
     logger.info("[entrypoint] Connected to room: %s", ctx.room.name)
     if ctx.job.metadata:
         try:
             meta = json.loads(ctx.job.metadata)
             phone_number = meta.get("phone_number")
             is_sandbox = meta.get("sandbox", False)
-            logger.info("[entrypoint] Dispatch metadata: phone=%s sandbox=%s", phone_number, is_sandbox)
+            call_direction = meta.get("direction", "inbound")
+            call_context = meta.get("context")
+            agent_notes = meta.get("agent_notes")
+            logger.info("[entrypoint] Dispatch metadata: phone=%s sandbox=%s direction=%s context=%s",
+                        phone_number, is_sandbox, call_direction, call_context)
         except (json.JSONDecodeError, AttributeError):
             logger.warning("[entrypoint] Failed to parse dispatch metadata: %s", ctx.job.metadata)
 
@@ -665,7 +675,7 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
         sip_call_id=sip_call_id,
         phone=caller_phone,
-        direction="inbound",
+        direction=call_direction,
         lk_api=ctx.api,
         sandbox=is_sandbox,
     )
@@ -713,6 +723,16 @@ async def entrypoint(ctx: agents.JobContext):
     else:
         agent._instructions += f"\n\n## Caller context\n{UNKNOWN_CALLER_CONTEXT}"
 
+    # Add outbound call context to system prompt
+    if call_direction == "outbound":
+        ctx_key = call_context.split(":")[0].strip() if call_context else "full_intake"
+        outbound_ctx = OUTBOUND_CONTEXT.get(ctx_key, OUTBOUND_CONTEXT["full_intake"])
+        agent._instructions += f"\n\n## Outbound Call Instructions\n{outbound_ctx}"
+        if agent_notes:
+            agent._instructions += f"\n\n## Agent Notes (from dashboard)\n{agent_notes}"
+        # Add bad-time handling
+        agent._instructions += f"\n\n## If they say it's not a good time\n{OUTBOUND_BAD_TIME_INSTRUCTIONS}"
+
     # Create and start the session
     # VAD tuned for phone calls: higher threshold to ignore background noise,
     # longer silence padding so it doesn't cut off mid-sentence
@@ -748,8 +768,22 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
     )
 
-    # Greet the caller — adapt for returning vs new callers
-    if call_handler.member:
+    # Greet the caller — adapt based on direction and caller type
+    if call_direction == "outbound":
+        # Outbound call — use context-specific greeting
+        ctx_key = call_context.split(":")[0].strip() if call_context else "full_intake"
+        member_name = call_handler.member.get("firstName", "") if call_handler.member else ""
+        name_part = f" {member_name}" if member_name else ""
+        greeting_template = OUTBOUND_GREETING.get(ctx_key, OUTBOUND_GREETING["full_intake"])
+        greeting_text = greeting_template.format(name_part=name_part)
+        greeting = (
+            f"This is an outbound call. Greet the person with: '{greeting_text}' "
+            f"Wait for their response. If they say it's a good time, proceed. "
+            f"If they say it's not a good time, they're busy, or they can't talk — "
+            f"say 'No worries at all! You can call us back anytime at this number.' "
+            f"and then call end_call."
+        )
+    elif call_handler.member:
         member_name = call_handler.member.get("firstName", "")
         greeting = (
             f"Greet {member_name} warmly by name — they're a returning member. "

@@ -92,7 +92,7 @@ export const generateSummary = internalAction({
             role: "system",
             content: `You are an expert data extraction engine analyzing a phone intake call transcript for Club Allenby, a Jewish matchmaking service.
 
-Your job is to extract MAXIMUM profile data from the conversation. This is a safety net — the agent may have crashed before saving. Be thorough. Extract every detail, even if only implied or indirect.
+Your job is to extract profile data that was ACTUALLY SAID in the conversation. Only extract information the caller explicitly stated or clearly implied through their own words. Do NOT fabricate, guess, or assume any data that is not supported by the transcript. If the call was very short or the caller said very little, return very few or no extracted fields — that is correct behavior.
 
 ## Output format
 Return a single flat JSON object with these top-level keys:
@@ -103,28 +103,19 @@ Return a single flat JSON object with these top-level keys:
 - "sentiment": "positive" | "neutral" | "negative"
 - "flags": array of concerns (e.g. "pricing_question", "hostile", "confused")
 
-## CRITICAL INFERENCE RULES
-Do NOT only look for explicit statements. INFER fields from context:
+## INFERENCE RULES — only apply when the caller ACTUALLY SAID something relevant
+These are examples of how to map what callers say to fields. Only use these when the caller's words support the inference:
 
-- If a male caller says "I'm looking for a woman" → prefSeeking="female", sexualOrientation="straight"
-- If a female caller says "I want a guy who..." → prefSeeking="male", sexualOrientation="straight"
-- If caller says "I'm 28" → age="28". If they say "I'll be 30 in March" → age="29", birthdate month hint
-- If caller says "I work in finance at Goldman Sachs" → occupation="finance", careerOverview="Works at Goldman Sachs in finance"
-- If caller says "I went to Penn" → collegeDetails="University of Pennsylvania", educationLevel="Bachelors" (or higher if context suggests)
-- If caller mentions "my ex-girlfriend" or "my ex-boyfriend" → infer sexualOrientation from the gender of their ex
-- If caller says "I keep kosher at home but eat out anywhere" → kosherLevel="kosher in the house"
-- If caller says "I do Friday night dinners with my family" → shabbatObservance="Friday night dinners"
-- If caller says "I'm not really political" → politicalAffiliation="not political"
-- If caller says "I don't care about height" → prefHeightRange can be omitted, but note it in lookingFor
-- If caller says "no kids, not ready yet" → hasChildren="no", kidsPreference="undecided"
-- If caller mentions their parents are divorced → include in familyInfo
-- If caller says "I just got out of a 3-year relationship" → relationshipStatus="single", relationshipHistory includes this
-- If caller says "I'm originally from Israel but live in Miami now" → nationality="Israeli", hometown="Israel", location="Miami, FL"
-- If caller says "I want someone who values family and is honest" → prefPartnerValues="family, honesty"
-- If caller describes ideal partner appearance → extract prefHeightRange, prefHairColor, prefEyeColor, physicalPreferences
-- If caller says "I don't want to date someone who smokes" → prefSmoking="no"
-- If caller says "I drink socially" → drinkAlcohol="yes socially"
-- If caller says they have a dog → hasPets="dog"
+- "I'm looking for a woman" → prefSeeking="female", sexualOrientation="straight"
+- "I'm 28" → age="28"
+- "I work in finance at Goldman Sachs" → occupation="finance", careerOverview="Works at Goldman Sachs in finance"
+- "I went to Penn" → collegeDetails="University of Pennsylvania", educationLevel="Bachelors"
+- "my ex-girlfriend" → can infer sexualOrientation from gender of ex
+- "I keep kosher at home but eat out anywhere" → kosherLevel="kosher in the house"
+- "I'm originally from Israel but live in Miami now" → nationality="Israeli", hometown="Israel", location="Miami, FL"
+- "I drink socially" → drinkAlcohol="yes socially"
+
+CRITICAL: If the caller did NOT say anything related to a field, do NOT include it. An empty extractedFields object is valid for short or incomplete calls.
 
 ## All extractable fields (use these EXACT keys)
 
@@ -209,10 +200,10 @@ Do NOT only look for explicit statements. INFER fields from context:
 
 ## IMPORTANT RULES
 1. Return a FLAT JSON object — no nesting, no categories, no grouping
-2. Only include fields you can extract or reasonably infer — do NOT include "N/A", "unknown", null, or empty strings
+2. Only include fields the caller ACTUALLY discussed — do NOT include "N/A", "unknown", null, or empty strings
 3. Use the EXACT key names from the tables above
 4. For select fields, use the exact format shown in the examples
-5. Be aggressive about inference — if the caller mentions something even indirectly, extract it
+5. Do NOT fabricate or hallucinate data. If the transcript is short or the caller barely spoke, return few or no fields. An empty extractedFields object is correct for calls with no substantive content.
 6. If the caller describes their ideal partner in detail, break it apart into multiple pref fields
 7. Combine all relevant mentions — if they mention hobbies in 3 different places, merge them into one hobbies field
 8. For comma-separated fields (hobbies, interests, topValues, etc.), combine all mentions into one value
@@ -224,7 +215,7 @@ Respond with ONLY valid JSON. No markdown, no code fences, no explanation.`,
             content: `Transcript:\n\n${transcript}`,
           },
         ],
-        temperature: 0.3,
+        temperature: 0.1,
       }),
     });
 
@@ -497,6 +488,18 @@ export const syncCallToSMA = internalAction({
   },
   handler: async (ctx, args) => {
     console.log("[syncCallToSMA] Starting for call:", args.callId);
+
+    // Check if auto-sync is enabled in settings
+    const autoSync = await ctx.runQuery(internal.settings.getAutoSyncCallsToCrm);
+    if (!autoSync) {
+      console.log("[syncCallToSMA] Auto-sync disabled in settings — skipping");
+      await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
+        callId: args.callId,
+        status: "skipped",
+      });
+      return;
+    }
+
     const call = await ctx.runQuery(internal.voice.queries.getCallInternal, {
       callId: args.callId,
     });

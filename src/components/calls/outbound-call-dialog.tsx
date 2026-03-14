@@ -22,8 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useAuthAction } from "@/hooks/use-auth-query"
-import { api } from "../../../convex/_generated/api"
 import { toast } from "sonner"
 
 export function OutboundCallDialog() {
@@ -33,10 +31,6 @@ export function OutboundCallDialog() {
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const { actionWithAuth: triggerCall } = useAuthAction(
-    api.voice.actions.triggerOutboundCall
-  )
-
   async function handleCall() {
     if (!phone.trim()) {
       toast.error("Please enter a phone number")
@@ -45,16 +39,23 @@ export function OutboundCallDialog() {
 
     setLoading(true)
     try {
-      const contextStr = notes
-        ? `${context}: ${notes}`
-        : context
-      await triggerCall({ phone: phone.trim(), context: contextStr })
-      toast.success("Outbound call initiated")
+      const res = await fetch("/api/outbound-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          context,
+          notes: notes.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to place call")
+      toast.success("Outbound call initiated — dialing " + data.phone)
       setOpen(false)
       setPhone("")
       setNotes("")
     } catch (err) {
-      toast.error("Failed to initiate call")
+      toast.error(err instanceof Error ? err.message : "Failed to initiate call")
     } finally {
       setLoading(false)
     }

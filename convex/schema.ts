@@ -387,6 +387,7 @@ export default defineSchema({
   // -- App Settings (singleton) --
   appSettings: defineTable({
     profileExpirationHours: v.number(),
+    autoSyncCallsToCrm: v.optional(v.boolean()),
     updatedAt: v.number(),
   }),
 

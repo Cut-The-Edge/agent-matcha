@@ -7,12 +7,21 @@ import { api } from "../../../../convex/_generated/api"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   Sun,
   Moon,
   Monitor,
   Settings,
   Link,
+  Phone,
+  HelpCircle,
 } from "lucide-react"
 
 export default function SettingsPage() {
@@ -136,6 +145,45 @@ export default function SettingsPage() {
                 </Button>
               </div>
             </CardContent>
+          </Card>
+        </div>
+
+        {/* Voice Agent Section */}
+        <div>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Phone className="h-5 w-5" />
+            Voice Agent
+          </h3>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Auto-sync calls to CRM
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[300px]">
+                          <p>When enabled, data extracted from inbound phone calls (name, age, preferences, etc.) is automatically synced to the member&apos;s CRM profile after each call ends. Disable this if you prefer to review and sync manually from the call detail page.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardTitle>
+                  <CardDescription>
+                    Automatically push extracted call data to SmartMatch CRM after each inbound call
+                  </CardDescription>
+                </div>
+                <Switch
+                  checked={settings && "autoSyncCallsToCrm" in settings ? settings.autoSyncCallsToCrm !== false : true}
+                  onCheckedChange={async (checked) => {
+                    await updateSettings({ autoSyncCallsToCrm: checked })
+                  }}
+                />
+              </div>
+            </CardHeader>
           </Card>
         </div>
 
