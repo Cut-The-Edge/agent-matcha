@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   LayoutDashboard,
-  Heart,
   Users,
   UserPlus,
   MessageSquare,
@@ -27,56 +26,62 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { useCurrentUser } from "@/hooks/use-current-user"
 
 const data = {
-  navMain: [
+  navCRM: [
     {
-      title: "Overview",
+      title: "Dashboard",
       url: "/dashboard",
       icon: LayoutDashboard,
-    },
-    {
-      title: "Matches",
-      url: "/dashboard/matches",
-      icon: Heart,
+      description: "Your command center — see key metrics and recent activity at a glance",
     },
     {
       title: "Members",
       url: "/dashboard/members",
       icon: Users,
+      description: "View, search, and manage all community members in your network",
     },
     {
       title: "Leads",
       url: "/dashboard/leads",
       icon: UserPlus,
       hasBadge: true,
+      description: "Review membership upgrade requests and approve or deny them",
     },
     {
-      title: "Conversations",
+      title: "Messages",
       url: "/dashboard/conversations",
       icon: MessageSquare,
+      description: "Read and manage WhatsApp conversations with your members",
     },
     {
-      title: "Phone Calls",
+      title: "Calls",
       url: "/dashboard/calls",
       icon: Phone,
-    },
-    {
-      title: "Flows",
-      url: "/dashboard/flows",
-      icon: Workflow,
-    },
-    {
-      title: "Sandbox",
-      url: "/dashboard/sandbox",
-      icon: FlaskConical,
+      description: "View voice call logs, listen to recordings, and check transcripts",
     },
     {
       title: "Recalibration",
       url: "/dashboard/recalibration",
       icon: RefreshCcw,
+      description: "Members who rejected a match and need their preferences updated",
+    },
+  ],
+  navTools: [
+    {
+      title: "Automations",
+      url: "/dashboard/flows",
+      icon: Workflow,
+      description: "Create and edit automated WhatsApp conversation flows",
+    },
+    {
+      title: "Sandbox",
+      url: "/dashboard/sandbox",
+      icon: FlaskConical,
+      description: "Test your automations and messages before sending them live",
     },
   ],
   navAdmin: [
@@ -130,7 +135,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={data.navCRM} />
+        <SidebarSeparator />
+        <NavMain items={data.navTools} label="Tools" />
         {filteredAdmin.length > 0 && (
           <NavSecondary items={filteredAdmin} className="mt-auto" />
         )}

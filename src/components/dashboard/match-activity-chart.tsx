@@ -29,33 +29,24 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useAuthQuery } from "@/hooks/use-auth-query"
+import { api } from "../../../convex/_generated/api"
 
 const chartConfig = {
-  matches: {
-    label: "Matches",
+  activity: {
+    label: "Activity",
     color: "var(--primary)",
   },
-  responses: {
-    label: "Responses",
-    color: "var(--primary)",
+  completed: {
+    label: "Completed",
+    color: "var(--accent)",
   },
 } satisfies ChartConfig
-
-// Generate empty placeholder data for the last 7 days
-function generateEmptyData() {
-  const data = []
-  const now = new Date()
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-    data.push({
-      date: date.toISOString().split("T")[0],
-      matches: 0,
-      responses: 0,
-    })
-  }
-  return data
-}
 
 export function MatchActivityChart() {
   const isMobile = useIsMobile()
@@ -67,8 +58,11 @@ export function MatchActivityChart() {
     }
   }, [isMobile])
 
-  const chartData = generateEmptyData()
-  const hasData = chartData.some((d) => d.matches > 0 || d.responses > 0)
+  const days = timeRange === "30d" ? 30 : timeRange === "24h" ? 1 : 7
+  const trendData = useAuthQuery(api.analytics.queries.getResponseTrend, { days })
+
+  const chartData = trendData ?? []
+  const hasData = chartData.some((d: { activity: number; completed: number }) => d.activity > 0 || d.completed > 0)
 
   const getTimeRangeLabel = () => {
     switch (timeRange) {
@@ -86,10 +80,17 @@ export function MatchActivityChart() {
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>Match Activity</CardTitle>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="cursor-help">CRM Activity</CardTitle>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="max-w-[250px]">
+            Shows how active your CRM has been — tracks match updates and completions over time
+          </TooltipContent>
+        </Tooltip>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
-            Matches and responses for the {getTimeRangeLabel()}
+            Match activity and completions for the {getTimeRangeLabel()}
           </span>
           <span className="@[540px]/card:hidden">
             {timeRange === "30d"
@@ -137,9 +138,9 @@ export function MatchActivityChart() {
         {!hasData ? (
           <div className="flex h-[250px] items-center justify-center text-muted-foreground">
             <div className="text-center">
-              <p className="text-lg font-medium">No match activity yet</p>
+              <p className="text-lg font-medium">No activity yet</p>
               <p className="text-sm">
-                Activity will appear here once matches are created
+                Activity will appear here as you use the CRM
               </p>
             </div>
           </div>
@@ -150,20 +151,20 @@ export function MatchActivityChart() {
           >
             <AreaChart data={chartData}>
               <defs>
-                <linearGradient id="fillMatches" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="fillActivity" x1="0" y1="0" x2="0" y2="1">
                   <stop
                     offset="5%"
-                    stopColor="var(--color-matches)"
+                    stopColor="var(--color-activity)"
                     stopOpacity={1.0}
                   />
                   <stop
                     offset="95%"
-                    stopColor="var(--color-matches)"
+                    stopColor="var(--color-activity)"
                     stopOpacity={0.1}
                   />
                 </linearGradient>
                 <linearGradient
-                  id="fillResponses"
+                  id="fillCompleted"
                   x1="0"
                   y1="0"
                   x2="0"
@@ -171,12 +172,12 @@ export function MatchActivityChart() {
                 >
                   <stop
                     offset="5%"
-                    stopColor="var(--color-responses)"
+                    stopColor="var(--color-completed)"
                     stopOpacity={0.8}
                   />
                   <stop
                     offset="95%"
-                    stopColor="var(--color-responses)"
+                    stopColor="var(--color-completed)"
                     stopOpacity={0.1}
                   />
                 </linearGradient>
@@ -211,17 +212,17 @@ export function MatchActivityChart() {
                 }
               />
               <Area
-                dataKey="responses"
+                dataKey="completed"
                 type="natural"
-                fill="url(#fillResponses)"
-                stroke="var(--color-responses)"
+                fill="url(#fillCompleted)"
+                stroke="var(--color-completed)"
                 stackId="a"
               />
               <Area
-                dataKey="matches"
+                dataKey="activity"
                 type="natural"
-                fill="url(#fillMatches)"
-                stroke="var(--color-matches)"
+                fill="url(#fillActivity)"
+                stroke="var(--color-activity)"
                 stackId="a"
               />
             </AreaChart>

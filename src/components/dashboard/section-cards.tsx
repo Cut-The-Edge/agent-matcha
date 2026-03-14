@@ -1,6 +1,6 @@
 "use client"
 
-import { Heart, Users, Clock, TrendingUp } from "lucide-react"
+import { Users, UserPlus, MessageSquare, Phone } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +12,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useAuthQuery } from "@/hooks/use-auth-query"
+import { api } from "../../../convex/_generated/api"
 
 interface StatCardProps {
   title: string
@@ -21,6 +28,8 @@ interface StatCardProps {
   icon: React.ComponentType<{ className?: string }>
   badge?: string
   href?: string
+  tooltip?: string
+  isLoading?: boolean
 }
 
 function StatCard({
@@ -31,10 +40,12 @@ function StatCard({
   icon: Icon,
   badge,
   href,
+  tooltip,
+  isLoading,
 }: StatCardProps) {
   const router = useRouter()
 
-  return (
+  const card = (
     <Card
       className={`@container/card ${href ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}`}
       onClick={href ? () => router.push(href) : undefined}
@@ -45,7 +56,7 @@ function StatCard({
           {title}
         </CardDescription>
         <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-          {value}
+          {isLoading ? "..." : value}
         </CardTitle>
         {badge && (
           <CardAction>
@@ -61,43 +72,87 @@ function StatCard({
       </CardFooter>
     </Card>
   )
+
+  if (tooltip) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{card}</TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-[250px]">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return card
 }
 
 export function SectionCards() {
+  const overviewStats = useAuthQuery(api.analytics.queries.getOverviewStats, {})
+  const pendingLeads = useAuthQuery(api.membershipLeads.queries.countPending, {})
+  const unreadMessages = useAuthQuery(api.conversations.queries.getUnreadCount, {})
+  const callMetrics = useAuthQuery(api.voice.queries.getCallMetrics, {})
+
+  const isLoading = overviewStats === undefined
+
   return (
     <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-2 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
       <StatCard
-        title="Active Matches"
-        value={0}
-        description="No active matches yet"
-        footer="Matches will appear once members are paired"
-        icon={Heart}
-        href="/dashboard/matches"
-      />
-      <StatCard
         title="Total Members"
-        value={0}
-        description="No members yet"
-        footer="Add members to start matchmaking"
+        value={overviewStats?.totalMembers ?? 0}
+        description={
+          overviewStats?.activeMembers
+            ? `${overviewStats.activeMembers} active`
+            : "No members yet"
+        }
+        footer="All registered community members"
         icon={Users}
         href="/dashboard/members"
+        tooltip="Click to view, search, and manage all your community members"
+        isLoading={isLoading}
       />
       <StatCard
-        title="Pending Responses"
-        value={0}
-        description="No pending responses"
-        footer="Awaiting member replies to matches"
-        icon={Clock}
-        badge="Clear"
+        title="Pending Leads"
+        value={pendingLeads ?? 0}
+        description={
+          pendingLeads && pendingLeads > 0
+            ? `${pendingLeads} awaiting review`
+            : "No pending leads"
+        }
+        footer="Membership upgrade requests"
+        icon={UserPlus}
+        href="/dashboard/leads"
+        badge={pendingLeads && pendingLeads > 0 ? "Action needed" : undefined}
+        tooltip="Click to review and approve membership upgrade requests from leads"
+        isLoading={pendingLeads === undefined}
+      />
+      <StatCard
+        title="Unread Messages"
+        value={unreadMessages ?? 0}
+        description={
+          unreadMessages && unreadMessages > 0
+            ? `${unreadMessages} unread`
+            : "All caught up"
+        }
+        footer="WhatsApp conversations"
+        icon={MessageSquare}
         href="/dashboard/conversations"
+        tooltip="Click to view all WhatsApp conversations with your members"
+        isLoading={unreadMessages === undefined}
       />
       <StatCard
-        title="Response Rate"
-        value="--"
-        description="No data yet"
-        footer="Average response rate across all matches"
-        icon={TrendingUp}
-        href="/dashboard/analytics"
+        title="Calls This Week"
+        value={callMetrics?.callsThisWeek?.length ?? callMetrics?.callsThisWeek ?? 0}
+        description={
+          callMetrics?.totalCalls
+            ? `${callMetrics.totalCalls} total calls`
+            : "No calls yet"
+        }
+        footer="Voice call activity"
+        icon={Phone}
+        href="/dashboard/calls"
+        tooltip="Click to view call logs, recordings, and transcripts"
+        isLoading={callMetrics === undefined}
       />
     </div>
   )
