@@ -158,7 +158,7 @@ export function OutboundCallDialog() {
                 />
                 {showResults && members && members.length > 0 && (
                   <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
-                    {members.map((m) => (
+                    {members.map((m: { _id: string; firstName?: string; lastName?: string; phone?: string }) => (
                       <button
                         key={m._id}
                         className="flex w-full items-center gap-3 px-3 py-2 text-sm hover:bg-accent text-left"
