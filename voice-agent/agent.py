@@ -18,7 +18,6 @@ from livekit import agents, rtc
 from livekit.agents import (
     AgentSession,
     Agent,
-    RoomInputOptions,
     RunContext,
     WorkerOptions,
     function_tool,
@@ -741,9 +740,6 @@ async def entrypoint(ctx: agents.JobContext):
     await session.start(
         agent=agent,
         room=ctx.room,
-        room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVC(),
-        ),
     )
 
     # Greet the caller — adapt for returning vs new callers
@@ -756,7 +752,20 @@ async def entrypoint(ctx: agents.JobContext):
             f"Keep it brief and warm."
         )
     else:
-        greeting = INBOUND_GREETING_INSTRUCTIONS
+        # Unknown caller — say a fixed message and hang up, no LLM needed
+        await session.say(
+            "Hey there! This line is for Club Allenby members. "
+            "If you'd like to join, you can sign up at club allenby dot com, "
+            "or text Dani directly. Have a great day!",
+            allow_interruptions=False,
+        )
+        logger.info("[entrypoint] Unknown caller — message delivered, ending call")
+        await asyncio.sleep(1)
+        await call_handler.on_call_end()
+        await convex.close()
+        logger.info("[entrypoint] Cleanup complete")
+        get_job_context().shutdown()
+        return
 
     await session.generate_reply(
         instructions=greeting,

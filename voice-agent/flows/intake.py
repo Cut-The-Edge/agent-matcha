@@ -81,8 +81,12 @@ EXISTING_MEMBER_INCOMPLETE = (
 EXISTING_MEMBER_CONTEXT = EXISTING_MEMBER_INCOMPLETE
 
 UNKNOWN_CALLER_CONTEXT = (
-    "This caller was not found in the system by phone number. They may be "
-    "a new prospect or an existing member calling from a different number. "
-    "Start by getting to know them and building their profile through "
-    "natural conversation."
+    "This caller was NOT found in the system. They are not a registered member. "
+    "Do NOT conduct an intake. Instead:\n"
+    "1) Greet them briefly and warmly.\n"
+    "2) Let them know this line is for Club Allenby members.\n"
+    "3) Tell them they can join at cluballenby.com or text Dani directly.\n"
+    "4) Wish them a great day.\n"
+    "5) Call end_call immediately — do NOT ask questions or start an intake.\n"
+    "Keep it short and friendly — no more than 3-4 sentences total."
 )

@@ -52,7 +52,7 @@ async def create_dispatch_rule(lk: api.LiveKitAPI, trunk_id: str):
     rule = await lk.sip.create_sip_dispatch_rule(
         api.CreateSIPDispatchRuleRequest(
             rule=api.SIPDispatchRule(
-                rule=api.SIPDispatchRuleIndividual(
+                dispatch_rule_individual=api.SIPDispatchRuleIndividual(
                     room_prefix="call-",
                 ),
             ),

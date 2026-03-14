@@ -202,10 +202,13 @@ class CallHandler:
         for p in room.remote_participants.values():
             if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
                 identity = p.identity
+                # Handle various SIP identity formats:
+                # "sip:+14793107381@..." or "sip_+14793107381" or "+14793107381"
                 if identity.startswith("sip:"):
-                    return identity.split("@")[0].replace("sip:", "")
-                if identity.startswith("+"):
-                    return identity
+                    identity = identity.split("@")[0].replace("sip:", "")
+                elif identity.startswith("sip_"):
+                    identity = identity.replace("sip_", "", 1)
+                # Return just the phone number (should start with +)
                 return identity
         return None
 
