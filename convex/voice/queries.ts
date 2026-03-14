@@ -184,6 +184,10 @@ export const getActiveCalls = query({
 export const lookupMemberByPhone = internalQuery({
   args: { phone: v.string() },
   handler: async (ctx, args) => {
+    // Normalize input to last 10 digits for comparison
+    const inputDigits = args.phone.replace(/\D/g, "");
+    const inputNorm = inputDigits.length >= 10 ? inputDigits.slice(-10) : inputDigits;
+
     // 1. Try exact index match
     const exact = await ctx.db
       .query("members")
@@ -191,14 +195,26 @@ export const lookupMemberByPhone = internalQuery({
       .first();
     if (exact) return exact;
 
-    // 2. Fallback: strip to digits-only and scan all members
-    const digits = args.phone.replace(/\D/g, "");
-    if (digits.length < 7) return null;
+    if (inputNorm.length < 7) return null;
 
+    // 2. Fallback: normalize to last 10 digits and scan all members
+    // Also checks profileData.phone (from SMA sync) as a secondary source
     const all = await ctx.db.query("members").collect();
     return all.find((m) => {
-      if (!m.phone) return false;
-      return m.phone.replace(/\D/g, "") === digits;
+      // Check primary phone field
+      if (m.phone) {
+        const memberDigits = m.phone.replace(/\D/g, "");
+        const memberNorm = memberDigits.length >= 10 ? memberDigits.slice(-10) : memberDigits;
+        if (memberNorm === inputNorm) return true;
+      }
+      // Check profileData.phone (SMA-synced phone)
+      const profilePhone = (m.profileData as Record<string, unknown> | undefined)?.phone;
+      if (profilePhone && typeof profilePhone === "string") {
+        const profileDigits = profilePhone.replace(/\D/g, "");
+        const profileNorm = profileDigits.length >= 10 ? profileDigits.slice(-10) : profileDigits;
+        if (profileNorm === inputNorm) return true;
+      }
+      return false;
     }) ?? null;
   },
 });

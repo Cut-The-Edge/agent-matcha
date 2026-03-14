@@ -128,10 +128,10 @@ export function SectionCards() {
       />
       <StatCard
         title="Unread Messages"
-        value={unreadMessages ?? 0}
+        value={typeof unreadMessages === "object" ? unreadMessages?.unreadCount ?? 0 : unreadMessages ?? 0}
         description={
-          unreadMessages && unreadMessages > 0
-            ? `${unreadMessages} unread`
+          (typeof unreadMessages === "object" ? unreadMessages?.unreadCount : unreadMessages) > 0
+            ? `${typeof unreadMessages === "object" ? unreadMessages?.unreadCount : unreadMessages} unread`
             : "All caught up"
         }
         footer="WhatsApp conversations"

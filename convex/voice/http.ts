@@ -9,7 +9,25 @@ import { internal } from "../_generated/api";
  */
 export const callStartedHandler = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { livekitRoomId, sipCallId, phone, direction, sandbox } = body;
+  const { livekitRoomId, sipCallId, direction, sandbox } = body;
+  let rawPhone = body.phone;
+
+  // Normalize phone: strip sip_ prefix, ensure +1 for US numbers
+  if (rawPhone) {
+    rawPhone = String(rawPhone).replace(/^sip_/, "");
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.length === 10) rawPhone = `+1${digits}`;
+    else if (digits.length === 11 && digits.startsWith("1")) rawPhone = `+${digits}`;
+    else if (!rawPhone.startsWith("+")) rawPhone = `+${digits}`;
+  }
+
+  // If phone is still null, try to extract from room name (e.g. "call-_+17542026432_xxx")
+  if (!rawPhone && livekitRoomId) {
+    const phoneMatch = livekitRoomId.match(/\+\d{10,15}/);
+    if (phoneMatch) rawPhone = phoneMatch[0];
+  }
+
+  const phone: string | undefined = rawPhone || undefined;
   console.log("[callStarted] Room=%s phone=%s sandbox=%s direction=%s", livekitRoomId, phone, sandbox, direction);
 
   // Look up member by phone
@@ -32,7 +50,7 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
     livekitRoomId,
     sipCallId: sipCallId ?? undefined,
     memberId,
-    phone,
+    phone: phone ?? undefined,
     direction: direction ?? "inbound",
     sandbox: sandbox ?? undefined,
   });
