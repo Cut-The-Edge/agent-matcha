@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowUpDown, Send, Loader2 } from "lucide-react"
+import { ArrowUpDown, Send, Loader2, Copy, ExternalLink } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Tooltip,
@@ -23,11 +23,13 @@ export interface DataRequestRow {
   missingFields: string[]
   latestRequestStatus: "pending" | "completed" | "expired" | null
   latestRequestSentAt: number | null
+  latestRequestToken: string | null
   completedAt?: number | null
 }
 
 export interface DataRequestTableMeta {
   onSendForm?: (row: DataRequestRow) => void
+  onCopyLink?: () => void
   sendingMemberId?: string | null
 }
 
@@ -185,40 +187,81 @@ export const columns: ColumnDef<DataRequestRow>[] = [
       const isSending = meta?.sendingMemberId === row.original._id
       const hasPhone = !!row.original.phone
       const isPending = row.original.latestRequestStatus === "pending"
+      const token = row.original.latestRequestToken
+      const formUrl = token ? `${window.location.origin}/form/${token}` : null
 
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={isSending || !hasPhone || isPending}
-                  onClick={() => meta?.onSendForm?.(row.original)}
-                >
-                  {isSending ? (
-                    <Loader2 className="mr-1 size-3 animate-spin" />
-                  ) : (
-                    <Send className="mr-1 size-3" />
-                  )}
-                  Send Form
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {!hasPhone && (
-              <TooltipContent>
-                <p>Member has no phone number</p>
-              </TooltipContent>
-            )}
-            {isPending && hasPhone && (
-              <TooltipContent>
-                <p>A form is already pending for this member</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
+        <div className="flex items-center gap-1">
+          {formUrl && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formUrl)
+                      meta?.onCopyLink?.()
+                    }}
+                  >
+                    <Copy className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Copy form link</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {formUrl && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={() => window.open(formUrl, "_blank")}
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Open form in new tab</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={isSending || !hasPhone || isPending}
+                    onClick={() => meta?.onSendForm?.(row.original)}
+                  >
+                    {isSending ? (
+                      <Loader2 className="mr-1 size-3 animate-spin" />
+                    ) : (
+                      <Send className="mr-1 size-3" />
+                    )}
+                    Send Form
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!hasPhone && (
+                <TooltipContent>
+                  <p>Member has no phone number</p>
+                </TooltipContent>
+              )}
+              {isPending && hasPhone && (
+                <TooltipContent>
+                  <p>A form is already pending for this member</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       )
     },
     enableHiding: false,

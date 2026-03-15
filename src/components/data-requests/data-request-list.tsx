@@ -114,6 +114,7 @@ export function DataRequestList() {
       missingFields: m.missingFields,
       latestRequestStatus: m.latestRequestStatus,
       latestRequestSentAt: m.latestRequestSentAt,
+      latestRequestToken: m.latestRequestToken,
     }))
   }, [membersWithMissing])
 
@@ -168,6 +169,7 @@ export function DataRequestList() {
 
   const tableMeta: DataRequestTableMeta = {
     onSendForm: handleSendForm,
+    onCopyLink: () => toast.success("Link copied to clipboard"),
     sendingMemberId,
   }
 

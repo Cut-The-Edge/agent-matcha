@@ -137,6 +137,7 @@ export const getMembersWithMissingData = query({
         missingFields: missing,
         latestRequestStatus: latestRequest?.status ?? null,
         latestRequestSentAt: latestRequest?.sentAt ?? null,
+        latestRequestToken: latestRequest?.token ?? null,
       });
     }
 
