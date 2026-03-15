@@ -152,7 +152,7 @@ export const WA_TEMPLATES = {
   // Here's your personal form: {{2}}"
   // Variables: {{1}} = member name, {{2}} = form link
   DATA_REQUEST: {
-    contentSid: "HX2eb0e9de69bb00e192db576e4f0470d2",
+    contentSid: "HXd9dad6fcb3c4996b87ba019ca979a38e",
     variables: ["memberName", "formLink"],
   },
 } as const;
