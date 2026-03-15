@@ -79,7 +79,7 @@ export default function DataRequestFormPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-fill from member data
+  // Pre-fill from member data (for both pending and resubmit-allowed completed)
   const prefilled = useRef(false);
   if (data && "member" in data && !prefilled.current) {
     prefilled.current = true;
@@ -209,8 +209,8 @@ export default function DataRequestFormPage() {
     );
   }
 
-  // Already completed
-  if ("completed" in data) {
+  // Already completed (and resubmit NOT allowed)
+  if ("completed" in data && !("allowResubmit" in data)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f0eeeb] px-6">
         <div className="text-center">

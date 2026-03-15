@@ -8,6 +8,7 @@ const DEFAULTS = {
   dataRequestExpirationHours: 72,
   dataRequestAutoSendEnabled: false,
   dataRequestAutoSendDelayDays: 3,
+  dataRequestAllowResubmit: false,
 };
 
 export const get = query({
@@ -21,6 +22,7 @@ export const get = query({
       dataRequestExpirationHours: DEFAULTS.dataRequestExpirationHours,
       dataRequestAutoSendEnabled: DEFAULTS.dataRequestAutoSendEnabled,
       dataRequestAutoSendDelayDays: DEFAULTS.dataRequestAutoSendDelayDays,
+      dataRequestAllowResubmit: DEFAULTS.dataRequestAllowResubmit,
     };
   },
 });
@@ -33,6 +35,7 @@ export const update = mutation({
     dataRequestExpirationHours: v.optional(v.number()),
     dataRequestAutoSendEnabled: v.optional(v.boolean()),
     dataRequestAutoSendDelayDays: v.optional(v.number()),
+    dataRequestAllowResubmit: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.sessionToken);
@@ -55,6 +58,9 @@ export const update = mutation({
     if (args.dataRequestAutoSendDelayDays !== undefined) {
       updates.dataRequestAutoSendDelayDays = args.dataRequestAutoSendDelayDays;
     }
+    if (args.dataRequestAllowResubmit !== undefined) {
+      updates.dataRequestAllowResubmit = args.dataRequestAllowResubmit;
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, updates);
@@ -65,6 +71,7 @@ export const update = mutation({
         dataRequestExpirationHours: args.dataRequestExpirationHours ?? DEFAULTS.dataRequestExpirationHours,
         dataRequestAutoSendEnabled: args.dataRequestAutoSendEnabled ?? DEFAULTS.dataRequestAutoSendEnabled,
         dataRequestAutoSendDelayDays: args.dataRequestAutoSendDelayDays ?? DEFAULTS.dataRequestAutoSendDelayDays,
+        dataRequestAllowResubmit: args.dataRequestAllowResubmit ?? DEFAULTS.dataRequestAllowResubmit,
         updatedAt: now,
       });
     }

@@ -349,6 +349,37 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Allow resubmit
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[300px]">
+                          <p>When enabled, members can re-open and update their form even after submitting. Useful if they need to correct or add information later.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardTitle>
+                  <CardDescription>
+                    Keep form links active after submission so members can update their info
+                  </CardDescription>
+                </div>
+                <Switch
+                  checked={settings && "dataRequestAllowResubmit" in settings ? settings.dataRequestAllowResubmit === true : false}
+                  onCheckedChange={async (checked) => {
+                    await updateSettings({ dataRequestAllowResubmit: checked })
+                  }}
+                />
+              </div>
+            </CardHeader>
+          </Card>
         </div>
 
       </div>

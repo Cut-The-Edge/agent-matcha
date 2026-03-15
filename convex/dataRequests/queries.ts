@@ -67,7 +67,33 @@ export const getByToken = query({
     }
 
     if (request.status === "completed") {
-      return { completed: true, completedAt: request.completedAt };
+      // Check if resubmit is allowed
+      const settings = await ctx.db.query("appSettings").first();
+      const allowResubmit = settings?.dataRequestAllowResubmit ?? false;
+
+      if (!allowResubmit) {
+        return { completed: true, completedAt: request.completedAt };
+      }
+
+      // Allow resubmit — return the form with current member data
+      const completedMember = await ctx.db.get(request.memberId);
+      if (!completedMember) return null;
+
+      return {
+        _id: request._id,
+        memberId: request.memberId,
+        status: "completed" as const,
+        allowResubmit: true,
+        member: {
+          firstName: completedMember.firstName,
+          lastName: completedMember.lastName,
+          email: completedMember.email,
+          phone: completedMember.phone,
+          profilePictureUrl: completedMember.profilePictureUrl,
+          location: completedMember.location,
+          profileData: completedMember.profileData,
+        },
+      };
     }
 
     const member = await ctx.db.get(request.memberId);

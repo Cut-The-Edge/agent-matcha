@@ -69,6 +69,13 @@ export const syncSubmittedDataToSma = internalAction({
       if (args.submittedData.instagram) fields.prof_176 = args.submittedData.instagram;
       if (args.submittedData.tiktok) fields.prof_177 = args.submittedData.tiktok;
       if (args.submittedData.linkedin) fields.prof_178 = args.submittedData.linkedin;
+      if (args.submittedData.inviteCode) fields.prof_175 = args.submittedData.inviteCode;
+      if (args.submittedData.referralSource?.length) {
+        fields.prof_162 = args.submittedData.referralSource.join(", ");
+      }
+      if (args.submittedData.closeStoriesConsent !== undefined) {
+        fields.prof_230 = args.submittedData.closeStoriesConsent ? "Yes" : "No";
+      }
 
       if (Object.keys(fields).length > 0) {
         await updateClientProfile(smaClientId, fields);

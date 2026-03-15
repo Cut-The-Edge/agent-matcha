@@ -201,8 +201,15 @@ export const submitForm = mutation({
       .first();
 
     if (!request) throw new Error("Invalid form link");
-    if (request.status === "completed") throw new Error("Form already submitted");
-    if (request.status === "expired" || request.expiresAt < Date.now()) {
+
+    // Check if resubmit is allowed for completed requests
+    if (request.status === "completed") {
+      const settings = await ctx.db.query("appSettings").first();
+      const allowResubmit = settings?.dataRequestAllowResubmit ?? false;
+      if (!allowResubmit) throw new Error("Form already submitted");
+    }
+
+    if (request.status === "expired" || (request.status === "pending" && request.expiresAt < Date.now())) {
       throw new Error("Form link has expired");
     }
 

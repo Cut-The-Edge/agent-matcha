@@ -420,6 +420,7 @@ export default defineSchema({
     dataRequestExpirationHours: v.optional(v.number()),
     dataRequestAutoSendEnabled: v.optional(v.boolean()),
     dataRequestAutoSendDelayDays: v.optional(v.number()),
+    dataRequestAllowResubmit: v.optional(v.boolean()),
     updatedAt: v.number(),
   }),
 
