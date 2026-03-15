@@ -139,6 +139,7 @@ export function MemberList() {
   const { mutateWithAuth: updateMember } = useAuthMutation(api.members.mutations.update)
   const { actionWithAuth: syncMemberAction } = useAuthAction(api.integrations.smartmatchapp.actions.syncMember)
   const { mutateWithAuth: startSyncAll } = useAuthMutation(api.members.mutations.startSyncAll)
+  const { mutateWithAuth: createAndSendDataRequest } = useAuthMutation(api.dataRequests.mutations.createAndSend)
   const syncStatus = useAuthQuery(api.members.queries.getSyncStatus, {})
   const [addDialogOpen, setAddDialogOpen] = React.useState(false)
   const [isAdding, setIsAdding] = React.useState(false)
@@ -146,6 +147,7 @@ export function MemberList() {
   const [isEditing, setIsEditing] = React.useState(false)
   const [syncingMemberId, setSyncingMemberId] = React.useState<string | null>(null)
   const [selectedMemberForIntros, setSelectedMemberForIntros] = React.useState<Doc<"members"> | null>(null)
+  const [sendingDataRequestMemberId, setSendingDataRequestMemberId] = React.useState<string | null>(null)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>([])
@@ -247,11 +249,26 @@ export function MemberList() {
     }
   }
 
+  const handleSendDataRequest = async (member: Doc<"members">) => {
+    if (!member.phone) return
+    setSendingDataRequestMemberId(member._id)
+    try {
+      await createAndSendDataRequest({ memberId: member._id })
+      toast.success(`Data request form sent to ${member.firstName}`)
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to send form to ${member.firstName}`)
+    } finally {
+      setSendingDataRequestMemberId(null)
+    }
+  }
+
   const tableMeta: MemberTableMeta = {
     onEdit: (member) => setEditingMember(member),
     onSync: handleSyncMember,
     onViewIntros: (member) => setSelectedMemberForIntros(member),
+    onSendDataRequest: handleSendDataRequest,
     syncingMemberId,
+    sendingDataRequestMemberId,
   }
 
   const table = useReactTable({

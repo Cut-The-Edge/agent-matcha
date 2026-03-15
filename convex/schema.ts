@@ -384,10 +384,42 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_flow", ["flowDefinitionId"]),
 
+  // -- Data Requests (member profile completion forms) --
+  dataRequests: defineTable({
+    memberId: v.id("members"),
+    token: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("expired"),
+    ),
+    sentBy: v.union(
+      v.literal("manual"),
+      v.literal("bulk"),
+      v.literal("automation"),
+    ),
+    sentByAdminId: v.optional(v.id("admins")),
+    whatsappMessageId: v.optional(v.id("whatsappMessages")),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.number(),
+    submittedData: v.optional(v.any()),
+    missingFieldsAtSend: v.optional(v.array(v.string())),
+    sentAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_token", ["token"])
+    .index("by_status", ["status"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   // -- App Settings (singleton) --
   appSettings: defineTable({
     profileExpirationHours: v.number(),
     autoSyncCallsToCrm: v.optional(v.boolean()),
+    dataRequestExpirationHours: v.optional(v.number()),
+    dataRequestAutoSendEnabled: v.optional(v.boolean()),
+    dataRequestAutoSendDelayDays: v.optional(v.number()),
     updatedAt: v.number(),
   }),
 

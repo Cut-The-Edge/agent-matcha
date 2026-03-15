@@ -15,4 +15,16 @@ crons.interval(
   internal.membershipLeads.mutations.expireOverdue
 );
 
+crons.interval(
+  "expire overdue data requests",
+  { hours: 4 },
+  internal.dataRequests.mutations.expireOverdue
+);
+
+crons.interval(
+  "auto-send data request forms",
+  { hours: 6 },
+  internal.dataRequests.cron.checkAndAutoSend
+);
+
 export default crons;

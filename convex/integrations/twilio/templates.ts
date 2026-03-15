@@ -145,6 +145,16 @@ export const WA_TEMPLATES = {
     contentSid: "HX8f8054ae35aa32dd260a3f7b8326ea29",
     variables: ["prospectName"],
   },
+  // ── Data Request Template ──────────────────────────────────────────
+
+  // club_allenby_data_request — "Hey {{1}}! We're updating our records at
+  // Club Allenby. Could you take a moment to fill in some missing details?
+  // Here's your personal form: {{2}}"
+  // Variables: {{1}} = member name, {{2}} = form link
+  DATA_REQUEST: {
+    contentSid: "HX2eb0e9de69bb00e192db576e4f0470d2",
+    variables: ["memberName", "formLink"],
+  },
 } as const;
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;

@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, ArrowUpDown, Pencil, RefreshCw, Loader2, ExternalLink } from "lucide-react"
+import { Check, X, ArrowUpDown, Pencil, RefreshCw, Loader2, ExternalLink, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Doc } from "../../../convex/_generated/dataModel"
 import { format } from "date-fns"
@@ -11,7 +11,9 @@ export interface MemberTableMeta {
   onEdit?: (member: Member) => void
   onSync?: (member: Member) => void
   onViewIntros?: (member: Member) => void
+  onSendDataRequest?: (member: Member) => void
   syncingMemberId?: string | null
+  sendingDataRequestMemberId?: string | null
 }
 
 type Member = Doc<"members">
@@ -280,9 +282,27 @@ export const columns: ColumnDef<Member>[] = [
     cell: ({ row, table }) => {
       const meta = table.options.meta as MemberTableMeta | undefined
       const isSyncing = meta?.syncingMemberId === row.original._id
+      const isSendingDataRequest = meta?.sendingDataRequestMemberId === row.original._id
       const hasSmaId = row.original.smaId && /^\d+$/.test(row.original.smaId)
+      const hasPhone = !!row.original.phone
       return (
         <div className="flex items-center gap-1">
+          {hasPhone && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              disabled={isSendingDataRequest}
+              onClick={() => meta?.onSendDataRequest?.(row.original)}
+              title="Send data request form"
+            >
+              {isSendingDataRequest ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Send className="size-3.5" />
+              )}
+            </Button>
+          )}
           {hasSmaId && (
             <Button
               variant="ghost"

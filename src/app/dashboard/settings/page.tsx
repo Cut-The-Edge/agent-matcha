@@ -21,6 +21,7 @@ import {
   Settings,
   Link,
   Phone,
+  ClipboardList,
   HelpCircle,
 } from "lucide-react"
 
@@ -32,6 +33,10 @@ export default function SettingsPage() {
   const [expirationHours, setExpirationHours] = useState<string>("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [drExpirationHours, setDrExpirationHours] = useState<string>("")
+  const [drAutoSendDelayDays, setDrAutoSendDelayDays] = useState<string>("")
+  const [drSaving, setDrSaving] = useState(false)
+  const [drSaved, setDrSaved] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -40,6 +45,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (settings && "profileExpirationHours" in settings) {
       setExpirationHours(String(settings.profileExpirationHours))
+    }
+    if (settings && "dataRequestExpirationHours" in settings) {
+      setDrExpirationHours(String(settings.dataRequestExpirationHours ?? 72))
+    }
+    if (settings && "dataRequestAutoSendDelayDays" in settings) {
+      setDrAutoSendDelayDays(String(settings.dataRequestAutoSendDelayDays ?? 3))
     }
   }, [settings])
 
@@ -184,6 +195,159 @@ export default function SettingsPage() {
                 />
               </div>
             </CardHeader>
+          </Card>
+        </div>
+
+        {/* Data Requests Section */}
+        <div>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <ClipboardList className="h-5 w-5" />
+            Data Requests
+          </h3>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                Link Expiration
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[300px]">
+                      <p>How long the data request form link stays active before expiring. Members who click an expired link will see an expiration message.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </CardTitle>
+              <CardDescription>
+                Set how long data request form links remain accessible
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-3">
+                <div className="flex-1 max-w-[200px]">
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Expiration time (hours)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={drExpirationHours}
+                    onChange={(e) => {
+                      setDrExpirationHours(e.target.value)
+                      setDrSaved(false)
+                    }}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  disabled={drSaving || !drExpirationHours || Number(drExpirationHours) < 1}
+                  onClick={async () => {
+                    setDrSaving(true)
+                    setDrSaved(false)
+                    try {
+                      await updateSettings({
+                        dataRequestExpirationHours: Number(drExpirationHours),
+                      })
+                      setDrSaved(true)
+                    } finally {
+                      setDrSaving(false)
+                    }
+                  }}
+                >
+                  {drSaving ? "Saving..." : drSaved ? "Saved" : "Save"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Auto-send forms
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[300px]">
+                          <p>When enabled, data request forms are automatically sent to new members with missing profile data after the configured delay. Only members without a pending or completed request will receive a form.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardTitle>
+                  <CardDescription>
+                    Automatically send profile completion forms to new members with missing data
+                  </CardDescription>
+                </div>
+                <Switch
+                  checked={settings && "dataRequestAutoSendEnabled" in settings ? settings.dataRequestAutoSendEnabled === true : false}
+                  onCheckedChange={async (checked) => {
+                    await updateSettings({ dataRequestAutoSendEnabled: checked })
+                  }}
+                />
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                Auto-send Delay
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[300px]">
+                      <p>How many days after a member is created before the system automatically sends them a data request form. This gives you time to manually reach out first if needed.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </CardTitle>
+              <CardDescription>
+                Wait this many days after member creation before auto-sending
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-3">
+                <div className="flex-1 max-w-[200px]">
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Delay (days)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={drAutoSendDelayDays}
+                    onChange={(e) => {
+                      setDrAutoSendDelayDays(e.target.value)
+                      setDrSaved(false)
+                    }}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  disabled={drSaving || !drAutoSendDelayDays || Number(drAutoSendDelayDays) < 1}
+                  onClick={async () => {
+                    setDrSaving(true)
+                    setDrSaved(false)
+                    try {
+                      await updateSettings({
+                        dataRequestAutoSendDelayDays: Number(drAutoSendDelayDays),
+                      })
+                      setDrSaved(true)
+                    } finally {
+                      setDrSaving(false)
+                    }
+                  }}
+                >
+                  {drSaving ? "Saving..." : drSaved ? "Saved" : "Save"}
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </div>
 

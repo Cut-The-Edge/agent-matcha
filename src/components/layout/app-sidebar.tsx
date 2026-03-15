@@ -10,6 +10,7 @@ import {
   Workflow,
   FlaskConical,
   RefreshCcw,
+  ClipboardList,
   BarChart3,
   UserCog,
   Settings,
@@ -68,6 +69,12 @@ const data = {
       url: "/dashboard/recalibration",
       icon: RefreshCcw,
       description: "Members who rejected a match and need their preferences updated",
+    },
+    {
+      title: "Data Requests",
+      url: "/dashboard/data-requests",
+      icon: ClipboardList,
+      description: "Send profile completion forms to members with missing data",
     },
   ],
   navTools: [
