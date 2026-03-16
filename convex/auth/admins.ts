@@ -201,15 +201,12 @@ export const createInternal = internalMutation({
 
     // Log audit event
     await ctx.db.insert("auditLogs", {
-      timestamp: now,
       action: "admin_created",
-      userId: args.createdBy,
-      resourceType: "admin",
-      resourceId: adminId,
-      ipAddress: "unknown",
-      userAgent: "unknown",
-      outcome: "success",
-      metadata: { email: args.email, role: args.role },
+      adminId: args.createdBy,
+      resource: "admin",
+      resourceId: String(adminId),
+      details: JSON.stringify({ email: args.email, role: args.role }),
+      createdAt: now,
     });
 
     return adminId;
@@ -274,15 +271,12 @@ export const update = mutation({
 
     // Log audit event
     await ctx.db.insert("auditLogs", {
-      timestamp: Date.now(),
       action: "admin_updated",
-      userId: currentAdmin._id,
-      resourceType: "admin",
-      resourceId: args.adminId,
-      ipAddress: "unknown",
-      userAgent: "unknown",
-      outcome: "success",
-      metadata: { ...updates, targetEmail: targetAdmin.email },
+      adminId: currentAdmin._id,
+      resource: "admin",
+      resourceId: String(args.adminId),
+      details: JSON.stringify({ ...updates, targetEmail: targetAdmin.email }),
+      createdAt: Date.now(),
     });
 
     return args.adminId;
@@ -345,15 +339,12 @@ export const updatePasswordInternal = internalMutation({
 
     // Log audit event
     await ctx.db.insert("auditLogs", {
-      timestamp: now,
       action: "password_reset",
-      userId: args.updatedBy,
-      resourceType: "admin",
-      resourceId: args.adminId,
-      ipAddress: "unknown",
-      userAgent: "unknown",
-      outcome: "success",
-      metadata: { targetEmail: targetAdmin.email },
+      adminId: args.updatedBy,
+      resource: "admin",
+      resourceId: String(args.adminId),
+      details: JSON.stringify({ targetEmail: targetAdmin.email }),
+      createdAt: now,
     });
   },
 });
@@ -394,15 +385,12 @@ export const deleteAdmin = mutation({
 
     // Log audit event
     await ctx.db.insert("auditLogs", {
-      timestamp: Date.now(),
       action: "admin_deleted",
-      userId: currentAdmin._id,
-      resourceType: "admin",
-      resourceId: args.adminId,
-      ipAddress: "unknown",
-      userAgent: "unknown",
-      outcome: "success",
-      metadata: { deletedEmail: targetAdmin.email, deletedRole: targetAdmin.role },
+      adminId: currentAdmin._id,
+      resource: "admin",
+      resourceId: String(args.adminId),
+      details: JSON.stringify({ deletedEmail: targetAdmin.email, deletedRole: targetAdmin.role }),
+      createdAt: Date.now(),
     });
 
     return args.adminId;
@@ -487,5 +475,23 @@ export const updateOwnPasswordInternal = internalMutation({
       passwordHash: args.passwordHash,
       lastPasswordChange: Date.now(),
     });
+  },
+});
+
+/**
+ * Internal mutation to update admin role directly (no auth required).
+ * Used for one-time role migrations via CLI.
+ */
+export const setRoleInternal = internalMutation({
+  args: {
+    adminId: v.id("admins"),
+    role: v.union(
+      v.literal("developer"),
+      v.literal("super_admin"),
+      v.literal("admin")
+    ),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.adminId, { role: args.role });
   },
 });

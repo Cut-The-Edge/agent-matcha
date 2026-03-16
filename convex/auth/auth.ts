@@ -527,15 +527,10 @@ export const logout = mutation({
     if (session) {
       // Log logout
       await ctx.db.insert("auditLogs", {
-        timestamp: Date.now(),
         action: "logout",
-        userId: session.adminId,
-        resourceType: "attendee",
-        resourceId: undefined,
-        ipAddress: "unknown",
-        userAgent: "unknown",
-        outcome: "success",
-        metadata: {},
+        adminId: session.adminId,
+        resource: "auth",
+        createdAt: Date.now(),
       });
 
       await ctx.db.delete(session._id);
@@ -577,15 +572,11 @@ export const logoutAll = mutation({
 
     // Log logout all
     await ctx.db.insert("auditLogs", {
-      timestamp: Date.now(),
-      action: "logout",
-      userId: currentSession.adminId,
-      resourceType: "attendee",
-      resourceId: undefined,
-      ipAddress: "unknown",
-      userAgent: "unknown",
-      outcome: "success",
-      metadata: { action: "logout_all_devices", sessionsCleared: sessions.length },
+      action: "logout_all",
+      adminId: currentSession.adminId,
+      resource: "auth",
+      details: JSON.stringify({ sessionsCleared: sessions.length }),
+      createdAt: Date.now(),
     });
 
     return { success: true, sessionsCleared: sessions.length };
