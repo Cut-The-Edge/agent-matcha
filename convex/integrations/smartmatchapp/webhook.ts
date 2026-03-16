@@ -211,10 +211,13 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
       );
       // Local records updated above — skip full API re-sync to save API quota
 
-      // Trigger flow when moved to "Automated Intro"
+      // Trigger flow when moved to "Automated Intro".
+      // 10s delay avoids a race with match_added (which also starts the flow).
+      // SMA fires both events nearly simultaneously for new matches;
+      // the delay lets match_added set flowTriggered=true first.
       if (payload?.group?.name === "Automated Intro") {
         await ctx.scheduler.runAfter(
-          0,
+          10000,
           internal.integrations.smartmatchapp.actions.triggerFlowForActiveIntro,
           { smaIntroId: String(smaIntroId) }
         );
