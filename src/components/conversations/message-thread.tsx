@@ -186,6 +186,71 @@ export function MessageThread({
   )
 }
 
+// --- Parse interactive message content into WhatsApp-style preview ---
+function InteractiveContent({ content }: { content: string }) {
+  try {
+    const parsed = JSON.parse(content)
+
+    // Format: { question: "...", options: [{ value, label }, ...] }
+    if (parsed.question) {
+      return (
+        <div>
+          <p className="text-sm whitespace-pre-wrap break-words">
+            {parsed.question}
+          </p>
+          {parsed.options && parsed.options.length > 0 && (
+            <div className="mt-2 border-t border-emerald-200 dark:border-emerald-700 pt-2 space-y-1.5">
+              {parsed.options.map(
+                (opt: { value: string; label: string }, i: number) => (
+                  <div
+                    key={opt.value || i}
+                    className="text-center text-sm text-blue-600 dark:text-blue-400 py-1.5 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-white/50 dark:bg-white/5"
+                  >
+                    {opt.label}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // Format: { body: "...", action: { buttons: [...] } }
+    if (parsed.body) {
+      return (
+        <div>
+          <p className="text-sm whitespace-pre-wrap break-words">
+            {parsed.body}
+          </p>
+          {parsed.action?.buttons && parsed.action.buttons.length > 0 && (
+            <div className="mt-2 border-t border-emerald-200 dark:border-emerald-700 pt-2 space-y-1.5">
+              {parsed.action.buttons.map((btn: any, i: number) => (
+                <div
+                  key={i}
+                  className="text-center text-sm text-blue-600 dark:text-blue-400 py-1.5 border border-emerald-200 dark:border-emerald-700 rounded-lg bg-white/50 dark:bg-white/5"
+                >
+                  {btn.reply?.title || btn.title || "Option"}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // Unknown JSON structure — show raw
+    return (
+      <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+    )
+  } catch {
+    // Not valid JSON — show as plain text
+    return (
+      <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+    )
+  }
+}
+
 // --- Individual message bubble ---
 function MessageBubble({ message }: { message: WhatsAppMessage }) {
   const isOutbound = message.direction === "outbound"
@@ -201,17 +266,22 @@ function MessageBubble({ message }: { message: WhatsAppMessage }) {
             : "bg-background text-foreground rounded-bl-sm"
         }`}
       >
-        {/* Message type label for non-text */}
-        {message.messageType !== "text" && (
-          <Badge variant="outline" className="mb-1 text-[10px] h-4 px-1">
-            {message.messageType}
-          </Badge>
-        )}
-
         {/* Content */}
-        <p className="text-sm whitespace-pre-wrap break-words">
-          {message.content}
-        </p>
+        {message.messageType === "interactive" ? (
+          <InteractiveContent content={message.content} />
+        ) : (
+          <>
+            {/* Message type label for non-text */}
+            {message.messageType !== "text" && (
+              <Badge variant="outline" className="mb-1 text-[10px] h-4 px-1">
+                {message.messageType}
+              </Badge>
+            )}
+            <p className="text-sm whitespace-pre-wrap break-words">
+              {message.content}
+            </p>
+          </>
+        )}
 
         {/* Timestamp + delivery status */}
         <div

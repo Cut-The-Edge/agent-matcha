@@ -145,10 +145,21 @@ export const getConversationSummaries = query({
           failedCount: entry.failedCount,
           lastMessageTimestamp: entry.lastMessage.createdAt,
           lastMessageDirection: entry.lastMessage.direction,
-          lastMessagePreview:
-            entry.lastMessage.content.length > 80
-              ? entry.lastMessage.content.slice(0, 80) + "..."
-              : entry.lastMessage.content,
+          lastMessagePreview: (() => {
+            let preview = entry.lastMessage.content;
+            // Extract readable text from interactive JSON messages
+            if (entry.lastMessage.messageType === "interactive") {
+              try {
+                const parsed = JSON.parse(preview);
+                preview = parsed.question || parsed.body || preview;
+              } catch {
+                // keep raw content
+              }
+            }
+            return preview.length > 80
+              ? preview.slice(0, 80) + "..."
+              : preview;
+          })(),
           lastMessageStatus: entry.lastMessage.status,
           hasErrors: entry.failedCount > 0,
         };
