@@ -346,6 +346,24 @@ export const handleMemberResponse = internalMutation({
         .collect();
     }
 
+    // Resolve best matchId from args or active flow instances
+    const bestMatchId = args.matchId
+      || instances.find((i) => i.matchId)?.matchId
+      || undefined;
+
+    // ALWAYS log the inbound message, even when no active flow or not waiting.
+    // This ensures every member reply appears in the conversation thread.
+    await ctx.db.insert("whatsappMessages", {
+      matchId: bestMatchId,
+      memberId: args.memberId,
+      direction: "inbound",
+      messageType: "text",
+      content: args.response,
+      twilioSid: args.twilioSid,
+      status: "delivered",
+      createdAt: Date.now(),
+    });
+
     if (instances.length === 0) {
       return { handled: false, reason: "no_active_flow" };
     }
@@ -364,18 +382,6 @@ export const handleMemberResponse = internalMutation({
     if (!waitingInstance) {
       return { handled: false, reason: "not_waiting_for_input" };
     }
-
-    // Log the inbound message
-    await ctx.db.insert("whatsappMessages", {
-      matchId: args.matchId || waitingInstance.matchId || undefined,
-      memberId: args.memberId,
-      direction: "inbound",
-      messageType: "text",
-      content: args.response,
-      twilioSid: args.twilioSid,
-      status: "delivered",
-      createdAt: Date.now(),
-    });
 
     // Cancel pending timeout if one exists
     if (waitingInstance.schedulerJobId) {
