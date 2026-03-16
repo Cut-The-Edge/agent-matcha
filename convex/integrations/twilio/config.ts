@@ -24,15 +24,30 @@ export function createTwilioClient() {
 /**
  * Format a phone number into WhatsApp format for Twilio.
  * Twilio requires "whatsapp:+1234567890" format.
+ *
+ * Handles common US formats:
+ *   (754) 202-6432  → whatsapp:+17542026432
+ *   754-202-6432    → whatsapp:+17542026432
+ *   7542026432      → whatsapp:+17542026432
+ *   +17542026432    → whatsapp:+17542026432
+ *   17542026432     → whatsapp:+17542026432
  */
 export function toWhatsAppFormat(phone: string): string {
   // Already in WhatsApp format
   if (phone.startsWith("whatsapp:")) return phone;
 
-  // Strip spaces, dashes, parentheses → E.164 format
-  const stripped = phone.replace(/[\s\-\(\)]/g, "");
-  const normalized = stripped.startsWith("+") ? stripped : `+${stripped}`;
-  return `whatsapp:${normalized}`;
+  // Strip spaces, dashes, parentheses, dots
+  const stripped = phone.replace(/[\s\-\(\)\.]/g, "");
+
+  // Remove leading + for uniform handling
+  const digits = stripped.startsWith("+") ? stripped.slice(1) : stripped;
+
+  // US number normalization: 10 digits without country code → prepend 1
+  if (digits.length === 10 && !digits.startsWith("1")) {
+    return `whatsapp:+1${digits}`;
+  }
+
+  return `whatsapp:+${digits}`;
 }
 
 /**
