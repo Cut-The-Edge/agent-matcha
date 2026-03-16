@@ -89,6 +89,10 @@ class ConvexClient:
         result = await self._post("/voice/fetch-sma-profile", {"memberId": member_id})
         return result
 
+    async def send_data_request(self, *, member_id: str) -> dict[str, Any]:
+        """Create and send a profile completion form link to the member via WhatsApp."""
+        return await self._post("/voice/send-data-request", {"memberId": member_id})
+
     async def save_intake_data(
         self,
         *,

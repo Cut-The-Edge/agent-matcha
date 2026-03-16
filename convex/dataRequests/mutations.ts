@@ -202,13 +202,7 @@ export const submitForm = mutation({
 
     if (!request) throw new Error("Invalid form link");
 
-    // Check if resubmit is allowed for completed requests
-    if (request.status === "completed") {
-      const settings = await ctx.db.query("appSettings").first();
-      const allowResubmit = settings?.dataRequestAllowResubmit ?? false;
-      if (!allowResubmit) throw new Error("Form already submitted");
-    }
-
+    // Only block expired forms — completed forms can always be updated
     if (request.status === "expired" || (request.status === "pending" && request.expiresAt < Date.now())) {
       throw new Error("Form link has expired");
     }
@@ -269,6 +263,65 @@ export const submitForm = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Create and send a data request from the voice agent (no auth required).
+ * Checks for an existing pending request to avoid duplicates.
+ */
+export const createAndSendFromAgent = internalMutation({
+  args: {
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) throw new Error("Member not found");
+    if (!member.phone) throw new Error("Member has no phone number");
+
+    // Check for existing pending request — don't send duplicate
+    const existing = await ctx.db
+      .query("dataRequests")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+
+    if (existing) {
+      // Re-send the WhatsApp message so the member gets a fresh notification
+      await ctx.scheduler.runAfter(0, internal.dataRequests.actions.sendDataRequestMessage, {
+        requestId: existing._id,
+        memberId: args.memberId,
+        token: existing.token,
+      });
+      return { requestId: existing._id, token: existing.token, alreadyPending: true };
+    }
+
+    const settings = await ctx.db.query("appSettings").first();
+    const expirationHours = settings?.dataRequestExpirationHours ?? 72;
+    const now = Date.now();
+    const token = crypto.randomUUID();
+    const missingFields = getMissingFields(member);
+
+    const requestId = await ctx.db.insert("dataRequests", {
+      memberId: args.memberId,
+      token,
+      status: "pending",
+      sentBy: "voice_agent",
+      expiresAt: now + expirationHours * 60 * 60 * 1000,
+      missingFieldsAtSend: missingFields,
+      sentAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Schedule WhatsApp message send
+    await ctx.scheduler.runAfter(0, internal.dataRequests.actions.sendDataRequestMessage, {
+      requestId,
+      memberId: args.memberId,
+      token,
+    });
+
+    return { requestId, token, alreadyPending: false };
   },
 });
 

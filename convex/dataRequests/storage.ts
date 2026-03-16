@@ -11,8 +11,11 @@ export const generateUploadUrl = mutation({
       .first();
 
     if (!request) throw new Error("Invalid form link");
-    if (request.status !== "pending") throw new Error("Form is no longer active");
-    if (request.expiresAt < Date.now()) throw new Error("Form link has expired");
+    // Only block expired forms — completed forms can always be updated
+    if (request.status === "expired") throw new Error("Form link has expired");
+    if (request.status === "pending" && request.expiresAt < Date.now()) {
+      throw new Error("Form link has expired");
+    }
 
     return await ctx.storage.generateUploadUrl();
   },

@@ -66,36 +66,7 @@ export const getByToken = query({
       return { expired: true };
     }
 
-    if (request.status === "completed") {
-      // Check if resubmit is allowed
-      const settings = await ctx.db.query("appSettings").first();
-      const allowResubmit = settings?.dataRequestAllowResubmit ?? false;
-
-      if (!allowResubmit) {
-        return { completed: true, completedAt: request.completedAt };
-      }
-
-      // Allow resubmit — return the form with current member data
-      const completedMember = await ctx.db.get(request.memberId);
-      if (!completedMember) return null;
-
-      return {
-        _id: request._id,
-        memberId: request.memberId,
-        status: "completed" as const,
-        allowResubmit: true,
-        member: {
-          firstName: completedMember.firstName,
-          lastName: completedMember.lastName,
-          email: completedMember.email,
-          phone: completedMember.phone,
-          profilePictureUrl: completedMember.profilePictureUrl,
-          location: completedMember.location,
-          profileData: completedMember.profileData,
-        },
-      };
-    }
-
+    // Always allow editing — completed forms can be updated anytime
     const member = await ctx.db.get(request.memberId);
     if (!member) return null;
 
@@ -103,6 +74,7 @@ export const getByToken = query({
       _id: request._id,
       memberId: request.memberId,
       status: request.status,
+      allowResubmit: request.status === "completed" ? true : undefined,
       member: {
         firstName: member.firstName,
         lastName: member.lastName,

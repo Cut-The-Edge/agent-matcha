@@ -397,6 +397,7 @@ export default defineSchema({
       v.literal("manual"),
       v.literal("bulk"),
       v.literal("automation"),
+      v.literal("voice_agent"),
     ),
     sentByAdminId: v.optional(v.id("admins")),
     whatsappMessageId: v.optional(v.id("whatsappMessages")),

@@ -8,7 +8,7 @@ const DEFAULTS = {
   dataRequestExpirationHours: 72,
   dataRequestAutoSendEnabled: false,
   dataRequestAutoSendDelayDays: 3,
-  dataRequestAllowResubmit: false,
+  dataRequestAllowResubmit: true,
 };
 
 export const get = query({

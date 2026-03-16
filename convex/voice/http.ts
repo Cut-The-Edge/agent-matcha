@@ -149,6 +149,30 @@ export const saveIntakeDataHandler = httpAction(async (ctx, request) => {
 });
 
 /**
+ * POST /voice/send-data-request
+ * Create and send a profile completion form link to a member via WhatsApp.
+ * Called by the voice agent mid-call.
+ */
+export const sendDataRequestHandler = httpAction(async (ctx, request) => {
+  const body = await request.json();
+  const { memberId } = body;
+  console.log("[sendDataRequest] memberId=%s", memberId);
+
+  const result = await ctx.runMutation(
+    internal.dataRequests.mutations.createAndSendFromAgent,
+    { memberId }
+  );
+
+  console.log("[sendDataRequest] result: requestId=%s alreadyPending=%s",
+    result.requestId, result.alreadyPending);
+
+  return new Response(JSON.stringify(result), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+});
+
+/**
  * POST /voice/fetch-sma-profile
  * Fetch a member's SMA profile and preferences, store in profileData.
  */

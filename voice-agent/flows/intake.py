@@ -39,12 +39,17 @@ STAGES = {
         "next": "wrap_up",
     },
     "wrap_up": {
-        "description": "Final check and goodbye",
+        "description": "Final check, send form link if needed, and goodbye",
         "instructions": (
             "Ask 'is there anything else you want to share with me before we "
-            "wrap up?' Let them know Dani will review their profile and be in "
-            "touch. Remind them to complete their online profile. Mention any "
-            "upcoming events. Warm goodbye. Then call save_intake_data with "
+            "wrap up?' IMPORTANT: If there are ANY missing form fields (photo, "
+            "email, Instagram, etc.) and you haven't sent the link yet, you MUST "
+            "call send_data_request_link() now. Tell them: 'I just sent you a link "
+            "on WhatsApp — you can fill in the rest of your details there whenever "
+            "you get a chance.' Even if all fields are filled, if the member "
+            "mentioned wanting to update anything, send the link. "
+            "Let them know Dani will review their profile and be in "
+            "touch. Warm goodbye. Then call save_intake_data with "
             "everything you learned, followed by end_call."
         ),
         "next": None,

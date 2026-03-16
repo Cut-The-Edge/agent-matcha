@@ -209,20 +209,6 @@ export default function DataRequestFormPage() {
     );
   }
 
-  // Already completed (and resubmit NOT allowed)
-  if ("completed" in data && !("allowResubmit" in data)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f0eeeb] px-6">
-        <div className="text-center">
-          <h1 className="mb-2 text-xl font-semibold text-gray-800">Already Submitted</h1>
-          <p className="text-sm text-gray-500">
-            You've already filled out this form. Thank you!
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Success screen
   if (submitted) {
     return (

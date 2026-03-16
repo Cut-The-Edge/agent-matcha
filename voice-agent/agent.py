@@ -297,6 +297,27 @@ class MatchaAgent(Agent):
         return {"saved": True}
 
     @function_tool()
+    async def send_data_request_link(self, context: RunContext) -> dict:
+        """Send a profile completion form link to the member via WhatsApp.
+        Call this when the member has missing profile data (photo, email,
+        Instagram, TikTok, LinkedIn, location) OR when they want to UPDATE
+        any of that data (change their photo, update Instagram, etc.).
+        The link will be sent to their WhatsApp immediately.
+        Tell them: 'I just sent you a link on WhatsApp — you can fill in
+        your details there whenever you get a chance.'"""
+        member = self._call_handler.member
+        if not member or not member.get("_id"):
+            return {"sent": False, "reason": "no member found"}
+
+        logger.info("[send_data_request_link] Sending form to member %s", member.get("firstName"))
+        result = await self._convex.send_data_request(member_id=member["_id"])
+        if result.get("alreadyPending"):
+            logger.info("[send_data_request_link] Already had a pending request — resent")
+            return {"sent": True, "note": "A form link was already pending — resent it"}
+        logger.info("[send_data_request_link] New form link created and sent")
+        return {"sent": True}
+
+    @function_tool()
     async def end_call(self, context: RunContext) -> str:
         """End the conversation. Call this after you've said goodbye and
         after you've called save_intake_data with the collected information."""
@@ -586,6 +607,48 @@ def _build_member_context(member: dict) -> str:
         if extra_intake:
             lines += ["", "**Additional data from previous calls:**"]
             lines += extra_intake
+
+    # ── Data Request (form link) fields ─────────────────────────────
+    missing_form = member.get("missingFormFields") or []
+    has_pending_request = member.get("hasDataRequestPending", False)
+    form_label_map = {
+        "email": "Email",
+        "location": "Location",
+        "profilePicture": "Profile Photo",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "linkedin": "LinkedIn",
+    }
+    if missing_form:
+        missing_labels = [form_label_map.get(f, f) for f in missing_form]
+        lines += [
+            "",
+            "**Profile completion form — missing data:**",
+            f"  Missing: {', '.join(missing_labels)}",
+        ]
+        if has_pending_request:
+            lines.append("  (A form link was already sent but not yet filled)")
+        lines += [
+            "",
+            "**Data request instructions:**",
+            "- During the call, mention that you'll send them a link to fill in: "
+            + ", ".join(missing_labels) + ".",
+            "- Call send_data_request_link() to send the WhatsApp form link.",
+            "- Say something like: 'I just sent you a link on WhatsApp — you can "
+            "fill in [the missing items] there whenever you get a chance.'",
+            "- You can send the link at any natural point — during the conversation "
+            "when discussing missing info, or towards the end during wrap-up.",
+            "- Do NOT ask them to verbally spell out their email, Instagram handle, "
+            "etc. — the form is much easier for that kind of data.",
+        ]
+    else:
+        lines += [
+            "",
+            "**Profile completion form:** All form fields are currently filled.",
+            "- If the member asks to update any of their info (photo, email, Instagram, "
+            "location, etc.), you can still call send_data_request_link() and say: "
+            "'I just sent you a link on WhatsApp — you can update your details there.'",
+        ]
 
     # Calculate profile completeness
     total_fields = len(SMA_PROFILE_FIELDS) + len(SMA_PREFERENCE_FIELDS)

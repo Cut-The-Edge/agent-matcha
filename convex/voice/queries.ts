@@ -2,6 +2,7 @@
 import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "../auth/authz";
+import { getMissingFields } from "../dataRequests/helpers";
 
 /**
  * Get a paginated call log with optional filters.
@@ -290,6 +291,13 @@ export const getMemberFullContext = internalQuery({
         ? latestCall.extractedData
         : null;
 
+    // Check for pending data request
+    const pendingDataRequest = await ctx.db
+      .query("dataRequests")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+
     return {
       _id: member._id,
       firstName: member.firstName,
@@ -303,6 +311,8 @@ export const getMemberFullContext = internalQuery({
       previousIntake,
       smaId: member.smaId,
       smaProfile: member.profileData ?? null,
+      missingFormFields: getMissingFields(member),
+      hasDataRequestPending: !!pendingDataRequest,
     };
   },
 });
