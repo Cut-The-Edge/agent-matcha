@@ -20,10 +20,10 @@ import { toWhatsAppFormat } from "./config";
 // ============================================================================
 
 export const WA_TEMPLATES = {
-  // matcha_match_intro_v5 (UTILITY) — "Hey {{1}}! We found a new match for you. Check out their profile here: {{2}} — let us know what you think!"
+  // Match intro template (UTILITY) — created via Twilio Console
   // Buttons: "I'm interested" / "Not interested" / "More info / intro"
   MATCH_INTRO: {
-    contentSid: "HX645c732971e6c3c580001f75bc72bba2",
+    contentSid: "HX179d2b25d434431301ed78d14f574c1c",
     variables: ["memberName", "profileLink"],
   },
 
