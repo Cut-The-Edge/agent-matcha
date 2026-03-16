@@ -1,0 +1,41 @@
+name: Deploy Voice Agent to LiveKit Cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "voice-agent/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: voice-agent-deploy
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to LiveKit Cloud
+        uses: livekit/deploy-action@v2.12.1
+        env:
+          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          SECRET_LIST: ${{ secrets.VOICE_AGENT_SECRETS }}
+        with:
+          OPERATION: deploy
+          WORKING_DIRECTORY: voice-agent
+          REGION: us-east
+
+      - name: Verify deployment
+        uses: livekit/deploy-action@v2.12.1
+        env:
+          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+        with:
+          OPERATION: status-retry
+          WORKING_DIRECTORY: voice-agent
+          TIMEOUT: 5m
