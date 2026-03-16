@@ -824,7 +824,7 @@ async def entrypoint(ctx: agents.JobContext):
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
-        tts=elevenlabs.TTS(voice="hA4zGnmTwX2NQiTRMt7o"),
+        tts=elevenlabs.TTS(voice_id="hA4zGnmTwX2NQiTRMt7o"),
         vad=silero.VAD.load(
             min_speech_duration=0.15,     # ignore very short sounds (< 150ms)
             min_silence_duration=0.6,     # wait longer before deciding user stopped talking
