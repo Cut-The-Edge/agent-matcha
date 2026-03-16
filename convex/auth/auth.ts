@@ -202,7 +202,7 @@ export const createAdmin = internalMutation({
     email: v.string(),
     name: v.string(),
     passwordHash: v.string(),
-    role: v.union(v.literal("super_admin"), v.literal("admin")),
+    role: v.union(v.literal("developer"), v.literal("super_admin"), v.literal("admin")),
   },
   handler: async (ctx, args) => {
     const now = Date.now();

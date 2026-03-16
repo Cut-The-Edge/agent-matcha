@@ -108,6 +108,7 @@ export const me = query({
 export const listByRole = internalQuery({
   args: {
     role: v.union(
+      v.literal("developer"),
       v.literal("super_admin"),
       v.literal("admin")
     ),
@@ -135,6 +136,7 @@ export const create = action({
     name: v.string(),
     password: v.string(),
     role: v.union(
+      v.literal("developer"),
       v.literal("super_admin"),
       v.literal("admin")
     ),
@@ -177,6 +179,7 @@ export const createInternal = internalMutation({
     email: v.string(),
     name: v.string(),
     role: v.union(
+      v.literal("developer"),
       v.literal("super_admin"),
       v.literal("admin")
     ),
@@ -191,8 +194,9 @@ export const createInternal = internalMutation({
       name: args.name,
       role: args.role,
       passwordHash: args.passwordHash,
+      status: "active",
       createdAt: now,
-      isActive: true,
+      updatedAt: now,
     });
 
     // Log audit event
@@ -235,6 +239,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     role: v.optional(
       v.union(
+        v.literal("developer"),
         v.literal("super_admin"),
         v.literal("admin")
       )

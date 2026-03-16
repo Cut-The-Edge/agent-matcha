@@ -7,7 +7,7 @@ import { api } from "../../convex/_generated/api"
 export interface CurrentUser {
   email: string
   name: string
-  role: "super_admin" | "admin"
+  role: "developer" | "super_admin" | "admin"
   adminId: string
 }
 

@@ -1,20 +1,19 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "../../../../convex/_generated/api"
 import type { Id } from "../../../../convex/_generated/dataModel"
 import type { Node, Edge } from "@xyflow/react"
 
 import { FlowEditor } from "@/components/flows/flow-editor"
-import { FlowList } from "@/components/flows/flow-list"
 import { useFlowEditorStore } from "@/stores/flow-editor-store"
 import {
   defaultNodes as daniFlowNodes,
   defaultEdges as daniFlowEdges,
 } from "@/components/flows/default-flow-data"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
@@ -23,90 +22,116 @@ import {
   ArrowLeft,
   Save,
   Circle,
+  Workflow,
 } from "lucide-react"
 
 export default function FlowsPage() {
-  const [selectedFlowId, setSelectedFlowId] = useState<
-    Id<"flowDefinitions"> | null
-  >(null)
-  const [isCreatingNew, setIsCreatingNew] = useState(false)
+  const router = useRouter()
 
-  // Show the editor if a flow is selected or if creating new
-  const isEditing = selectedFlowId !== null || isCreatingNew
+  // Auto-load the active match_feedback flow
+  const activeFlow = useQuery(api.engine.queries.getActiveFlow, {
+    type: "match_feedback",
+  })
 
-  const handleSelectFlow = (flowId: Id<"flowDefinitions">) => {
-    setSelectedFlowId(flowId)
-    setIsCreatingNew(false)
+  // If no active flow, check if any flow exists at all
+  const allFlows = useQuery(api.engine.queries.listFlowDefinitions, {})
+
+  const saveFlowDefinition = useMutation(api.engine.mutations.saveFlowDefinition)
+
+  const [isSeeding, setIsSeeding] = useState(false)
+
+  // Auto-seed flow if none exist
+  const handleSeedDefault = async () => {
+    setIsSeeding(true)
+    try {
+      const store = useFlowEditorStore.getState()
+      const convexNodes = daniFlowNodes.map((n) => ({
+        nodeId: n.id,
+        type: n.type || "unknown",
+        label: (n.data.label as string) || "",
+        position: { x: n.position.x, y: n.position.y },
+        config: (n.data.config as any) || {},
+      }))
+      const convexEdges = daniFlowEdges.map((e) => ({
+        edgeId: e.id,
+        source: e.source,
+        target: e.target,
+        label: (e.label as string) || undefined,
+        condition: e.sourceHandle || undefined,
+      }))
+      await saveFlowDefinition({
+        name: "Match Introduction Flow",
+        type: "match_feedback",
+        nodes: convexNodes,
+        edges: convexEdges,
+      })
+    } catch (error) {
+      console.error("Failed to seed flow:", error)
+    } finally {
+      setIsSeeding(false)
+    }
   }
 
-  const handleCreateNew = () => {
-    setIsCreatingNew(true)
-    setSelectedFlowId(null)
-
-    const store = useFlowEditorStore.getState()
-    store.setNodes([])
-    store.setEdges([])
-    store.setFlowMeta({
-      flowDefinitionId: null,
-      flowName: "New Flow",
-      flowType: "match_feedback",
-    })
-    store.markClean()
-  }
-
-  const handleSeedDefault = () => {
-    // Seed Dani's full Match Introduction Flow
-    const store = useFlowEditorStore.getState()
-    setIsCreatingNew(true)
-    setSelectedFlowId(null)
-
-    store.setNodes(daniFlowNodes)
-    store.setEdges(daniFlowEdges)
-    store.setFlowMeta({
-      flowDefinitionId: null,
-      flowName: "Match Introduction Flow",
-      flowType: "match_feedback",
-    })
-    store.markDirty()
-  }
-
-  const handleBack = () => {
-    setSelectedFlowId(null)
-    setIsCreatingNew(false)
-  }
-
-  if (isEditing) {
+  // Loading state
+  if (activeFlow === undefined) {
     return (
-      <FlowEditorPage
-        flowId={selectedFlowId}
-        onBack={handleBack}
-      />
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-4 border-b px-4 py-3">
+          <Skeleton className="h-9 w-9" />
+          <Skeleton className="h-6 w-48" />
+          <div className="ml-auto flex gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <Skeleton className="h-full w-full" />
+        </div>
+      </div>
     )
   }
 
-  return (
-    <FlowList
-      onSelectFlow={handleSelectFlow}
-      onCreateNew={handleCreateNew}
-      onSeedDefault={handleSeedDefault}
-    />
-  )
+  // No active flow — prompt to seed
+  if (!activeFlow) {
+    // Check if there's an inactive flow to use
+    const existingFlow = allFlows?.find((f: any) => f.type === "match_feedback")
+    if (existingFlow) {
+      return <FlowEditorPage flowId={existingFlow._id} />
+    }
+
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+        <Workflow className="size-12 text-muted-foreground" />
+        <div>
+          <h2 className="text-lg font-semibold">No Flow Configured</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Create the Match Introduction Flow to get started
+          </p>
+        </div>
+        <Button onClick={handleSeedDefault} disabled={isSeeding}>
+          {isSeeding ? "Creating..." : "Create Match Introduction Flow"}
+        </Button>
+      </div>
+    )
+  }
+
+  // Active flow found — render editor directly
+  return <FlowEditorPage flowId={activeFlow._id} />
 }
 
 // ============================================================================
-// Editor Page (when a flow is selected or being created)
+// Editor Page
 // ============================================================================
 
 function FlowEditorPage({
   flowId,
-  onBack,
 }: {
-  flowId: Id<"flowDefinitions"> | null
-  onBack: () => void
+  flowId: Id<"flowDefinitions">
 }) {
+  const router = useRouter()
   const flowData = useQuery(
     api.engine.queries.getFlowDefinition,
-    flowId ? { flowDefinitionId: flowId } : "skip"
+    { flowDefinitionId: flowId }
   )
 
   const saveFlowDefinition = useMutation(api.engine.mutations.saveFlowDefinition)
@@ -132,7 +157,7 @@ function FlowEditorPage({
 
   // Load flow data into store when it arrives
   useEffect(() => {
-    if (flowData && flowId) {
+    if (flowData) {
       const rfNodes: Node[] = flowData.nodes.map((n: any) => ({
         id: n.nodeId,
         type: n.type,
@@ -156,7 +181,7 @@ function FlowEditorPage({
       setNodes(rfNodes)
       setEdges(rfEdges)
       setFlowMeta({
-        flowDefinitionId: flowId,
+        flowDefinitionId: flowId as string,
         flowName: flowData.name,
         flowType: flowData.type,
       })
@@ -168,7 +193,6 @@ function FlowEditorPage({
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     try {
-      // Convert React Flow nodes/edges back to the Convex format
       const convexNodes = nodes.map((n) => ({
         nodeId: n.id,
         type: n.type || "unknown",
@@ -195,7 +219,6 @@ function FlowEditorPage({
         edges: convexEdges,
       })
 
-      // If this was a new flow, update the store with the new ID
       if (!flowDefinitionId) {
         setFlowMeta({
           flowDefinitionId: result as string,
@@ -231,16 +254,13 @@ function FlowEditorPage({
         })
         setIsActive(true)
       }
-      // Note: there is no "deactivateFlowDefinition" mutation in the backend.
-      // The activation mutation deactivates other flows of the same type.
-      // For toggling off, you would need to add that to the backend.
     } catch (error) {
       console.error("Failed to toggle active:", error)
     }
   }, [flowDefinitionId, isActive, activateFlowDefinition])
 
-  // Loading state for an existing flow
-  if (flowId && flowData === undefined) {
+  // Loading state
+  if (flowData === undefined) {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-4 border-b px-4 py-3">
@@ -262,24 +282,14 @@ function FlowEditorPage({
     <div className="flex h-[calc(100vh-var(--header-height))] flex-col">
       {/* Editor Header */}
       <div className="flex items-center gap-3 border-b px-4 py-2">
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
           <ArrowLeft className="mr-1 size-4" />
           Back
         </Button>
 
         <div className="h-6 w-px bg-border" />
 
-        <Input
-          value={flowName}
-          onChange={(e) =>
-            useFlowEditorStore.getState().setFlowMeta({
-              flowDefinitionId,
-              flowName: e.target.value,
-              flowType,
-            })
-          }
-          className="h-8 w-56 text-sm font-medium"
-        />
+        <h3 className="text-sm font-semibold">{flowName}</h3>
 
         <Badge variant="secondary" className="text-[10px]">
           {flowType}

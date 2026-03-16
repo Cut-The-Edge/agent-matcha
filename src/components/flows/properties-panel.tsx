@@ -48,7 +48,7 @@ const MATCH_STATUSES = [
 ]
 
 export function PropertiesPanel() {
-  const { selectedNode, updateNodeData, deselectNode, deleteNode } =
+  const { selectedNode, updateNodeData, deselectNode } =
     useFlowEditorStore()
 
   if (!selectedNode) return null
@@ -118,17 +118,11 @@ export function PropertiesPanel() {
         </div>
       </div>
 
-      {/* Footer: Delete */}
+      {/* Footer */}
       <div className="border-t px-4 py-3">
-        <Button
-          variant="destructive"
-          size="sm"
-          className="w-full"
-          onClick={() => deleteNode(selectedNode.id)}
-        >
-          <Trash2 className="mr-2 size-4" />
-          Delete Node
-        </Button>
+        <p className="text-[10px] text-muted-foreground text-center">
+          Click a node on the canvas to edit its properties
+        </p>
       </div>
     </div>
   )

@@ -7,7 +7,7 @@ export default defineSchema({
     email: v.string(),
     passwordHash: v.string(),
     name: v.string(),
-    role: v.union(v.literal("super_admin"), v.literal("admin")),
+    role: v.union(v.literal("developer"), v.literal("super_admin"), v.literal("admin")),
     status: v.union(v.literal("active"), v.literal("inactive")),
     createdAt: v.number(),
     updatedAt: v.number(),

@@ -2,14 +2,11 @@
 
 import { useRouter } from "next/navigation"
 import {
-  Users,
   MessageSquare,
   Phone,
-  Plus,
   ArrowRight,
   Activity,
   RefreshCcw,
-  UserPlus,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -46,19 +43,28 @@ type ActivityItem = {
 }
 
 function getActivityLabel(activity: ActivityItem) {
-  if (activity.type === "audit_log") {
-    const { action, resource } = activity.data
-    return `${action} ${resource}`
-  }
   if (activity.type === "match_update") {
     const { status, memberAName, memberBName } = activity.data
     return `${memberAName} & ${memberBName} — ${status}`
+  }
+  if (activity.type === "whatsapp_message") {
+    const { direction, memberName } = activity.data
+    return direction === "inbound"
+      ? `Message from ${memberName}`
+      : `Message sent to ${memberName}`
+  }
+  if (activity.type === "phone_call") {
+    const { direction, memberName, status } = activity.data
+    const dir = direction === "inbound" ? "Inbound" : "Outbound"
+    return `${dir} call — ${memberName} (${status})`
   }
   return "Unknown activity"
 }
 
 function getActivityIcon(activity: ActivityItem) {
   if (activity.type === "match_update") return RefreshCcw
+  if (activity.type === "whatsapp_message") return MessageSquare
+  if (activity.type === "phone_call") return Phone
   return Activity
 }
 
@@ -127,54 +133,6 @@ export function RecentActivity() {
           <CardDescription>Jump to common tasks</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-auto justify-start gap-3 px-4 py-3"
-                onClick={() => router.push("/dashboard/members")}
-              >
-                <Plus className="size-4 shrink-0 text-primary" />
-                <div className="flex flex-1 items-center justify-between">
-                  <div className="text-left">
-                    <div className="text-sm font-medium">Add Member</div>
-                    <div className="text-xs text-muted-foreground">
-                      Register a new community member
-                    </div>
-                  </div>
-                  <ArrowRight className="size-4 text-muted-foreground" />
-                </div>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-[220px]">
-              Open the members page to add a new person to your community
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-auto justify-start gap-3 px-4 py-3"
-                onClick={() => router.push("/dashboard/leads")}
-              >
-                <UserPlus className="size-4 shrink-0 text-accent" />
-                <div className="flex flex-1 items-center justify-between">
-                  <div className="text-left">
-                    <div className="text-sm font-medium">Review Leads</div>
-                    <div className="text-xs text-muted-foreground">
-                      Approve or deny membership upgrades
-                    </div>
-                  </div>
-                  <ArrowRight className="size-4 text-muted-foreground" />
-                </div>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-[220px]">
-              Check if there are any pending membership requests to review
-            </TooltipContent>
-          </Tooltip>
-
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

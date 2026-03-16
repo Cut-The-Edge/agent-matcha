@@ -17,11 +17,11 @@ import { Doc, Id } from "../_generated/dataModel";
 import { v } from "convex/values";
 
 // Admin roles in order of privilege (highest to lowest)
-// Simplified: only super_admin and admin
-export type AdminRole = "super_admin" | "admin";
+export type AdminRole = "developer" | "super_admin" | "admin";
 
 // Role hierarchy for permission checks
 const ROLE_HIERARCHY: Record<AdminRole, number> = {
+  developer: 3,
   super_admin: 2,
   admin: 1,
 };
@@ -189,6 +189,17 @@ export async function requireSuperAdmin(
   sessionToken: string | undefined | null
 ): Promise<Doc<"admins">> {
   return requireRole(ctx, sessionToken, "super_admin");
+}
+
+/**
+ * Require developer role - convenience function
+ * Use this for developer-only tools (sandbox, etc.)
+ */
+export async function requireDeveloper(
+  ctx: QueryCtx | MutationCtx,
+  sessionToken: string | undefined | null
+): Promise<Doc<"admins">> {
+  return requireRole(ctx, sessionToken, "developer");
 }
 
 /**

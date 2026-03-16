@@ -185,7 +185,7 @@ export const getResponseTrend = query({
 });
 
 /**
- * Latest audit log entries + recent match status changes.
+ * Latest CRM activity — matches, WhatsApp messages, phone calls.
  * Returns the most recent activity for the admin dashboard.
  */
 export const getRecentActivity = query({
@@ -198,40 +198,17 @@ export const getRecentActivity = query({
 
     const limit = args.limit ?? 20;
 
-    // Get recent audit log entries
-    const auditLogs = await ctx.db
-      .query("auditLogs")
-      .withIndex("by_created")
-      .order("desc")
-      .take(limit);
-
-    // Get recently updated matches (as a proxy for match status changes)
-    const recentMatches = await ctx.db
-      .query("matches")
-      .order("desc")
-      .take(limit);
-
-    // Build a combined activity feed
     const activities: Array<{
-      type: "audit_log" | "match_update";
+      type: string;
       timestamp: number;
       data: any;
     }> = [];
 
-    for (const log of auditLogs) {
-      activities.push({
-        type: "audit_log",
-        timestamp: log.createdAt,
-        data: {
-          _id: log._id,
-          action: log.action,
-          resource: log.resource,
-          resourceId: log.resourceId,
-          details: log.details,
-          adminId: log.adminId,
-        },
-      });
-    }
+    // 1. Recent match status changes
+    const recentMatches = await ctx.db
+      .query("matches")
+      .order("desc")
+      .take(limit);
 
     for (const match of recentMatches) {
       const [memberA, memberB] = await Promise.all([
@@ -251,8 +228,59 @@ export const getRecentActivity = query({
           memberBName: memberB
             ? `${memberB.firstName}${memberB.lastName ? ` ${memberB.lastName}` : ""}`
             : "Unknown",
-          createdAt: match.createdAt,
-          updatedAt: match.updatedAt,
+        },
+      });
+    }
+
+    // 2. Recent WhatsApp messages
+    const recentMessages = await ctx.db
+      .query("whatsappMessages")
+      .withIndex("by_created")
+      .order("desc")
+      .take(limit);
+
+    for (const msg of recentMessages) {
+      const member = await ctx.db.get(msg.memberId);
+      const memberName = member
+        ? `${member.firstName}${member.lastName ? ` ${member.lastName}` : ""}`
+        : "Unknown";
+
+      activities.push({
+        type: "whatsapp_message",
+        timestamp: msg.createdAt,
+        data: {
+          direction: msg.direction,
+          memberName,
+          messageType: msg.messageType,
+          preview: msg.content.length > 60 ? msg.content.slice(0, 60) + "..." : msg.content,
+        },
+      });
+    }
+
+    // 3. Recent phone calls
+    const recentCalls = await ctx.db
+      .query("phoneCalls")
+      .withIndex("by_created")
+      .order("desc")
+      .take(limit);
+
+    for (const call of recentCalls) {
+      let memberName = "Unknown";
+      if (call.memberId) {
+        const member = await ctx.db.get(call.memberId);
+        if (member) {
+          memberName = `${member.firstName}${member.lastName ? ` ${member.lastName}` : ""}`;
+        }
+      }
+
+      activities.push({
+        type: "phone_call",
+        timestamp: call.startedAt,
+        data: {
+          direction: call.direction,
+          memberName,
+          status: call.status,
+          duration: call.duration,
         },
       });
     }

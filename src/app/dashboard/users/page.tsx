@@ -49,6 +49,7 @@ import {
   MoreVertical,
   ShieldCheck,
   Shield,
+  Code,
   Users,
   UserCircle,
   Check,
@@ -64,7 +65,7 @@ interface Admin {
   _creationTime: number
   email: string
   name: string
-  role: "super_admin" | "admin"
+  role: "developer" | "super_admin" | "admin"
   status?: "active" | "inactive"
   isActive?: boolean
   createdAt: number
@@ -77,6 +78,14 @@ interface Admin {
 // ============================================================================
 
 function getRoleBadge(role: string) {
+  if (role === "developer") {
+    return (
+      <Badge variant="destructive" className="flex w-fit items-center gap-0.5 bg-purple-600">
+        <Code className="h-3 w-3 mr-1" />
+        developer
+      </Badge>
+    )
+  }
   if (role === "super_admin") {
     return (
       <Badge variant="destructive" className="flex w-fit items-center gap-0.5">
@@ -168,13 +177,13 @@ export default function UsersPage() {
     email: "",
     name: "",
     password: "",
-    role: "admin" as "super_admin" | "admin",
+    role: "admin" as "developer" | "super_admin" | "admin",
   })
 
   // Edit form
   const [editForm, setEditForm] = useState({
     name: "",
-    role: "admin" as "super_admin" | "admin",
+    role: "admin" as "developer" | "super_admin" | "admin",
     isActive: true,
   })
 
@@ -356,7 +365,7 @@ export default function UsersPage() {
                 <Label htmlFor="create-role">Role</Label>
                 <Select
                   value={newAdmin.role}
-                  onValueChange={(value: "super_admin" | "admin") =>
+                  onValueChange={(value: "developer" | "super_admin" | "admin") =>
                     setNewAdmin({ ...newAdmin, role: value })
                   }
                 >
@@ -364,6 +373,14 @@ export default function UsersPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    {currentUser?.role === "developer" && (
+                      <SelectItem value="developer">
+                        <div className="flex items-center gap-2">
+                          <Code className="h-4 w-4 text-purple-600" />
+                          Developer (Full Access + Dev Tools)
+                        </div>
+                      </SelectItem>
+                    )}
                     <SelectItem value="super_admin">
                       <div className="flex items-center gap-2">
                         <ShieldCheck className="h-4 w-4 text-destructive" />
@@ -542,7 +559,7 @@ export default function UsersPage() {
               <Label htmlFor="edit-role">Role</Label>
               <Select
                 value={editForm.role}
-                onValueChange={(value: "super_admin" | "admin") =>
+                onValueChange={(value: "developer" | "super_admin" | "admin") =>
                   setEditForm({ ...editForm, role: value })
                 }
                 disabled={selectedAdmin?._id === currentUser?._id}
@@ -551,6 +568,9 @@ export default function UsersPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {currentUser?.role === "developer" && (
+                    <SelectItem value="developer">Developer</SelectItem>
+                  )}
                   <SelectItem value="super_admin">Super Admin</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>

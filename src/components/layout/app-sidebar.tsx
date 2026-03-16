@@ -84,6 +84,8 @@ const data = {
       icon: Workflow,
       description: "Create and edit automated WhatsApp conversation flows",
     },
+  ],
+  navDevTools: [
     {
       title: "Sandbox",
       url: "/dashboard/sandbox",
@@ -119,9 +121,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: "",
   }
 
-  // Filter admin nav items — super_admin only
+  // Filter admin nav items — super_admin and developer
   const filteredAdmin = data.navAdmin.filter(() => {
-    return currentUser.role === "super_admin"
+    return currentUser.role === "super_admin" || currentUser.role === "developer"
+  })
+
+  // Developer-only tools (Sandbox)
+  const filteredDevTools = data.navDevTools.filter(() => {
+    return currentUser.role === "developer"
   })
 
   return (
@@ -144,7 +151,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={data.navCRM} />
         <SidebarSeparator />
-        <NavMain items={data.navTools} label="Tools" />
+        <NavMain items={[...data.navTools, ...filteredDevTools]} label="Tools" />
         {filteredAdmin.length > 0 && (
           <NavSecondary items={filteredAdmin} className="mt-auto" />
         )}

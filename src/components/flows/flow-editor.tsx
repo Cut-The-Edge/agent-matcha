@@ -9,12 +9,12 @@ import {
   Background,
   BackgroundVariant,
   type Node,
-  useReactFlow,
+  type OnNodesChange,
+  type OnEdgesChange,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 
 import { useFlowEditorStore } from "@/stores/flow-editor-store"
-import { NodePalette } from "@/components/flows/node-palette"
 import { PropertiesPanel } from "@/components/flows/properties-panel"
 
 import { StartNode } from "@/components/flows/nodes/start-node"
@@ -37,36 +37,8 @@ const nodeTypes = {
   end: EndNode,
 }
 
-// Default configs for newly created nodes
-const DEFAULT_CONFIGS: Record<string, Record<string, any>> = {
-  start: { triggerType: "match_created" },
-  message: { template: "", channel: "whatsapp" },
-  decision: { question: "", options: [] },
-  feedback_collect: {
-    feedbackType: "match_reaction",
-    categories: [],
-    allowFreeText: true,
-  },
-  action: { actionType: "notify_admin", params: {} },
-  delay: { duration: 24, unit: "hours" },
-  condition: { expression: "", trueEdgeId: "", falseEdgeId: "" },
-  end: { endType: "completed" },
-}
-
-const NODE_LABELS: Record<string, string> = {
-  start: "Start",
-  message: "New Message",
-  decision: "Decision",
-  feedback_collect: "Collect Feedback",
-  action: "Action",
-  delay: "Delay",
-  condition: "Condition",
-  end: "End",
-}
-
 function FlowEditorInner() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
-  const { screenToFlowPosition } = useReactFlow()
 
   const {
     nodes,
@@ -74,45 +46,26 @@ function FlowEditorInner() {
     selectedNode,
     onNodesChange,
     onEdgesChange,
-    onConnect,
     selectNode,
     deselectNode,
   } = useFlowEditorStore()
 
-  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = "move"
-  }, [])
-
-  const onDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      event.preventDefault()
-
-      const type = event.dataTransfer.getData("application/reactflow")
-      if (!type) return
-
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      })
-
-      const newNode: Node = {
-        id: `${type}_${Date.now()}`,
-        type,
-        position,
-        data: {
-          label: NODE_LABELS[type] || type,
-          config: { ...(DEFAULT_CONFIGS[type] || {}) },
-        },
-      }
-
-      useFlowEditorStore.getState().setNodes([
-        ...useFlowEditorStore.getState().nodes,
-        newNode,
-      ])
-      useFlowEditorStore.getState().markDirty()
+  // Allow repositioning nodes but block deletion
+  const filteredOnNodesChange: OnNodesChange = useCallback(
+    (changes) => {
+      const safeChanges = changes.filter((c) => c.type !== "remove")
+      onNodesChange(safeChanges)
     },
-    [screenToFlowPosition]
+    [onNodesChange]
+  )
+
+  // Block edge deletion
+  const filteredOnEdgesChange: OnEdgesChange = useCallback(
+    (changes) => {
+      const safeChanges = changes.filter((c) => c.type !== "remove")
+      onEdgesChange(safeChanges)
+    },
+    [onEdgesChange]
   )
 
   const onNodeClick = useCallback(
@@ -128,20 +81,18 @@ function FlowEditorInner() {
 
   return (
     <div className="flex h-full flex-1">
-      <NodePalette />
       <div ref={reactFlowWrapper} className="flex-1">
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
+          onNodesChange={filteredOnNodesChange}
+          onEdgesChange={filteredOnEdgesChange}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
           fitView
+          fitViewOptions={{ padding: 0.2 }}
+          deleteKeyCode={null}
           proOptions={{ hideAttribution: true }}
           defaultEdgeOptions={{
             type: "smoothstep",
