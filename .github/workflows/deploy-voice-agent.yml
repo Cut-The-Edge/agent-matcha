@@ -27,7 +27,6 @@ jobs:
         with:
           OPERATION: deploy
           WORKING_DIRECTORY: voice-agent
-          REGION: us-east
 
       - name: Verify deployment
         uses: livekit/deploy-action@v2.12.1
