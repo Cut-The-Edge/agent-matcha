@@ -5,7 +5,7 @@ const crons = cronJobs();
 
 crons.interval(
   "recover orphaned calls",
-  { hours: 1 },
+  { minutes: 15 },
   internal.voice.recovery.recoverOrphanedCalls
 );
 

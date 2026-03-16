@@ -4,20 +4,21 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 
 /**
- * Find calls that are stuck in "in_progress" for over 1 hour.
+ * Find calls that are stuck in "in_progress" for over 30 minutes.
  * These are likely crashed calls that never got a call-ended event.
+ * Runs every 15 minutes via cron — worst-case detection is ~45 minutes.
  */
 export const findOrphanedCalls = internalQuery({
   handler: async (ctx) => {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
 
     const inProgressCalls = await ctx.db
       .query("phoneCalls")
       .withIndex("by_status", (q) => q.eq("status", "in_progress"))
       .collect();
 
-    // Filter to calls older than 1 hour
-    return inProgressCalls.filter((call) => call.startedAt < oneHourAgo);
+    // Filter to calls older than 30 minutes
+    return inProgressCalls.filter((call) => call.startedAt < thirtyMinutesAgo);
   },
 });
 
