@@ -660,29 +660,21 @@ export const syncCallToSMA = internalAction({
         profileFields.prof_186 = existing ? `${existing}\n\nInterests: ${hobbies}` : String(hobbies);
       }
 
-      // ── Step 3: Filter out profile fields that already have values in SMA ──
-      // Location sub-fields (prof_244_city, etc.) check the parent prof_244 location object
+      // ── Step 3: Log profile fields that will overwrite existing SMA values ──
+      // We now ALWAYS sync new data from the call — even if SMA already has values.
+      // The voice agent collects the latest info directly from the member, so it
+      // should take priority over stale SMA data.
       const locationSubFields = ["prof_244_country", "prof_244_city", "prof_244_state", "prof_244_zip_code"];
-      if (isSmaFieldFilled(currentFields.prof_244)) {
-        // Location already filled — remove all location sub-fields
-        for (const lf of locationSubFields) {
-          if (profileFields[lf]) delete profileFields[lf];
-        }
-        console.log("[syncCallToSMA] Skipping location fields (prof_244 already filled in SMA)");
-      }
-
-      const skippedProfile: string[] = [];
+      const overwrittenProfile: string[] = [];
       for (const smaField of Object.keys(profileFields)) {
-        // Location sub-fields already handled above
         if (locationSubFields.includes(smaField)) continue;
         if (isSmaFieldFilled(currentFields[smaField])) {
-          skippedProfile.push(smaField);
-          delete profileFields[smaField];
+          overwrittenProfile.push(smaField);
         }
       }
-      if (skippedProfile.length > 0) {
-        console.log("[syncCallToSMA] Skipping %d profile fields (already filled in SMA): %s",
-          skippedProfile.length, skippedProfile.join(", "));
+      if (overwrittenProfile.length > 0) {
+        console.log("[syncCallToSMA] Overwriting %d profile fields with new data from call: %s",
+          overwrittenProfile.length, overwrittenProfile.join(", "));
       }
 
       // ── Step 4: Build preference fields ──
@@ -740,42 +732,26 @@ export const syncCallToSMA = internalAction({
         }
       }
 
-      // ── Step 5: Filter out preference fields that already have values in SMA ──
-      // Age range (pref_1_start/pref_1_end) checks parent pref_1
-      if (isSmaFieldFilled(currentPrefFields.pref_1)) {
-        delete prefFields.pref_1_start;
-        delete prefFields.pref_1_end;
-        console.log("[syncCallToSMA] Skipping age range pref (pref_1 already filled in SMA)");
-      }
-      // Height range (pref_47_start/pref_47_end) checks parent pref_47
-      if (isSmaFieldFilled(currentPrefFields.pref_47)) {
-        delete prefFields.pref_47_start;
-        delete prefFields.pref_47_end;
-        console.log("[syncCallToSMA] Skipping height range pref (pref_47 already filled in SMA)");
-      }
-
-      const skippedPrefs: string[] = [];
+      // ── Step 5: Log preference fields that will overwrite existing SMA values ──
+      // We now ALWAYS sync new preference data from the call.
+      const overwrittenPrefs: string[] = [];
       for (const prefKey of Object.keys(prefFields)) {
-        // Skip weight/range sub-keys — only check the base field
         if (prefKey.endsWith("_field_weight") || prefKey.endsWith("_start") || prefKey.endsWith("_end")) continue;
         if (isSmaFieldFilled(currentPrefFields[prefKey])) {
-          skippedPrefs.push(prefKey);
-          delete prefFields[prefKey];
-          // Also remove associated sub-keys
-          delete prefFields[`${prefKey}_field_weight`];
+          overwrittenPrefs.push(prefKey);
         }
       }
-      if (skippedPrefs.length > 0) {
-        console.log("[syncCallToSMA] Skipping %d preference fields (already filled in SMA): %s",
-          skippedPrefs.length, skippedPrefs.join(", "));
+      if (overwrittenPrefs.length > 0) {
+        console.log("[syncCallToSMA] Overwriting %d preference fields with new data from call: %s",
+          overwrittenPrefs.length, overwrittenPrefs.join(", "));
       }
 
-      // willingToRelocate → longDistance (same SMA field prof_188) if not already set
+      // willingToRelocate → longDistance (same SMA field prof_188)
       if (data.willingToRelocate && !profileFields.prof_188) {
         const val = String(data.willingToRelocate).toLowerCase();
         const ldMap: Record<string, string> = { "yes": "1", "true": "1", "no": "2", "false": "2", "maybe": "3" };
         const mapped = ldMap[val];
-        if (mapped && !isSmaFieldFilled(currentFields.prof_188)) {
+        if (mapped) {
           profileFields.prof_188 = mapped;
         }
       }
@@ -788,16 +764,16 @@ export const syncCallToSMA = internalAction({
       if (data.marriageTimeline) noteLines.push(`Marriage timeline: ${data.marriageTimeline}`);
       if (data.additionalNotes) noteLines.push(`Notes: ${data.additionalNotes}`);
 
-      // ── Step 6: Write only empty fields to SMA (with retry on bad fields) ──
+      // ── Step 6: Write all collected fields to SMA (with retry on bad fields) ──
       // Each section is independently try-caught so one failure doesn't block the rest.
-      console.log("[syncCallToSMA] Profile fields to sync (empty only): %d (%s)",
+      console.log("[syncCallToSMA] Profile fields to sync: %d (%s)",
         Object.keys(profileFields).length, Object.keys(profileFields).join(", "));
       if (Object.keys(profileFields).length > 0) {
         try { await resilientSmaPut(smaClientId, profileFields, "profile"); }
         catch (e: any) { console.error("[syncCallToSMA] Profile sync failed (non-fatal):", e.message); }
       }
 
-      console.log("[syncCallToSMA] Preference fields to sync (empty only): %d (%s)",
+      console.log("[syncCallToSMA] Preference fields to sync: %d (%s)",
         Object.keys(prefFields).length, Object.keys(prefFields).join(", "));
       if (Object.keys(prefFields).length > 0) {
         try { await resilientSmaPut(smaClientId, prefFields, "preferences"); }

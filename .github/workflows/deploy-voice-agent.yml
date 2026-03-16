@@ -23,7 +23,9 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SECRET_LIST: ${{ secrets.VOICE_AGENT_SECRETS }}
+          SECRET_LIST: |
+            ${{ secrets.VOICE_AGENT_SECRETS }}
+            ELEVEN_API_KEY=${{ secrets.ELEVEN_API_KEY }}
         with:
           OPERATION: deploy
           WORKING_DIRECTORY: voice-agent

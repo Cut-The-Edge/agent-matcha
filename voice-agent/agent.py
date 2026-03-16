@@ -23,7 +23,7 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
-from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
+from livekit.plugins import noise_cancellation, silero, deepgram, elevenlabs
 from livekit.plugins import openai as openai_plugin
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -668,12 +668,12 @@ def _build_member_context(member: dict) -> str:
             f"**Profile completeness: {int(completeness * 100)}% — mostly filled.**",
             "",
             "**Guidance:**",
-            "- This member's profile is mostly complete. Do NOT default to a full intake.",
-            "- Ask what brings them in today and adapt to their intent.",
-            "- If they want to update info, collect the changes and wrap up.",
+            "- Go straight into the profile. Do NOT ask 'what can I help you with?' or 'what brings you in?'",
+            "- Fill any remaining gaps naturally through conversation.",
+            "- VERIFY existing info: casually confirm key details are still current (job, location, relationship status, preferences).",
+            "  For example: 'I see you're in [city] — still there?' or 'You're still doing [job], right?'",
+            "- If they mention something changed, update that field — the new data WILL overwrite the old.",
             "- If they want to upgrade membership, note it with membership_interest and let them know Dani will follow up.",
-            "- If they're open to chatting, you can fill remaining gaps naturally.",
-            "- Confirm if existing info is still current when relevant.",
             "- If recalibrating, explore the patterns noted above.",
         ]
     else:
@@ -682,11 +682,11 @@ def _build_member_context(member: dict) -> str:
             f"**Profile completeness: {int(completeness * 100)}% — significant gaps remain.**",
             "",
             "**Guidance:**",
-            "- Ask what brings them in today — handle their specific need first.",
-            "- Then offer to fill in profile gaps: 'While I have you, mind if we fill in a few things?'",
-            "- Do NOT re-ask questions where you already have data above.",
+            "- Go straight into filling profile gaps. Do NOT ask 'what brings you in today?'",
+            "- Say something like: 'I'd love to fill in a few things for your profile — it'll help us find you better matches.'",
             "- Prioritize high-priority missing fields first.",
-            "- Confirm if existing info is still current when relevant.",
+            "- Also VERIFY existing info is still current — if something changed, save the new value.",
+            "- Do NOT skip fields just because they're already filled — if the caller gives you updated info, INCLUDE it in save_intake_data.",
             "- If recalibrating, explore the patterns noted above.",
         ]
 
@@ -800,13 +800,31 @@ async def entrypoint(ctx: agents.JobContext):
     # VAD tuned for phone calls: higher threshold to ignore background noise,
     # longer silence padding so it doesn't cut off mid-sentence
     session = AgentSession(
-        stt=deepgram.STT(model="nova-3", language="multi"),
+        stt=deepgram.STT(
+            model="nova-3",
+            language="en",
+            smart_format=True,       # better formatting for numbers, dates, heights, incomes
+            filler_words=True,       # keep "um", "uh" — persona uses them for natural feel
+            keyterm=[                # boost recognition of domain-specific terms
+                "Club Allenby",
+                "Dani Bergman",
+                "Matcha",
+                "Ashkenazi",
+                "Sephardic",
+                "Mizrachi",
+                "Conservadox",
+                "Modern Orthodox",
+                "Shabbat",
+                "Shabbos",
+                "kosher",
+            ],
+        ),
         llm=openai_plugin.LLM(
             model=LLM_MODEL,
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
-        tts=cartesia.TTS(voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b"),
+        tts=elevenlabs.TTS(voice="hA4zGnmTwX2NQiTRMt7o"),
         vad=silero.VAD.load(
             min_speech_duration=0.15,     # ignore very short sounds (< 150ms)
             min_silence_duration=0.6,     # wait longer before deciding user stopped talking
@@ -850,9 +868,11 @@ async def entrypoint(ctx: agents.JobContext):
         member_name = call_handler.member.get("firstName", "")
         greeting = (
             f"Greet {member_name} warmly by name — they're a returning member. "
-            f"Say something like 'Hey {member_name}! Great to hear from you again. "
-            f"How are you doing?' Do NOT re-introduce yourself or Club Allenby. "
-            f"Keep it brief and warm."
+            f"Say something like 'Hey {member_name}! Great to hear from you, "
+            f"how are you doing?' Keep it brief and warm. After they respond, "
+            f"go straight into the profile — either filling gaps or verifying "
+            f"existing info. Do NOT ask 'what can I help you with?' or 'what "
+            f"brings you in?' — you already know what to do: work on their profile."
         )
     else:
         # Unknown caller — say a fixed message and hang up, no LLM needed
