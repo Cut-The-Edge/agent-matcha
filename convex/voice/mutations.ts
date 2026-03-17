@@ -189,6 +189,37 @@ export const updateMemberProfileData = internalMutation({
   },
 });
 
+/**
+ * Set a member's smaId after creating them in SMA CRM.
+ */
+export const setMemberSmaId = internalMutation({
+  args: {
+    memberId: v.id("members"),
+    smaId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.memberId, {
+      smaId: args.smaId,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Link a call to a member (used when creating a new member from call data).
+ */
+export const linkCallToMember = internalMutation({
+  args: {
+    callId: v.id("phoneCalls"),
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.callId, {
+      memberId: args.memberId,
+    });
+  },
+});
+
 export const updateSmaSyncStatus = internalMutation({
   args: {
     callId: v.id("phoneCalls"),
