@@ -86,7 +86,7 @@ export const processMatchCreated = internalMutation({
           return { matchId: existing._id, flowInstancesStarted: 0 };
         }
         // Match exists but flow wasn't triggered yet — fall through to trigger it
-        const baseUrl = process.env.APP_URL || "https://app.matchaagent.com";
+        const baseUrl = process.env.APP_URL || "https://agent-matcha.vercel.app";
         const profileLink = `${baseUrl}/intro/${existing.introToken}`;
         const maleMember =
           memberA.gender === "male" ? memberA :
@@ -153,7 +153,7 @@ export const processMatchCreated = internalMutation({
     }
 
     // Build the profile link for the female member's profile page
-    const baseUrl = process.env.APP_URL || "https://app.matchaagent.com";
+    const baseUrl = process.env.APP_URL || "https://agent-matcha.vercel.app";
     const profileLink = `${baseUrl}/intro/${introToken}`;
 
     // Determine the match name (the female member's first name shown to the male)
@@ -275,7 +275,7 @@ export const startFlowForMaleMember = internalMutation({
     await ensureProfileToken(ctx.db, memberA._id);
     await ensureProfileToken(ctx.db, memberB._id);
 
-    const baseUrl = process.env.APP_URL || "https://app.matchaagent.com";
+    const baseUrl = process.env.APP_URL || "https://agent-matcha.vercel.app";
     const profileLink = `${baseUrl}/intro/${introToken}`;
 
     const matchName = femaleMember

@@ -28,8 +28,7 @@ export const createCheckoutAndNotify = internalAction({
   handler: async (ctx, args) => {
     const stripe = createStripeClient();
 
-    // Use the Next.js app URL for Stripe redirect pages (NOT the Convex backend URL)
-    const baseUrl = process.env.APP_URL || "http://localhost:3000";
+    const baseUrl = process.env.APP_URL || "https://agent-matcha.vercel.app";
 
     // Look up member details for tracking + WhatsApp delivery
     const member = await ctx.runQuery(

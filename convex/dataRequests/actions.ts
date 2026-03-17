@@ -21,7 +21,7 @@ export const sendDataRequestMessage = internalAction({
       return;
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.CONVEX_SITE_URL || "";
+    const baseUrl = process.env.APP_URL || "https://agent-matcha.vercel.app";
     const formLink = `${baseUrl}/form/${args.token}`;
 
     const template = WA_TEMPLATES.DATA_REQUEST;

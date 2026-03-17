@@ -70,7 +70,7 @@ export const startSandboxFlow = mutation({
       updatedAt: now,
     });
 
-    const baseUrl = process.env.APP_URL || "https://app.matchaagent.com";
+    const baseUrl = process.env.APP_URL || "https://agent-matcha.vercel.app";
     const introProfileLink = `${baseUrl}/intro/${introToken}`;
 
     const instanceIds: string[] = [];
