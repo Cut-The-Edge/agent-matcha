@@ -40,10 +40,14 @@ export const WA_TEMPLATES = {
     variables: ["memberName", "matchName"],
   },
 
-  // matcha_welcome — "Hey {{1}}! Welcome to Club Allenby..."
+  // matcha_welcome — "Hey {{1}}! Welcome to Club Allenby. We'd love to get
+  // to know you better and complete your matchmaking profile.
+  // Fill it out here: {{2}}"
+  // NOTE: Template must be updated in Twilio Console to include {{2}} profile link
+  // and remove "Reply here to get started!" — then re-approved by Meta.
   WELCOME: {
     contentSid: "HXc0a86dde028e42b5678481fedc0151d2",
-    variables: ["memberName"],
+    variables: ["memberName", "profileLink"],
   },
 
   // matcha_match_expired — "Hey {{1}}, we noticed you haven't had a chance..."

@@ -697,6 +697,14 @@ export const syncCallToSMA = internalAction({
             callId: args.callId,
             memberId: result.memberId,
           });
+
+          // Send profile completion form to new member via WhatsApp
+          if (call.phone) {
+            await ctx.runMutation(internal.dataRequests.mutations.createAndSendFromAgent, {
+              memberId: result.memberId,
+            });
+            console.log("[syncCallToSMA] Sent profile form to new member %s", result.memberId);
+          }
         } else {
           console.log("[syncCallToSMA] No member and no firstName — skipping member creation but still syncing to SMA");
         }
