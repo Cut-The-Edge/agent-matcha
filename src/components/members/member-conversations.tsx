@@ -51,14 +51,17 @@ export function MemberConversations({ member, open, onOpenChange }: MemberConver
 
   const handleViewCalls = () => {
     if (!member) return
-    router.push(`/dashboard/conversations?memberId=${member._id}&channel=phone`)
+    router.push(`/dashboard/calls?memberId=${member._id}`)
     onOpenChange(false)
   }
 
-  const handleViewConversation = (activity: { type: string }) => {
+  const handleViewConversation = (activity: { type: string; callId?: string }) => {
     if (!member) return
     if (activity.type === "phone") {
-      router.push(`/dashboard/conversations?memberId=${member._id}&channel=phone`)
+      const callPath = activity.callId
+        ? `/dashboard/calls/${activity.callId}`
+        : `/dashboard/calls?memberId=${member._id}`
+      router.push(callPath)
     } else {
       router.push(`/dashboard/conversations?memberId=${member._id}`)
     }
