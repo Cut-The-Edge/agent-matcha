@@ -26,6 +26,7 @@ import {
   Workflow,
   List,
   PenTool,
+  MessageSquareText,
 } from "lucide-react"
 
 export default function FlowsPage() {
@@ -149,15 +150,29 @@ function FlowEditorPage({
     flowType,
     flowDefinitionId,
     isDirty,
+    messageEditorOpen,
     setNodes,
     setEdges,
     setFlowMeta,
     markClean,
+    openMessageEditor,
+    hasUnsavedMessageDraft,
   } = useFlowEditorStore()
 
   const [isSaving, setIsSaving] = useState(false)
   const [isActive, setIsActive] = useState(false)
   const [viewMode, setViewMode] = useState<"simple" | "editor">("simple")
+
+  // Warn before closing/refreshing with unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty || hasUnsavedMessageDraft()) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty, hasUnsavedMessageDraft])
 
   // Load flow data into store when it arrives
   useEffect(() => {
@@ -329,6 +344,16 @@ function FlowEditorPage({
               Editor
             </button>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openMessageEditor}
+            disabled={messageEditorOpen}
+          >
+            <MessageSquareText className="mr-1 size-4" />
+            Edit Messages
+          </Button>
 
           {flowDefinitionId && (
             <div className="flex items-center gap-2">

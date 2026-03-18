@@ -25,6 +25,7 @@ import { internal } from "../_generated/api";
 
 import { matchaAgent, classifierAgent, personalizerAgent } from "./matchaAgent";
 import { TEMPERATURE, FEATURE_FLAGS } from "./config";
+import { logAiSdkUsage } from "../analytics/instrumentLlm";
 
 // ============================================================================
 // personalizeMessage
@@ -104,6 +105,7 @@ Generate a warm, natural personalized version. Return ONLY the message text.`;
 
     try {
       // Use the personalizer agent (or ephemeral call without a thread)
+      const personalizationStart = Date.now();
       const result = await personalizerAgent.generateText(
         ctx,
         { threadId: args.threadId },
@@ -116,6 +118,17 @@ Generate a warm, natural personalized version. Return ONLY the message text.`;
           storageOptions: { saveMessages: args.threadId ? "promptAndOutput" : "none" },
         },
       );
+      const personalizationLatency = Date.now() - personalizationStart;
+
+      // Log token usage
+      await logAiSdkUsage(ctx, result, {
+        processType: "whatsapp-personalization",
+        provider: "openrouter",
+        model: "openai/gpt-4o",
+        latencyMs: personalizationLatency,
+        entityType: "member",
+        entityId: args.memberContext.memberId,
+      });
 
       return {
         personalizedMessage: result.text.trim(),
@@ -202,6 +215,7 @@ Respond with ONLY a JSON object in this format:
 {"classification": "<option_value>", "confidence": "low|medium|high", "reasoning": "<brief explanation>"}`;
 
     try {
+      const classifyStart = Date.now();
       const result = await classifierAgent.generateText(
         ctx,
         { threadId: args.threadId },
@@ -213,6 +227,15 @@ Respond with ONLY a JSON object in this format:
           storageOptions: { saveMessages: "none" },
         },
       );
+      const classifyLatency = Date.now() - classifyStart;
+
+      // Log token usage
+      await logAiSdkUsage(ctx, result, {
+        processType: "whatsapp-classification",
+        provider: "openrouter",
+        model: "openai/gpt-4o-mini",
+        latencyMs: classifyLatency,
+      });
 
       // Parse the JSON response
       const text = result.text.trim();
@@ -343,6 +366,7 @@ If it's been a while, acknowledge that gently.
 Return ONLY the message text.`;
 
     try {
+      const followUpStart = Date.now();
       const result = await matchaAgent.generateText(
         ctx,
         { threadId: args.threadId },
@@ -354,6 +378,17 @@ Return ONLY the message text.`;
           storageOptions: { saveMessages: args.threadId ? "promptAndOutput" : "none" },
         },
       );
+      const followUpLatency = Date.now() - followUpStart;
+
+      // Log token usage
+      await logAiSdkUsage(ctx, result, {
+        processType: "whatsapp-followup",
+        provider: "openrouter",
+        model: "openai/gpt-4o",
+        latencyMs: followUpLatency,
+        entityType: "member",
+        entityId: args.memberContext.memberId,
+      });
 
       return {
         followUpMessage: result.text.trim(),

@@ -17,6 +17,7 @@ import {
   OPENROUTER_MODEL,
   getOpenRouterApiKey,
 } from "./config";
+import { logOpenRouterUsage } from "../../analytics/instrumentLlm";
 
 const SYSTEM_PROMPT = `You are an assistant for a matchmaking service. Analyze the member's free-text feedback about why they declined a match.
 
@@ -56,6 +57,7 @@ export const analyzeFeedback = internalAction({
         userPrompt += `\nMember's first name: ${args.memberFirstName}`;
       }
 
+      const fetchStart = Date.now();
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
@@ -72,6 +74,7 @@ export const analyzeFeedback = internalAction({
           max_tokens: 500,
         }),
       });
+      const latencyMs = Date.now() - fetchStart;
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -82,6 +85,15 @@ export const analyzeFeedback = internalAction({
 
       const data = await response.json();
       const content = data?.choices?.[0]?.message?.content;
+
+      // Log token usage for analytics
+      await logOpenRouterUsage(ctx, data, {
+        processType: "feedback-analysis",
+        model: OPENROUTER_MODEL,
+        latencyMs,
+        entityType: "feedback",
+        entityId: args.feedbackId as string,
+      });
 
       if (!content) {
         throw new Error("OpenRouter returned empty content");
@@ -246,6 +258,7 @@ export const analyzeRecalibration = internalAction({
       }
 
       // 5. Call OpenRouter
+      const recalFetchStart = Date.now();
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
@@ -262,6 +275,7 @@ export const analyzeRecalibration = internalAction({
           max_tokens: 600,
         }),
       });
+      const recalLatencyMs = Date.now() - recalFetchStart;
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -272,6 +286,15 @@ export const analyzeRecalibration = internalAction({
 
       const data = await response.json();
       const content = data?.choices?.[0]?.message?.content;
+
+      // Log token usage for analytics
+      await logOpenRouterUsage(ctx, data, {
+        processType: "recalibration-analysis",
+        model: OPENROUTER_MODEL,
+        latencyMs: recalLatencyMs,
+        entityType: "member",
+        entityId: args.memberId as string,
+      });
 
       if (!content) {
         throw new Error("OpenRouter returned empty content");

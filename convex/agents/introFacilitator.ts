@@ -23,6 +23,7 @@ import { internal } from "../_generated/api";
 import { matchaAgent } from "./matchaAgent";
 import { TEMPERATURE } from "./config";
 import { FEATURE_FLAGS } from "./config";
+import { logAiSdkUsage } from "../analytics/instrumentLlm";
 
 // ============================================================================
 // Introduction System Prompt Supplement
@@ -87,6 +88,7 @@ Write a brief, warm introduction that:
 Return ONLY the message text.`;
 
     try {
+      const introStart = Date.now();
       const result = await matchaAgent.generateText(
         ctx,
         { threadId: args.agentThreadId },
@@ -101,6 +103,17 @@ Return ONLY the message text.`;
           },
         },
       );
+      const introLatency = Date.now() - introStart;
+
+      // Log token usage
+      await logAiSdkUsage(ctx, result, {
+        processType: "whatsapp-intro",
+        provider: "openrouter",
+        model: "openai/gpt-4o",
+        latencyMs: introLatency,
+        entityType: "match",
+        entityId: args.matchId as string,
+      });
 
       return {
         introMessage: result.text.trim(),
@@ -156,6 +169,7 @@ Keep it to 1-2 sentences.
 Return ONLY the message text.`;
 
     try {
+      const icebreakerStart = Date.now();
       const result = await matchaAgent.generateText(
         ctx,
         { threadId: args.agentThreadId },
@@ -167,6 +181,17 @@ Return ONLY the message text.`;
           storageOptions: { saveMessages: "none" },
         },
       );
+      const icebreakerLatency = Date.now() - icebreakerStart;
+
+      // Log token usage
+      await logAiSdkUsage(ctx, result, {
+        processType: "whatsapp-intro",
+        provider: "openrouter",
+        model: "openai/gpt-4o",
+        latencyMs: icebreakerLatency,
+        entityType: "match",
+        entityId: args.matchId as string,
+      });
 
       return {
         icebreaker: result.text.trim(),

@@ -66,7 +66,7 @@ export function IntroDetailSheet({ member, open, onOpenChange }: IntroDetailShee
 
   // Sort groups by priority
   const sortedGroups = Array.from(grouped.keys()).sort(
-    (a, b) => getGroupPriority(a) - getGroupPriority(b)
+    (a: string, b: string) => getGroupPriority(a) - getGroupPriority(b)
   )
 
   return (

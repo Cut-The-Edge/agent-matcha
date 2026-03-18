@@ -495,7 +495,7 @@ function SmaIntroSection({
   // Sort groups by CRM priority order
   const sortedGroups = React.useMemo(
     () => Array.from(grouped.keys()).sort(
-      (a, b) => getIntroGroupPriority(a) - getIntroGroupPriority(b)
+      (a: string, b: string) => getIntroGroupPriority(a) - getIntroGroupPriority(b)
     ),
     [grouped]
   )
