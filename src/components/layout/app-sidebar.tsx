@@ -49,8 +49,8 @@ const data = {
       title: "Leads",
       url: "/dashboard/leads",
       icon: UserPlus,
-      hasBadge: true,
-      description: "Review membership upgrade requests and approve or deny them",
+      comingSoon: true,
+      description: "Track and manage incoming leads from your matchmaking pipeline",
     },
     {
       title: "Messages",

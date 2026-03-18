@@ -26,6 +26,14 @@ function LeadsBadge() {
   return <SidebarMenuBadge>{count}</SidebarMenuBadge>
 }
 
+function ComingSoonBadge() {
+  return (
+    <SidebarMenuBadge className="text-[10px] text-muted-foreground/70">
+      Soon
+    </SidebarMenuBadge>
+  )
+}
+
 export function NavMain({
   items,
   label,
@@ -35,6 +43,7 @@ export function NavMain({
     url: string
     icon?: LucideIcon
     hasBadge?: boolean
+    comingSoon?: boolean
     description?: string
   }[]
   label?: string
@@ -77,6 +86,7 @@ export function NavMain({
                   </SidebarMenuButton>
                 )}
                 {item.hasBadge && <LeadsBadge />}
+                {item.comingSoon && <ComingSoonBadge />}
               </SidebarMenuItem>
             )
           })}
