@@ -10,17 +10,18 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, AreaChart, Area } from "recharts"
-import { Heart, TrendingUp, Clock, Users, BarChart3, PieChartIcon, Activity, Coins, Cpu, Zap, Database } from "lucide-react"
+import { Heart, TrendingUp, Clock, Users, BarChart3, PieChartIcon, Activity, Coins, Cpu, Zap, Database, AlertTriangle, CheckCircle2, Phone, MessageSquare, DollarSign, Target } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { api } from "../../../../convex/_generated/api"
 import { useAuthQuery } from "@/hooks/use-auth-query"
 import { useState, useMemo } from "react"
 
 // ============================================================================
-// Static placeholder data (all zeros / empty states) — Matchmaking tab
+// Static placeholder data (all zeros / empty states) -- Matchmaking tab
 // ============================================================================
 
 const summaryStats = [
@@ -51,7 +52,7 @@ const summaryStats = [
 ]
 
 // ============================================================================
-// Chart configs — Matchmaking tab
+// Chart configs -- Matchmaking tab
 // ============================================================================
 
 const outcomeConfig = {
@@ -70,16 +71,12 @@ const responseTimeConfig = {
 } satisfies ChartConfig
 
 // ============================================================================
-// Chart configs — Token Analytics tab
+// Chart configs -- Token Analytics tab
 // ============================================================================
 
 const costTrendConfig = {
   totalCostUsd: { label: "Cost (USD)", color: "hsl(var(--chart-1))" },
   callCount: { label: "API Calls", color: "hsl(var(--chart-3))" },
-} satisfies ChartConfig
-
-const processBreakdownConfig = {
-  totalCostUsd: { label: "Cost (USD)", color: "hsl(var(--chart-1))" },
 } satisfies ChartConfig
 
 const modelBreakdownConfig = {
@@ -139,6 +136,230 @@ function formatTokenCount(count: number): string {
 function formatPricing(centsPerMillion: number): string {
   const dollarsPerMillion = centsPerMillion / 100
   return `$${dollarsPerMillion.toFixed(2)}/1M`
+}
+
+// ============================================================================
+// Pricing Staleness Badge
+// ============================================================================
+
+function PricingStalenessBadge() {
+  const staleness = useAuthQuery(api.analytics.pricingSync.getPricingStaleness, {})
+
+  if (!staleness) {
+    return null
+  }
+
+  if (staleness.status === "unknown") {
+    return (
+      <Badge variant="destructive" className="ml-2 gap-1">
+        <AlertTriangle className="h-3 w-3" />
+        Unknown
+      </Badge>
+    )
+  }
+
+  if (staleness.status === "stale") {
+    const lastSyncDate = staleness.lastSyncedAt
+      ? new Date(staleness.lastSyncedAt).toLocaleDateString()
+      : "Never"
+    return (
+      <Badge variant="outline" className="ml-2 gap-1 border-yellow-500 text-yellow-600">
+        <AlertTriangle className="h-3 w-3" />
+        Stale (last: {lastSyncDate})
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="outline" className="ml-2 gap-1 border-green-500 text-green-600">
+      <CheckCircle2 className="h-3 w-3" />
+      Up to date
+    </Badge>
+  )
+}
+
+// ============================================================================
+// Pricing Staleness Alert Banner
+// ============================================================================
+
+function PricingStalenessAlert() {
+  const staleness = useAuthQuery(api.analytics.pricingSync.getPricingStaleness, {})
+
+  if (!staleness) return null
+
+  if (staleness.status === "stale" && staleness.lastSyncedAt) {
+    const lastSyncDate = new Date(staleness.lastSyncedAt).toLocaleDateString()
+    return (
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Pricing data may be stale</AlertTitle>
+        <AlertDescription>
+          Model pricing was last synced on {lastSyncDate} (more than 7 days ago).
+          Cost calculations may not reflect current provider rates.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (staleness.status === "unknown") {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>No pricing data</AlertTitle>
+        <AlertDescription>
+          No model pricing data has been configured. Run the pricing seed mutation to populate default pricing.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  return null
+}
+
+// ============================================================================
+// Client-Facing Usage Summary Panel
+// ============================================================================
+
+function UsageSummaryPanel() {
+  const clientSummary = useAuthQuery(api.analytics.tokenTracking.getClientUsageSummary, {})
+
+  if (!clientSummary) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <DollarSign className="h-4 w-4" />
+            Usage Summary
+          </CardTitle>
+          <CardDescription>Loading usage data...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+            Loading...
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const { categories, perOperation, totalMonthCost, projectedMonthlyCost, monthLabel, totalCalls, dayOfMonth, daysInMonth } = clientSummary
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <DollarSign className="h-4 w-4" />
+          Usage Summary -- {monthLabel}
+        </CardTitle>
+        <CardDescription>
+          AI cost breakdown by service category (day {dayOfMonth} of {daysInMonth})
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {totalCalls === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <DollarSign className="h-10 w-10 text-muted-foreground/40 mb-3" />
+            <p className="text-sm text-muted-foreground">No usage this month yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Costs will appear here as AI processes are used
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Top-level totals */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Total this month</p>
+                <p className="text-3xl font-bold mt-1">{formatCost(totalMonthCost)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{totalCalls} API calls</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Projected monthly total</p>
+                <p className="text-3xl font-bold mt-1">{formatCost(projectedMonthlyCost)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Based on {dayOfMonth} day{dayOfMonth !== 1 ? "s" : ""} of usage
+                </p>
+              </div>
+            </div>
+
+            {/* Category breakdown */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">By Service</h4>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <Phone className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Phone Agent</p>
+                    <p className="text-lg font-bold">{formatCost(categories.phoneAgent.cost)}</p>
+                    <p className="text-xs text-muted-foreground">{categories.phoneAgent.calls} calls</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">WhatsApp Bot</p>
+                    <p className="text-lg font-bold">{formatCost(categories.whatsappBot.cost)}</p>
+                    <p className="text-xs text-muted-foreground">{categories.whatsappBot.calls} calls</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <Cpu className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Other</p>
+                    <p className="text-lg font-bold">{formatCost(categories.other.cost)}</p>
+                    <p className="text-xs text-muted-foreground">{categories.other.calls} calls</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Per-operation averages */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Average Cost per Operation</h4>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Intake call</span>
+                  </div>
+                  <span className="text-sm font-medium">
+                    {perOperation.avgIntakeCall > 0 ? formatCost(perOperation.avgIntakeCall) : "--"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Feedback cycle</span>
+                  </div>
+                  <span className="text-sm font-medium">
+                    {perOperation.avgFeedbackCycle > 0 ? formatCost(perOperation.avgFeedbackCycle) : "--"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Intro cycle</span>
+                  </div>
+                  <span className="text-sm font-medium">
+                    {perOperation.avgIntroCycle > 0 ? formatCost(perOperation.avgIntroCycle) : "--"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Analysis</span>
+                  </div>
+                  <span className="text-sm font-medium">
+                    {perOperation.avgAnalysis > 0 ? formatCost(perOperation.avgAnalysis) : "--"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 // ============================================================================
@@ -204,6 +425,12 @@ function TokenAnalyticsTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Pricing staleness alert */}
+      <PricingStalenessAlert />
+
+      {/* Client-facing usage summary */}
+      <UsageSummaryPanel />
+
       {/* Date range selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-muted-foreground">Time range:</span>
@@ -306,7 +533,7 @@ function TokenAnalyticsTab() {
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  tickFormatter={(v) => {
+                  tickFormatter={(v: string) => {
                     const d = new Date(v)
                     return `${d.getMonth() + 1}/${d.getDate()}`
                   }}
@@ -314,7 +541,7 @@ function TokenAnalyticsTab() {
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v) => `$${v}`}
+                  tickFormatter={(v: number) => `$${v}`}
                 />
                 <ChartTooltip
                   content={<ChartTooltipContent
@@ -339,7 +566,7 @@ function TokenAnalyticsTab() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Cost by process type — pie chart */}
+        {/* Cost by process type -- pie chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -380,7 +607,7 @@ function TokenAnalyticsTab() {
           </CardContent>
         </Card>
 
-        {/* Cost by model — bar chart */}
+        {/* Cost by model -- bar chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -416,7 +643,7 @@ function TokenAnalyticsTab() {
                   />
                   <XAxis
                     type="number"
-                    tickFormatter={(v) => `$${v}`}
+                    tickFormatter={(v: number) => `$${v}`}
                   />
                   <ChartTooltip
                     content={<ChartTooltipContent
@@ -431,7 +658,7 @@ function TokenAnalyticsTab() {
         </Card>
       </div>
 
-      {/* Usage by process type — detail table */}
+      {/* Usage by process type -- detail table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -486,6 +713,7 @@ function TokenAnalyticsTab() {
           <CardTitle className="flex items-center gap-2 text-base">
             <Coins className="h-4 w-4" />
             Model Pricing
+            <PricingStalenessBadge />
           </CardTitle>
           <CardDescription>
             Current pricing data used for cost calculations
@@ -685,7 +913,7 @@ export default function AnalyticsPage() {
                         <YAxis
                           tickLine={false}
                           axisLine={false}
-                          tickFormatter={(v) => `${v}m`}
+                          tickFormatter={(v: number) => `${v}m`}
                         />
                         <ChartTooltip content={<ChartTooltipContent />} />
                         <Line

@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use node";
 /**
  * Pricing Sync Action
@@ -10,13 +9,34 @@
 import { internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
 
+/** Shape of a single model entry in the OpenRouter API response. */
+interface OpenRouterModel {
+  id: string;
+  pricing?: {
+    prompt: string;
+    completion: string;
+  };
+}
+
+/** Shape of the OpenRouter /models response body. */
+interface OpenRouterModelsResponse {
+  data?: OpenRouterModel[];
+}
+
+/** Result returned by the sync action. */
+interface SyncResult {
+  success: boolean;
+  modelsUpdated?: number;
+  error?: string;
+}
+
 /**
  * Fetch current pricing from OpenRouter API and update the local table.
  * OpenRouter exposes model pricing in its /models endpoint.
  */
 export const syncPricingFromOpenRouter = internalAction({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<SyncResult> => {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/models");
 
@@ -27,7 +47,7 @@ export const syncPricingFromOpenRouter = internalAction({
         return { success: false, error: `HTTP ${response.status}` };
       }
 
-      const data = await response.json();
+      const data: OpenRouterModelsResponse = await response.json();
       const models = data?.data;
 
       if (!Array.isArray(models)) {
@@ -66,12 +86,14 @@ export const syncPricingFromOpenRouter = internalAction({
       }
 
       return { success: true, modelsUpdated: updated };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
       console.error(
         "[pricingSync] Failed to sync from OpenRouter:",
-        error?.message,
+        message,
       );
-      return { success: false, error: error?.message };
+      return { success: false, error: message };
     }
   },
 });

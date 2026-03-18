@@ -1,6 +1,5 @@
-// @ts-nocheck
 /**
- * Model Pricing — Queries & Mutations
+ * Model Pricing -- Queries & Mutations
  *
  * Manages the modelPricing table with current LLM pricing data.
  * Provides:
@@ -8,6 +7,7 @@
  *   - Mutation to update individual pricing entries
  *   - Query to get current pricing for the dashboard
  *   - Internal query for cost calculation lookups
+ *   - Query to check pricing staleness
  */
 
 import { v } from "convex/values";
@@ -22,7 +22,15 @@ import { requireAuth } from "../auth/authz";
 // Default pricing data (as of March 2026)
 // ============================================================================
 
-const DEFAULT_PRICING = [
+interface DefaultPricingEntry {
+  provider: string;
+  model: string;
+  inputPricePerMillion: number;
+  outputPricePerMillion: number;
+  sourceUrl: string;
+}
+
+const DEFAULT_PRICING: DefaultPricingEntry[] = [
   {
     provider: "openai",
     model: "gpt-4o",
@@ -86,7 +94,7 @@ const DEFAULT_PRICING = [
 // ============================================================================
 
 /**
- * Seed or update pricing data. Safe to call multiple times — upserts by
+ * Seed or update pricing data. Safe to call multiple times -- upserts by
  * provider+model.
  */
 export const seedPricing = internalMutation({
@@ -219,6 +227,48 @@ export const getPricingForModel = internalQuery({
     return {
       inputPricePerMillion: pricing.inputPricePerMillion,
       outputPricePerMillion: pricing.outputPricePerMillion,
+    };
+  },
+});
+
+/** Staleness status for pricing data. */
+type StalenessStatus = "up_to_date" | "stale" | "unknown";
+
+interface PricingStalenessResult {
+  status: StalenessStatus;
+  lastSyncedAt: number | null;
+  modelCount: number;
+}
+
+/**
+ * Get pricing staleness information for the dashboard badge.
+ * Returns a status: "up_to_date" (< 7 days), "stale" (> 7 days), or "unknown" (no data).
+ */
+export const getPricingStaleness = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<PricingStalenessResult> => {
+    await requireAuth(ctx, args.sessionToken);
+
+    const allPricing = await ctx.db.query("modelPricing").collect();
+
+    if (allPricing.length === 0) {
+      return { status: "unknown", lastSyncedAt: null, modelCount: 0 };
+    }
+
+    const latestSync = Math.max(
+      ...allPricing.map((p) => p.lastSyncedAt),
+    );
+
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const status: StalenessStatus =
+      latestSync >= sevenDaysAgo ? "up_to_date" : "stale";
+
+    return {
+      status,
+      lastSyncedAt: latestSync,
+      modelCount: allPricing.length,
     };
   },
 });

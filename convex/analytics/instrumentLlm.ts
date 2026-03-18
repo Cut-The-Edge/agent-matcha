@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * LLM Instrumentation Helpers
  *
@@ -46,7 +45,33 @@ interface TokenUsageParams {
   entityType?: string;
   entityId?: string;
   sessionId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
+}
+
+/** Shape of the usage field in an OpenRouter API response. */
+interface OpenRouterUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
+/** Shape of the usage field in an AI SDK generateText result. */
+interface AiSdkUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+}
+
+interface LogOpts {
+  processType: ProcessType;
+  model: string;
+  latencyMs?: number;
+  entityType?: string;
+  entityId?: string;
+  sessionId?: string;
+}
+
+interface LogOptsWithProvider extends LogOpts {
+  provider: Provider;
 }
 
 // ============================================================================
@@ -93,15 +118,8 @@ function calculateCost(
  */
 export async function logOpenRouterUsage(
   ctx: ActionCtx,
-  openRouterResponse: any,
-  opts: {
-    processType: ProcessType;
-    model: string;
-    latencyMs?: number;
-    entityType?: string;
-    entityId?: string;
-    sessionId?: string;
-  },
+  openRouterResponse: { usage?: OpenRouterUsage },
+  opts: LogOpts,
 ): Promise<void> {
   try {
     const usage = openRouterResponse?.usage;
@@ -141,16 +159,8 @@ export async function logOpenRouterUsage(
  */
 export async function logAiSdkUsage(
   ctx: ActionCtx,
-  aiSdkResult: any,
-  opts: {
-    processType: ProcessType;
-    provider: Provider;
-    model: string;
-    latencyMs?: number;
-    entityType?: string;
-    entityId?: string;
-    sessionId?: string;
-  },
+  aiSdkResult: { usage?: AiSdkUsage },
+  opts: LogOptsWithProvider,
 ): Promise<void> {
   try {
     const usage = aiSdkResult?.usage;

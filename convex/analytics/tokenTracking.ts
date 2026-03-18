@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Token Usage Tracking
  *
@@ -13,7 +12,6 @@
 import { v } from "convex/values";
 import {
   internalMutation,
-  internalQuery,
   query,
 } from "../_generated/server";
 import { requireAuth } from "../auth/authz";
@@ -42,6 +40,38 @@ const providerValidator = v.union(
   v.literal("google"),
   v.literal("other"),
 );
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Shape of a single process-type usage bucket (returned by getUsageByProcessType). */
+interface ProcessTypeBucket {
+  processType: string;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalCostUsd: number;
+  callCount: number;
+  avgLatencyMs: number;
+}
+
+/** Shape of a single provider+model cost bucket (returned by getCostBreakdown). */
+interface ModelCostBucket {
+  provider: string;
+  model: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  callCount: number;
+}
+
+/** Shape of a daily trend point (returned by getDailyCostTrend). */
+interface DailyTrendPoint {
+  date: string;
+  totalCostUsd: number;
+  totalTokens: number;
+  callCount: number;
+}
 
 // ============================================================================
 // Mutations
@@ -86,7 +116,7 @@ export const getUsageByProcessType = query({
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ProcessTypeBucket[]> => {
     await requireAuth(ctx, args.sessionToken);
 
     const now = Date.now();
@@ -102,18 +132,7 @@ export const getUsageByProcessType = query({
       (u) => u.createdAt >= startDate && u.createdAt <= endDate,
     );
 
-    const byProcess: Record<
-      string,
-      {
-        processType: string;
-        totalInputTokens: number;
-        totalOutputTokens: number;
-        totalTokens: number;
-        totalCostUsd: number;
-        callCount: number;
-        avgLatencyMs: number;
-      }
-    > = {};
+    const byProcess: Record<string, ProcessTypeBucket> = {};
 
     for (const usage of filtered) {
       if (!byProcess[usage.processType]) {
@@ -164,7 +183,7 @@ export const getCostBreakdown = query({
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ModelCostBucket[]> => {
     await requireAuth(ctx, args.sessionToken);
 
     const now = Date.now();
@@ -181,16 +200,7 @@ export const getCostBreakdown = query({
     );
 
     // Group by provider+model
-    const byModel: Record<
-      string,
-      {
-        provider: string;
-        model: string;
-        totalTokens: number;
-        totalCostUsd: number;
-        callCount: number;
-      }
-    > = {};
+    const byModel: Record<string, ModelCostBucket> = {};
 
     for (const usage of filtered) {
       const key = `${usage.provider}/${usage.model}`;
@@ -227,7 +237,7 @@ export const getDailyCostTrend = query({
     sessionToken: v.optional(v.string()),
     days: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<DailyTrendPoint[]> => {
     await requireAuth(ctx, args.sessionToken);
 
     const days = args.days ?? 30;
@@ -242,15 +252,7 @@ export const getDailyCostTrend = query({
     const filtered = allUsage.filter((u) => u.createdAt >= cutoff);
 
     // Group by day
-    const byDay: Record<
-      string,
-      {
-        date: string;
-        totalCostUsd: number;
-        totalTokens: number;
-        callCount: number;
-      }
-    > = {};
+    const byDay: Record<string, DailyTrendPoint> = {};
 
     for (const usage of filtered) {
       const dayKey = new Date(usage.createdAt).toISOString().split("T")[0];
@@ -268,7 +270,7 @@ export const getDailyCostTrend = query({
     }
 
     // Build trend array for every day in range
-    const trend = [];
+    const trend: DailyTrendPoint[] = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(now - (days - 1 - i) * 24 * 60 * 60 * 1000);
       const dayKey = date.toISOString().split("T")[0];
@@ -342,6 +344,162 @@ export const getTokenUsageSummary = query({
         ...new Set(filtered.map((u) => `${u.provider}/${u.model}`)),
       ].length,
       uniqueProcesses: [...new Set(filtered.map((u) => u.processType))].length,
+    };
+  },
+});
+
+/**
+ * Get client-facing usage summary for the current month.
+ * Groups costs into "Phone Agent" (voice-intake, summarization) and
+ * "WhatsApp Bot" (whatsapp-*) categories, plus per-operation averages
+ * and projected monthly cost.
+ */
+export const getClientUsageSummary = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    const now = Date.now();
+
+    // Current month boundaries
+    const currentMonthStart = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      1,
+    ).getTime();
+    const currentMonthEnd = now;
+
+    const allUsage = await ctx.db
+      .query("tokenUsage")
+      .withIndex("by_created")
+      .collect();
+
+    const monthUsage = allUsage.filter(
+      (u) => u.createdAt >= currentMonthStart && u.createdAt <= currentMonthEnd,
+    );
+
+    // Category definitions
+    const phoneProcesses = new Set([
+      "voice-intake",
+      "summarization",
+    ]);
+    const whatsappProcesses = new Set([
+      "whatsapp-feedback",
+      "whatsapp-intro",
+      "whatsapp-personalization",
+      "whatsapp-classification",
+      "whatsapp-followup",
+    ]);
+
+    let phoneAgentCost = 0;
+    let phoneAgentCalls = 0;
+    let whatsappBotCost = 0;
+    let whatsappBotCalls = 0;
+    let otherCost = 0;
+    let otherCalls = 0;
+
+    // Per-operation breakdown
+    let intakeCost = 0;
+    let intakeCount = 0;
+    let feedbackCost = 0;
+    let feedbackCount = 0;
+    let introCost = 0;
+    let introCount = 0;
+    let analysisCost = 0;
+    let analysisCount = 0;
+
+    for (const usage of monthUsage) {
+      if (phoneProcesses.has(usage.processType)) {
+        phoneAgentCost += usage.costUsd;
+        phoneAgentCalls += 1;
+      } else if (whatsappProcesses.has(usage.processType)) {
+        whatsappBotCost += usage.costUsd;
+        whatsappBotCalls += 1;
+      } else {
+        otherCost += usage.costUsd;
+        otherCalls += 1;
+      }
+
+      // Per-operation
+      if (usage.processType === "voice-intake") {
+        intakeCost += usage.costUsd;
+        intakeCount += 1;
+      } else if (usage.processType === "whatsapp-feedback") {
+        feedbackCost += usage.costUsd;
+        feedbackCount += 1;
+      } else if (usage.processType === "whatsapp-intro") {
+        introCost += usage.costUsd;
+        introCount += 1;
+      } else if (
+        usage.processType === "feedback-analysis" ||
+        usage.processType === "recalibration-analysis"
+      ) {
+        analysisCost += usage.costUsd;
+        analysisCount += 1;
+      }
+    }
+
+    const totalMonthCost = phoneAgentCost + whatsappBotCost + otherCost;
+
+    // Projected monthly cost: extrapolate based on days elapsed
+    const dayOfMonth = new Date().getDate();
+    const daysInMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth() + 1,
+      0,
+    ).getDate();
+    const projectedMonthlyCost =
+      dayOfMonth > 0
+        ? (totalMonthCost / dayOfMonth) * daysInMonth
+        : 0;
+
+    return {
+      monthLabel: new Date().toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+      totalMonthCost: Math.round(totalMonthCost * 10000) / 10000,
+      projectedMonthlyCost:
+        Math.round(projectedMonthlyCost * 10000) / 10000,
+      categories: {
+        phoneAgent: {
+          cost: Math.round(phoneAgentCost * 10000) / 10000,
+          calls: phoneAgentCalls,
+        },
+        whatsappBot: {
+          cost: Math.round(whatsappBotCost * 10000) / 10000,
+          calls: whatsappBotCalls,
+        },
+        other: {
+          cost: Math.round(otherCost * 10000) / 10000,
+          calls: otherCalls,
+        },
+      },
+      perOperation: {
+        avgIntakeCall:
+          intakeCount > 0
+            ? Math.round((intakeCost / intakeCount) * 1_000_000) / 1_000_000
+            : 0,
+        avgFeedbackCycle:
+          feedbackCount > 0
+            ? Math.round((feedbackCost / feedbackCount) * 1_000_000) /
+              1_000_000
+            : 0,
+        avgIntroCycle:
+          introCount > 0
+            ? Math.round((introCost / introCount) * 1_000_000) / 1_000_000
+            : 0,
+        avgAnalysis:
+          analysisCount > 0
+            ? Math.round((analysisCost / analysisCount) * 1_000_000) /
+              1_000_000
+            : 0,
+      },
+      totalCalls: monthUsage.length,
+      dayOfMonth,
+      daysInMonth,
     };
   },
 });

@@ -580,4 +580,56 @@ export default defineSchema({
   })
     .index("by_instance", ["instanceId"])
     .index("by_timestamp", ["timestamp"]),
+
+  // -- Token Usage Analytics --
+  tokenUsage: defineTable({
+    processType: v.union(
+      v.literal("voice-intake"),
+      v.literal("summarization"),
+      v.literal("whatsapp-feedback"),
+      v.literal("whatsapp-intro"),
+      v.literal("whatsapp-personalization"),
+      v.literal("whatsapp-classification"),
+      v.literal("whatsapp-followup"),
+      v.literal("feedback-analysis"),
+      v.literal("recalibration-analysis"),
+      v.literal("other"),
+    ),
+    provider: v.union(
+      v.literal("openai"),
+      v.literal("anthropic"),
+      v.literal("openrouter"),
+      v.literal("google"),
+      v.literal("other"),
+    ),
+    model: v.string(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    totalTokens: v.number(),
+    costUsd: v.number(),
+    latencyMs: v.optional(v.number()),
+    entityType: v.optional(v.string()),
+    entityId: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_processType", ["processType"])
+    .index("by_provider", ["provider"])
+    .index("by_model", ["model"])
+    .index("by_created", ["createdAt"])
+    .index("by_entityType", ["entityType", "entityId"]),
+
+  // -- Model Pricing (for cost calculations) --
+  modelPricing: defineTable({
+    provider: v.string(),
+    model: v.string(),
+    inputPricePerMillion: v.number(),
+    outputPricePerMillion: v.number(),
+    effectiveDate: v.number(),
+    sourceUrl: v.optional(v.string()),
+    lastSyncedAt: v.number(),
+  })
+    .index("by_provider_model", ["provider", "model"])
+    .index("by_model", ["model"]),
 });
