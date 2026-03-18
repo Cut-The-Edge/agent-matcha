@@ -154,6 +154,36 @@ export const saveIntakeDataHandler = httpAction(async (ctx, request) => {
 });
 
 /**
+ * POST /voice/save-deep-dive
+ * Save deep dive (Phase 2) insights from the call.
+ */
+export const saveDeepDiveHandler = httpAction(async (ctx, request) => {
+  const body = await request.json();
+  const { callId, data } = body;
+  console.log("[saveDeepDive] callId=%s tags: %s", callId, Object.keys(data?.tags || {}).join(", "));
+
+  await ctx.runMutation(internal.voice.mutations.saveDeepDiveData, {
+    callId,
+    data,
+  });
+
+  // Schedule SMA file sync for the deep dive
+  const call = await ctx.runQuery(internal.voice.queries.getCallInternal, { callId });
+  if (call?.memberId) {
+    console.log("[saveDeepDive] Scheduling deep dive SMA sync for member %s", call.memberId);
+    await ctx.scheduler.runAfter(0, internal.voice.actions.syncDeepDiveToSma, {
+      callId,
+      memberId: call.memberId,
+    });
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+});
+
+/**
  * POST /voice/send-data-request
  * Create and send a profile completion form link to a member via WhatsApp.
  * Called by the voice agent mid-call.

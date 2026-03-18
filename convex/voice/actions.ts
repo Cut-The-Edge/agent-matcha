@@ -384,6 +384,79 @@ Respond with ONLY valid JSON. No markdown, no code fences, no explanation.`,
       }
     }
 
+    // ── Deep Dive Fallback: Extract Phase 2 insights from transcript ──
+    // If the agent started Phase 2 but crashed/disconnected before calling
+    // save_deep_dive_data, attempt to extract deep dive insights from the
+    // transcript using LLM. This is a safety net — not as good as the agent's
+    // own save, but captures the data that would otherwise be lost.
+    const freshCall = await ctx.runQuery(internal.voice.queries.getCallInternal, {
+      callId: args.callId,
+    });
+    const hasDeepDive = freshCall?.deepDiveData;
+    const transcriptHasPhase2 = transcript.includes("get to know you a bit better") ||
+      transcript.includes("deeper") ||
+      transcript.includes("most meaningful relationship") ||
+      transcript.includes("what matters most to you");
+
+    if (!hasDeepDive && transcriptHasPhase2 && call.memberId) {
+      console.log("[generateSummary] No deepDiveData but transcript contains Phase 2 content — extracting fallback");
+      try {
+        const ddResponse = await fetch(OPENROUTER_API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${getOpenRouterApiKey()}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              {
+                role: "system",
+                content: `You are a matchmaker analyst. Extract deep personality insights from this voice call transcript. The call had a "deep dive" phase where the agent asked personal questions about relationships, values, and personality.
+
+Return a JSON object with:
+- "matchmakerNote": A rich paragraph summarizing who this person really is — personality, emotional patterns, what they need in a partner, life stage. Write as an internal matchmaker note.
+- "tags": An object with any of these keys that you can determine: attachment_style, communication_style, energy_level, life_stage, emotional_maturity, social_style, love_language, conflict_style. Each should be a short descriptive phrase.
+- "conversationSummary": A summary of the personal/deep topics discussed.
+
+If the transcript doesn't have enough personal content for a meaningful deep dive note, return {"matchmakerNote": "", "tags": {}, "conversationSummary": ""}.
+
+Return ONLY valid JSON.`,
+              },
+              { role: "user", content: `Transcript:\n\n${transcript}` },
+            ],
+            temperature: 0.4,
+          }),
+        });
+
+        if (ddResponse.ok) {
+          const ddData = await ddResponse.json();
+          const ddContent = ddData.choices?.[0]?.message?.content;
+          try {
+            const ddParsed = JSON.parse(ddContent);
+            if (ddParsed.matchmakerNote && ddParsed.matchmakerNote.length > 20) {
+              console.log("[generateSummary] Deep dive fallback extracted — saving");
+              await ctx.runMutation(internal.voice.mutations.saveDeepDiveData, {
+                callId: args.callId,
+                data: ddParsed,
+              });
+              // Also sync to SMA
+              await ctx.scheduler.runAfter(0, internal.voice.actions.syncDeepDiveToSma, {
+                callId: args.callId,
+                memberId: call.memberId,
+              });
+            } else {
+              console.log("[generateSummary] Deep dive fallback — not enough content to save");
+            }
+          } catch {
+            console.warn("[generateSummary] Deep dive fallback — failed to parse LLM response");
+          }
+        }
+      } catch (e: any) {
+        console.warn("[generateSummary] Deep dive fallback extraction failed (non-fatal):", e.message);
+      }
+    }
+
     // Schedule SMA sync after all data is merged and saved
     console.log("[generateSummary] Done — scheduling syncCallToSMA");
     await ctx.scheduler.runAfter(0, internal.voice.actions.syncCallToSMA, {
@@ -1424,5 +1497,128 @@ export const placeOutboundCall = internalAction({
       phone: member.phone,
       context: callContext,
     };
+  },
+});
+
+// ── Deep Dive SMA File Sync ─────────────────────────────────────────
+
+const DEEP_DIVE_PREFIX = "voice-deep-dive-";
+
+/**
+ * Sync Phase 2 deep dive data to SMA as a file on the member's profile.
+ * Creates/replaces a `voice-deep-dive-YYYY-MM-DD.txt` file.
+ */
+export const syncDeepDiveToSma = internalAction({
+  args: {
+    callId: v.id("phoneCalls"),
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // 1. Load call and member
+      const call = await ctx.runQuery(internal.voice.queries.getCallInternal, {
+        callId: args.callId,
+      });
+      if (!call?.deepDiveData) {
+        console.log("[syncDeepDiveToSma] No deep dive data on call — skipping");
+        return;
+      }
+
+      const member = await ctx.runQuery(internal.members.queries.getInternal, {
+        memberId: args.memberId,
+      });
+      if (!member) {
+        console.warn("[syncDeepDiveToSma] Member not found:", args.memberId);
+        return;
+      }
+
+      const clientSmaId = member.smaId ? parseInt(member.smaId, 10) : NaN;
+      if (isNaN(clientSmaId)) {
+        console.log("[syncDeepDiveToSma] Skipping — member has no numeric smaId");
+        return;
+      }
+
+      // 2. Format the deep dive file content
+      const data = call.deepDiveData as any;
+      const date = new Date().toISOString().split("T")[0];
+      const tags = data.tags || {};
+
+      const lines: string[] = [
+        `DEEP DIVE — Voice Call`,
+        "",
+        "── Matchmaker Note ──",
+        data.matchmakerNote || "(no note)",
+        "",
+        "── Personality Profile ──",
+      ];
+
+      const tagLabels: Record<string, string> = {
+        attachment_style: "Attachment",
+        communication_style: "Communication",
+        energy_level: "Energy",
+        life_stage: "Life Stage",
+        emotional_maturity: "Emotional Maturity",
+        social_style: "Social Style",
+        love_language: "Love Language",
+        conflict_style: "Conflict Style",
+      };
+
+      for (const [key, label] of Object.entries(tagLabels)) {
+        if (tags[key]) {
+          lines.push(`• ${label}: ${tags[key]}`);
+        }
+      }
+
+      if (data.conversationSummary) {
+        lines.push("", "── Conversation Summary ──", data.conversationSummary);
+      }
+
+      const fileContent = lines.join("\n");
+
+      // 3. Upload to SMA using append-and-replace pattern
+      let existingContent = "";
+
+      try {
+        const files = await listClientFiles(clientSmaId);
+        const deepDiveFiles = files.filter(
+          (f: any) => f.name && f.name.startsWith(DEEP_DIVE_PREFIX),
+        );
+
+        if (deepDiveFiles.length > 0) {
+          try {
+            existingContent = await downloadClientFile(clientSmaId, deepDiveFiles[0]);
+          } catch {}
+
+          for (const oldFile of deepDiveFiles) {
+            try { await deleteClientFile(clientSmaId, oldFile.id); } catch {}
+          }
+        }
+      } catch {}
+
+      let combined: string;
+      if (existingContent.trim()) {
+        const stripped = existingContent
+          .replace(/\n---\nAuto-generated by Club Allenby Voice Agent\s*$/, "")
+          .trimEnd();
+        combined = `${stripped}\n\n────────────────────────────────\n[${date}] ${fileContent}\n\n---\nAuto-generated by Club Allenby Voice Agent`;
+      } else {
+        combined = `[${date}] ${fileContent}\n\n---\nAuto-generated by Club Allenby Voice Agent`;
+      }
+
+      const fileName = `${DEEP_DIVE_PREFIX}${date}.txt`;
+      await uploadClientFile(clientSmaId, fileName, combined);
+      console.log(`[syncDeepDiveToSma] Uploaded ${fileName} for client ${clientSmaId} (${member.firstName})`);
+
+      // 4. Also append a summary to matchmakerNotes in local DB
+      const notePrefix = `[Deep Dive ${date}] `;
+      await ctx.runMutation(internal.voice.mutations.updateMemberFromCall, {
+        memberId: args.memberId,
+        matchmakerNotes: notePrefix + (data.matchmakerNote || ""),
+      });
+      console.log(`[syncDeepDiveToSma] Appended deep dive note to matchmakerNotes for ${member.firstName}`);
+
+    } catch (error: any) {
+      console.error("[syncDeepDiveToSma] Failed:", error?.message);
+    }
   },
 });

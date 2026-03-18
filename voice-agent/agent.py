@@ -33,6 +33,7 @@ from convex_client import ConvexClient
 from call_handler import CallHandler, setup_transcript_listeners
 from persona import (
     SYSTEM_PROMPT,
+    PHASE_2_DEEP_DIVE_ADDENDUM,
     INBOUND_GREETING_INSTRUCTIONS,
     LLM_MODEL,
 )
@@ -90,8 +91,14 @@ _SILENCE_THRESHOLD_SECS = 10.0
 # before concluding the caller is gone.
 _SILENCE_AFTER_PROMPT_SECS = 10.0
 
-# Soft cap on call duration in seconds (25 minutes)
-_MAX_CALL_DURATION_SECS = 25 * 60
+# Hard limit on call duration (45 minutes — cost control)
+_HARD_LIMIT_SECS = 45 * 60
+
+# "10 minutes left" warning (fires at 35 min)
+_WRAP_UP_WARNING_SECS = 35 * 60
+
+# "2 minutes left" final warning (fires at 43 min)
+_FINAL_WARNING_SECS = 43 * 60
 
 # Off-topic redirect threshold — after this many consecutive off-topic
 # user turns, the agent should redirect more firmly.
@@ -118,12 +125,16 @@ class MatchaAgent(Agent):
         self._convex = convex
         self._call_handler = call_handler
 
+        # ── Phase tracking ──
+        self._phase2_active: bool = False
+
         # ── Guardrail state ──
         self._hostile_strike_count: int = 0
         self._off_topic_count: int = 0
         self._silence_timer_task: asyncio.Task | None = None
         self._silence_prompted: bool = False  # True after "are you still there?"
-        self._duration_warned: bool = False  # True once we issue the 25-min warning
+        self._duration_warned: bool = False  # True once we issue the wrap-up warning
+        self._final_warned: bool = False  # True once we issue the "2 min left" warning
         self._duration_check_task: asyncio.Task | None = None
         self._call_start_time: float = 0.0
 
@@ -459,6 +470,105 @@ class MatchaAgent(Agent):
         return "Call ended."
 
     @function_tool()
+    async def start_deep_dive(self, context: RunContext) -> str:
+        """Activate Phase 2 — the deep dive personal conversation.
+        Call this AFTER you have called save_intake_data with the CRM data.
+        This shifts your instructions to focus on deeper, personal questions
+        that help matchmakers truly understand who this person is.
+        After calling this, transition naturally into the deeper conversation."""
+        if self._phase2_active:
+            return "Phase 2 is already active."
+
+        self._phase2_active = True
+        self._instructions += PHASE_2_DEEP_DIVE_ADDENDUM
+        logger.info("[start_deep_dive] Phase 2 activated — deep dive instructions injected")
+        return "Phase 2 activated. Transition naturally into the deeper conversation."
+
+    @function_tool()
+    async def save_deep_dive_data(
+        self,
+        context: RunContext,
+        matchmaker_note: str,
+        attachment_style: str | None = None,
+        communication_style: str | None = None,
+        energy_level: str | None = None,
+        life_stage: str | None = None,
+        emotional_maturity: str | None = None,
+        social_style: str | None = None,
+        love_language: str | None = None,
+        conflict_style: str | None = None,
+        conversation_summary: str | None = None,
+    ) -> dict:
+        """Save the deep dive insights from Phase 2 of the conversation.
+        Call this at the end of Phase 2, before ending the call.
+
+        Args:
+            matchmaker_note: A rich, free-form paragraph written as a matchmaker's
+                internal note. Summarize who this person really is — their emotional
+                patterns, what drives them, what they need in a partner, their life
+                stage, key personality traits. Include specific observations and
+                quotes from the conversation. This is the most important field.
+            attachment_style: Their attachment/relationship style (e.g. "secure",
+                "anxious-leaning", "avoidant but working on it", "secure-leaning,
+                communicative").
+            communication_style: How they communicate (e.g. "direct and honest",
+                "conflict-avoidant", "emotionally expressive", "reserved but
+                thoughtful").
+            energy_level: Their energy and activity level (e.g. "high energy,
+                always on the go", "balanced — adventurous but needs downtime",
+                "homebody who enjoys quiet evenings").
+            life_stage: Where they are in life right now (e.g. "career building
+                phase", "personal reinvention after breakup", "settled and ready
+                for family", "exploring and figuring things out").
+            emotional_maturity: Level of self-awareness and emotional growth
+                (e.g. "high self-awareness, has done therapy", "growing — learning
+                from past mistakes", "emotionally guarded but opening up").
+            social_style: How they engage socially (e.g. "extroverted, large
+                friend group", "introverted extrovert — social but recharges
+                alone", "small tight-knit circle").
+            love_language: How they give and receive love (e.g. "quality time
+                and words of affirmation", "acts of service", "physical touch
+                and shared experiences").
+            conflict_style: How they handle disagreements (e.g. "communicative,
+                addresses issues directly", "avoids conflict, needs space first",
+                "passionate but fair").
+            conversation_summary: A detailed summary of what was discussed in
+                Phase 2. Include key topics covered, notable stories they shared,
+                and any revealing quotes. This gives the matchmaker the raw
+                context behind the matchmaker_note.
+        """
+        call_id = self._call_handler.call_id
+        if not call_id:
+            return {"saved": False, "reason": "no active call"}
+
+        # Build tags dict from personality signals
+        tags = {}
+        for key, val in [
+            ("attachment_style", attachment_style),
+            ("communication_style", communication_style),
+            ("energy_level", energy_level),
+            ("life_stage", life_stage),
+            ("emotional_maturity", emotional_maturity),
+            ("social_style", social_style),
+            ("love_language", love_language),
+            ("conflict_style", conflict_style),
+        ]:
+            if val is not None:
+                tags[key] = val
+
+        data = {
+            "matchmakerNote": matchmaker_note,
+            "tags": tags,
+            "conversationSummary": conversation_summary or "",
+        }
+
+        logger.info("[save_deep_dive_data] Saving deep dive: note=%d chars, %d tags, summary=%d chars",
+                     len(matchmaker_note), len(tags), len(conversation_summary or ""))
+        await self._convex.save_deep_dive_data(call_id=call_id, data=data)
+        logger.info("[save_deep_dive_data] Successfully saved to Convex")
+        return {"saved": True}
+
+    @function_tool()
     async def transfer_to_human(self, context: RunContext) -> str:
         """Transfer the caller to a human team member. Call this when the
         caller is hostile or explicitly requests to speak with a person.
@@ -511,43 +621,119 @@ class MatchaAgent(Agent):
 
             # Wait another interval — if still silent, gracefully end
             await asyncio.sleep(_SILENCE_AFTER_PROMPT_SECS)
-            logger.info("[guardrail:silence] Still silent after prompt — ending call gracefully")
-            await session.generate_reply(
-                instructions=(
-                    "The caller is still silent after your check-in. "
-                    "Say: 'Looks like I might have lost you. I'll save everything "
-                    "we've covered so far — feel free to call back anytime!' "
-                    "Then call save_intake_data with whatever data you have, "
-                    "followed by end_call."
-                ),
-            )
+            logger.info("[guardrail:silence] Still silent after prompt — ending call gracefully (phase2=%s)",
+                        self._phase2_active)
+            if self._phase2_active:
+                await session.generate_reply(
+                    instructions=(
+                        "The caller is still silent after your check-in. "
+                        "Say: 'Looks like I might have lost you. I'll save everything "
+                        "we've covered so far — feel free to call back anytime!' "
+                        "Then call save_deep_dive_data with whatever deep dive "
+                        "insights you've gathered so far, followed by end_call."
+                    ),
+                )
+            else:
+                await session.generate_reply(
+                    instructions=(
+                        "The caller is still silent after your check-in. "
+                        "Say: 'Looks like I might have lost you. I'll save everything "
+                        "we've covered so far — feel free to call back anytime!' "
+                        "Then call save_intake_data with whatever data you have, "
+                        "followed by end_call."
+                    ),
+                )
         except asyncio.CancelledError:
             pass  # Timer was reset or call ended — this is normal
 
     async def _duration_watchdog(self, session: AgentSession):
-        """Background task: watch for the 25-minute soft cap."""
+        """Background task: three-stage duration management.
+
+        Stage 1 (35 min): "10 minutes left" — wrap up current topic, ask last questions
+        Stage 2 (43 min): "2 minutes left" — say goodbye NOW, save everything
+        Stage 3 (45 min): Hard cut — force save and end the call
+        """
         try:
-            remaining = _MAX_CALL_DURATION_SECS - (time.time() - self._call_start_time)
+            # ── Stage 1: Wrap-up warning at 35 minutes ──
+            remaining = _WRAP_UP_WARNING_SECS - (time.time() - self._call_start_time)
             if remaining > 0:
                 await asyncio.sleep(remaining)
 
-            if self._duration_warned:
-                return  # Already warned — don't double-fire
+            if not self._duration_warned:
+                self._duration_warned = True
+                logger.info("[guardrail:duration] 35-min mark — 10 minutes left (phase2=%s)",
+                            self._phase2_active)
 
-            self._duration_warned = True
-            logger.info("[guardrail:duration] Call hit %d-minute soft cap — triggering wrap-up",
-                        _MAX_CALL_DURATION_SECS // 60)
-            await session.generate_reply(
-                instructions=(
-                    "The call has been going for about 25 minutes. "
-                    "Start wrapping up gracefully. Say something like: "
-                    "'We're covering great ground! Let me just wrap up "
-                    "the key items real quick.' Then prioritize any remaining "
-                    "high-priority missing fields, ask if there's anything else, "
-                    "send the form link if needed, and close out warmly. "
-                    "Do NOT abruptly end — but move toward the finish."
-                ),
-            )
+                if self._phase2_active:
+                    await session.generate_reply(
+                        instructions=(
+                            "IMPORTANT: You have about 10 minutes left on this call. "
+                            "You're in the deep dive phase. Pick your 1-2 most important "
+                            "remaining questions and ask them now. After those, start "
+                            "wrapping up. Say something natural like: 'I want to be "
+                            "mindful of your time — let me ask you one or two more things "
+                            "and then we can wrap up.'"
+                        ),
+                    )
+                else:
+                    await session.generate_reply(
+                        instructions=(
+                            "IMPORTANT: You have about 10 minutes left on this call. "
+                            "Start wrapping up Phase 1 — prioritize the most important "
+                            "missing fields. Say something like: 'We're covering great "
+                            "ground! Let me just get a few more key things.' After "
+                            "collecting those, call save_intake_data. If there's still "
+                            "a few minutes, you can do a brief Phase 2 — but keep it "
+                            "to 2-3 quick questions max."
+                        ),
+                    )
+
+            # ── Stage 2: Final warning at 43 minutes ──
+            remaining = _FINAL_WARNING_SECS - (time.time() - self._call_start_time)
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+
+            if not self._final_warned:
+                self._final_warned = True
+                logger.info("[guardrail:duration] 43-min mark — 2 minutes left, forcing wrap-up (phase2=%s)",
+                            self._phase2_active)
+
+                if self._phase2_active:
+                    await session.generate_reply(
+                        instructions=(
+                            "URGENT: The call is about to end in 2 minutes. "
+                            "Stop asking questions NOW. Say something warm like: "
+                            "'This has been such a great conversation — thank you so "
+                            "much for sharing all of that with me! Dani will review "
+                            "everything and be in touch soon. Take care!' "
+                            "Then IMMEDIATELY call save_deep_dive_data with everything "
+                            "you've learned, and call end_call. Do NOT ask anything else."
+                        ),
+                    )
+                else:
+                    await session.generate_reply(
+                        instructions=(
+                            "URGENT: The call is about to end in 2 minutes. "
+                            "Stop asking questions NOW. Say a warm goodbye: "
+                            "'It was really great chatting with you! Dani will review "
+                            "everything and be in touch soon. Take care!' "
+                            "Then IMMEDIATELY call save_intake_data with everything "
+                            "you have, and call end_call. Do NOT ask anything else."
+                        ),
+                    )
+
+            # ── Stage 3: Hard cut at 45 minutes ──
+            remaining = _HARD_LIMIT_SECS - (time.time() - self._call_start_time)
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+
+            logger.warning("[guardrail:duration] 45-min HARD LIMIT — force ending call")
+            # If we're still here, the agent didn't end the call after the final warning.
+            # Force-end it to avoid runaway costs.
+            self._cancel_guardrail_timers()
+            await self._call_handler.on_call_end()
+            get_job_context().shutdown()
+
         except asyncio.CancelledError:
             pass
 

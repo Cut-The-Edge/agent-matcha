@@ -122,6 +122,18 @@ class ConvexClient:
             "data": data,
         })
 
+    async def save_deep_dive_data(
+        self,
+        *,
+        call_id: str,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Save deep dive (Phase 2) insights from the call."""
+        return await self._post("/voice/save-deep-dive", {
+            "callId": call_id,
+            "data": data,
+        })
+
     # ── Token analytics ──────────────────────────────────────────────
 
     async def log_voice_usage(

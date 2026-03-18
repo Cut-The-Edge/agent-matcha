@@ -280,6 +280,7 @@ export default defineSchema({
     transcript: v.optional(v.any()),
     aiSummary: v.optional(v.any()),
     extractedData: v.optional(v.any()),
+    deepDiveData: v.optional(v.any()),
     profileAction: v.optional(
       v.union(
         v.literal("created"),

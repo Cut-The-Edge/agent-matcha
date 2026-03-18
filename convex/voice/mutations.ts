@@ -106,6 +106,24 @@ export const saveIntakeData = internalMutation({
 });
 
 /**
+ * Save deep dive (Phase 2) insights to the call record.
+ */
+export const saveDeepDiveData = internalMutation({
+  args: {
+    callId: v.id("phoneCalls"),
+    data: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const call = await ctx.db.get(args.callId);
+    if (!call) throw new Error("Call not found");
+
+    await ctx.db.patch(args.callId, {
+      deepDiveData: args.data,
+    });
+  },
+});
+
+/**
  * Flag a call for quality review (called from dashboard).
  */
 export const flagCall = mutation({
