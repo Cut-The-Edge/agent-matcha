@@ -360,6 +360,30 @@ Respond with ONLY valid JSON. No markdown, no code fences, no explanation.`,
       });
     }
 
+    // ── Post-call follow-up: send profile update link to existing members ──
+    // For existing members with a phone number, send a WhatsApp message
+    // with a profile completion/update link. This uses the data request
+    // system which handles deduplication (won't send if already pending).
+    if (call.memberId && !call.sandbox) {
+      try {
+        const member = await ctx.runQuery(internal.members.queries.getInternal, {
+          memberId: call.memberId,
+        });
+        if (member?.phone) {
+          console.log("[generateSummary] Sending post-call profile link to %s (%s)",
+            member.firstName, member.phone);
+          await ctx.runMutation(internal.dataRequests.mutations.createAndSendFromAgent, {
+            memberId: call.memberId,
+          });
+          console.log("[generateSummary] Post-call profile link sent/re-sent");
+        } else {
+          console.log("[generateSummary] Skipping post-call follow-up — member has no phone");
+        }
+      } catch (e: any) {
+        console.error("[generateSummary] Post-call follow-up failed (non-fatal):", e.message);
+      }
+    }
+
     // Schedule SMA sync after all data is merged and saved
     console.log("[generateSummary] Done — scheduling syncCallToSMA");
     await ctx.scheduler.runAfter(0, internal.voice.actions.syncCallToSMA, {
@@ -698,12 +722,16 @@ export const syncCallToSMA = internalAction({
             memberId: result.memberId,
           });
 
-          // Send profile completion form to new member via WhatsApp
-          if (call.phone) {
-            await ctx.runMutation(internal.dataRequests.mutations.createAndSendFromAgent, {
-              memberId: result.memberId,
-            });
-            console.log("[syncCallToSMA] Sent profile form to new member %s", result.memberId);
+          // Send profile completion form to the new member via WhatsApp
+          if (call.phone && !call.sandbox) {
+            try {
+              await ctx.runMutation(internal.dataRequests.mutations.createAndSendFromAgent, {
+                memberId: result.memberId,
+              });
+              console.log("[syncCallToSMA] Sent profile completion form to new member %s", result.memberId);
+            } catch (e: any) {
+              console.error("[syncCallToSMA] Failed to send data request to new member (non-fatal):", e.message);
+            }
           }
         } else {
           console.log("[syncCallToSMA] No member and no firstName — skipping member creation but still syncing to SMA");

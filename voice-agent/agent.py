@@ -16,7 +16,7 @@ import time
 
 from dotenv import load_dotenv
 
-from livekit import agents, rtc
+from livekit import agents, api, rtc
 from livekit.agents import (
     AgentSession,
     Agent,
@@ -380,6 +380,69 @@ class MatchaAgent(Agent):
             return {"sent": True, "note": "A form link was already pending — resent it"}
         logger.info("[send_data_request_link] New form link created and sent")
         return {"sent": True}
+
+    @function_tool()
+    async def transfer_call(
+        self,
+        context: RunContext,
+        transfer_to: str,
+    ) -> str:
+        """Transfer the call to a real person (warm transfer via SIP).
+        Use this when the caller asks to speak with a real person, or when
+        you need to escalate.
+
+        Args:
+            transfer_to: Who to transfer to. Use "dani" for Dani Bergman
+                or "jane" for Jane. These map to their phone numbers.
+        """
+        phone_map = {
+            "dani": os.environ.get("DANI_PHONE"),
+            "jane": os.environ.get("JANE_PHONE"),
+        }
+        target_phone = phone_map.get(transfer_to.lower().strip())
+        if not target_phone:
+            logger.warning("[transfer_call] Unknown transfer target: %s", transfer_to)
+            return f"Sorry, I don't have a number for '{transfer_to}'. I can transfer to Dani or Jane."
+
+        logger.info("[transfer_call] Transferring to %s at %s", transfer_to, target_phone)
+
+        try:
+            # Use LiveKit SIP transfer to connect the caller to the target phone
+            job_ctx = get_job_context()
+            room = job_ctx.room
+
+            # Find the SIP participant (the caller)
+            sip_participant = None
+            for p in room.remote_participants.values():
+                if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                    sip_participant = p
+                    break
+
+            if not sip_participant:
+                logger.error("[transfer_call] No SIP participant found in room")
+                return "I'm sorry, I wasn't able to connect the transfer. Let me take a note and have them call you back."
+
+            # Perform SIP REFER transfer via LiveKit API
+            lk_api = job_ctx.api
+            await lk_api.sip.transfer_sip_participant(
+                api.TransferSIPParticipantRequest(
+                    room_name=room.name,
+                    participant_identity=sip_participant.identity,
+                    transfer_to=f"sip:{target_phone}@sip.twilio.com",
+                )
+            )
+
+            logger.info("[transfer_call] SIP transfer initiated to %s", target_phone)
+
+            # Mark call as transferred
+            await asyncio.sleep(2)
+            await self._call_handler.on_call_end(status="transferred")
+
+            return f"Transfer to {transfer_to} initiated."
+
+        except Exception as e:
+            logger.error("[transfer_call] Transfer failed: %s", e)
+            return "I'm sorry, the transfer didn't go through. Let me make a note and have them reach out to you directly."
 
     @function_tool()
     async def end_call(self, context: RunContext) -> str:
