@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Pre-computed aggregate helpers for analytics.
  *

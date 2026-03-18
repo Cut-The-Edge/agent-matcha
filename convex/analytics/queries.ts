@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAuth } from "../auth/authz";
@@ -201,7 +200,7 @@ export const getRecentActivity = query({
     const activities: Array<{
       type: string;
       timestamp: number;
-      data: any;
+      data: Record<string, unknown>;
     }> = [];
 
     // 1. Recent match status changes
