@@ -85,6 +85,8 @@ import type * as members_types from "../members/types.js";
 import type * as membershipLeads_actions from "../membershipLeads/actions.js";
 import type * as membershipLeads_mutations from "../membershipLeads/mutations.js";
 import type * as membershipLeads_queries from "../membershipLeads/queries.js";
+import type * as notifications_mutations from "../notifications/mutations.js";
+import type * as notifications_queries from "../notifications/queries.js";
 import type * as seed_index from "../seed/index.js";
 import type * as seed_seedData from "../seed/seedData.js";
 import type * as settings from "../settings.js";
@@ -184,6 +186,8 @@ declare const fullApi: ApiFromModules<{
   "membershipLeads/actions": typeof membershipLeads_actions;
   "membershipLeads/mutations": typeof membershipLeads_mutations;
   "membershipLeads/queries": typeof membershipLeads_queries;
+  "notifications/mutations": typeof notifications_mutations;
+  "notifications/queries": typeof notifications_queries;
   "seed/index": typeof seed_index;
   "seed/seedData": typeof seed_seedData;
   settings: typeof settings;

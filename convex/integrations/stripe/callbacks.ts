@@ -110,6 +110,21 @@ export const handleCheckoutCompleted = internalMutation({
           );
         }
 
+        // Create admin notification for upsell purchase
+        await ctx.scheduler.runAfter(
+          0,
+          internal.notifications.mutations.createNotification,
+          {
+            type: "system",
+            title: "Upsell purchase completed",
+            message: `A member completed a personal outreach payment ($${(payment.amount / 100).toFixed(2)}).`,
+            severity: "info",
+            actionUrl: `/dashboard/matches`,
+            relatedEntityType: "flowInstance",
+            relatedEntityId: String(payment.flowInstanceId),
+          }
+        );
+
         // Advance the flow past the payment-waiting step
         await ctx.scheduler.runAfter(
           0,

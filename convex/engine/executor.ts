@@ -450,12 +450,28 @@ export const executeActionNode = internalMutation({
       }
 
       case "notify_admin": {
-        // Log admin notification
+        // Create admin notification
+        const notifyMessage = args.params?.message || "Flow requires attention";
+        await ctx.scheduler.runAfter(
+          0,
+          internal.notifications.mutations.createNotification,
+          {
+            type: "flow_action",
+            title: "Flow requires attention",
+            message: notifyMessage,
+            severity: (args.params?.severity as any) || "warning",
+            actionUrl: instance.matchId
+              ? `/dashboard/matches`
+              : `/dashboard/flows`,
+            relatedEntityType: "flowInstance",
+            relatedEntityId: String(args.flowInstanceId),
+          }
+        );
         actionResult = {
           type: "notify_admin",
           memberId: instance.memberId,
           matchId: instance.matchId,
-          notification: args.params?.message || "Flow requires attention",
+          notification: notifyMessage,
           status: "queued",
         };
         break;
