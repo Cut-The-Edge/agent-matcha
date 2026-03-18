@@ -8,6 +8,7 @@ import type { Id } from "../../../../convex/_generated/dataModel"
 import type { Node, Edge } from "@xyflow/react"
 
 import { FlowEditor } from "@/components/flows/flow-editor"
+import { FlowSimpleView } from "@/components/flows/flow-simple-view"
 import { useFlowEditorStore } from "@/stores/flow-editor-store"
 import {
   defaultNodes as daniFlowNodes,
@@ -23,6 +24,8 @@ import {
   Save,
   Circle,
   Workflow,
+  List,
+  PenTool,
 } from "lucide-react"
 
 export default function FlowsPage() {
@@ -154,6 +157,7 @@ function FlowEditorPage({
 
   const [isSaving, setIsSaving] = useState(false)
   const [isActive, setIsActive] = useState(false)
+  const [viewMode, setViewMode] = useState<"simple" | "editor">("simple")
 
   // Load flow data into store when it arrives
   useEffect(() => {
@@ -300,6 +304,32 @@ function FlowEditorPage({
         )}
 
         <div className="ml-auto flex items-center gap-3">
+          {/* View mode toggle */}
+          <div className="flex items-center rounded-lg border bg-muted p-0.5">
+            <button
+              onClick={() => setViewMode("simple")}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                viewMode === "simple"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="size-3.5" />
+              Simple View
+            </button>
+            <button
+              onClick={() => setViewMode("editor")}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                viewMode === "editor"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <PenTool className="size-3.5" />
+              Editor
+            </button>
+          </div>
+
           {flowDefinitionId && (
             <div className="flex items-center gap-2">
               <Switch
@@ -318,20 +348,30 @@ function FlowEditorPage({
             </div>
           )}
 
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving || !isDirty}
-          >
-            <Save className="mr-1 size-4" />
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
+          {viewMode === "editor" && (
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving || !isDirty}
+            >
+              <Save className="mr-1 size-4" />
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Editor Canvas */}
-      <div className="flex-1">
-        <FlowEditor />
+      {/* Canvas / Simple View */}
+      <div className="flex-1 overflow-hidden">
+        {viewMode === "editor" ? (
+          <FlowEditor />
+        ) : (
+          <FlowSimpleView
+            nodes={nodes}
+            edges={edges}
+            flowName={flowName}
+          />
+        )}
       </div>
     </div>
   )
