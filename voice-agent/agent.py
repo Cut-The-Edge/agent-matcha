@@ -25,7 +25,7 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
-from livekit.plugins import noise_cancellation, silero, deepgram, elevenlabs
+from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
 from livekit.plugins import openai as openai_plugin
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -1154,7 +1154,7 @@ async def entrypoint(ctx: agents.JobContext):
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
-        tts=elevenlabs.TTS(voice_id="hA4zGnmTwX2NQiTRMt7o"),
+        tts=cartesia.TTS(voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b"),
         vad=silero.VAD.load(
             min_speech_duration=0.15,     # ignore very short sounds (< 150ms)
             min_silence_duration=0.6,     # wait longer before deciding user stopped talking
