@@ -1113,7 +1113,8 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Add identity check handling instructions for existing callers
     if caller_status == "existing" and call_handler.member:
-        member_name = call_handler.member.get("firstName", "")
+        _raw = call_handler.member.get("firstName", "")
+        member_name = "" if _raw in ("", "Unknown") else _raw
         if member_name:
             agent._instructions += (
                 f"\n\n## Identity confirmation handling\n"
@@ -1233,7 +1234,8 @@ async def entrypoint(ctx: agents.JobContext):
     if call_direction == "outbound":
         # Outbound call — use context-specific greeting
         ctx_key = call_context.split(":")[0].strip() if call_context else "full_intake"
-        member_name = call_handler.member.get("firstName", "") if call_handler.member else ""
+        _raw = call_handler.member.get("firstName", "") if call_handler.member else ""
+        member_name = "" if _raw in ("", "Unknown") else _raw
         name_part = f" {member_name}" if member_name else ""
         greeting_template = OUTBOUND_GREETING.get(ctx_key, OUTBOUND_GREETING["full_intake"])
         greeting_text = greeting_template.format(name_part=name_part)
@@ -1246,7 +1248,8 @@ async def entrypoint(ctx: agents.JobContext):
         )
     elif caller_status == "existing" and call_handler.member:
         # Existing member — confirm identity first
-        member_name = call_handler.member.get("firstName", "")
+        _raw = call_handler.member.get("firstName", "")
+        member_name = "" if _raw in ("", "Unknown") else _raw
         if member_name:
             greeting = (
                 f"You believe this is {member_name} based on phone number lookup. "

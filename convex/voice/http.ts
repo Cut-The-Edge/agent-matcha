@@ -19,7 +19,11 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
     const digits = rawPhone.replace(/\D/g, "");
     if (digits.length === 10) rawPhone = `+1${digits}`;
     else if (digits.length === 11 && digits.startsWith("1")) rawPhone = `+${digits}`;
-    else if (!rawPhone.startsWith("+")) rawPhone = `+${digits}`;
+    else if (digits.length >= 7 && !rawPhone.startsWith("+")) rawPhone = `+${digits}`;
+    else if (digits.length < 7) {
+      console.warn("[callStarted] Phone has too few digits (%d), discarding: %s", digits.length, rawPhone);
+      rawPhone = null;
+    }
   }
 
   // If phone is still null, try to extract from room name (e.g. "call-_+17542026432_xxx")
@@ -191,7 +195,11 @@ export const lookupPhoneHandler = httpAction(async (ctx, request) => {
     const digits = rawPhone.replace(/\D/g, "");
     if (digits.length === 10) rawPhone = `+1${digits}`;
     else if (digits.length === 11 && digits.startsWith("1")) rawPhone = `+${digits}`;
-    else if (!rawPhone.startsWith("+")) rawPhone = `+${digits}`;
+    else if (digits.length >= 7 && !rawPhone.startsWith("+")) rawPhone = `+${digits}`;
+    else if (digits.length < 7) {
+      console.warn("[callStarted] Phone has too few digits (%d), discarding: %s", digits.length, rawPhone);
+      rawPhone = null;
+    }
   }
 
   const phone: string | undefined = rawPhone || undefined;
