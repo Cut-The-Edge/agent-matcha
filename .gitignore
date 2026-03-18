@@ -31,3 +31,4 @@ npm-debug.log*
 __pycache__/
 *.egg-info/
 *.pyc
+.claude/worktrees/
