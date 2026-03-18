@@ -14,6 +14,7 @@ import {
   BarChart3,
   UserCog,
   Settings,
+  AlertTriangle,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -63,6 +64,13 @@ const data = {
       url: "/dashboard/calls",
       icon: Phone,
       description: "View voice call logs, listen to recordings, and check transcripts",
+    },
+    {
+      title: "Escalations",
+      url: "/dashboard/escalations",
+      icon: AlertTriangle,
+      hasBadge: true,
+      description: "Items needing attention: unrecognized responses, special requests, purchases",
     },
     {
       title: "Recalibration",

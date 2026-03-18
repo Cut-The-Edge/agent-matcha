@@ -27,6 +27,7 @@ import {
   resolveTemplateVariables,
   type TemplateKey,
 } from "../integrations/twilio/templates";
+import { getWrapUpMessage, type WrapUpOutcome } from "../escalations/wrapUp";
 
 /**
  * Look up a member's WhatsApp phone number.
@@ -658,6 +659,70 @@ export const executeActionNode = internalMutation({
         break;
       }
 
+      case "send_wrapup": {
+        // Send a wrap-up closing message for the completed match outcome
+        const outcome = (args.params?.outcome || "feedback_completed") as WrapUpOutcome;
+        const wrapUpMessage = getWrapUpMessage(outcome, context);
+
+        if (wrapUpMessage && instance.memberId) {
+          const messageId = await ctx.db.insert("whatsappMessages", {
+            matchId: instance.matchId || undefined,
+            memberId: instance.memberId,
+            direction: "outbound",
+            messageType: "text",
+            content: wrapUpMessage,
+            status: "sent",
+            createdAt: Date.now(),
+          });
+
+          const phone = await getMemberPhone(ctx, instance.memberId);
+          if (phone) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.integrations.twilio.whatsapp.sendTextMessage,
+              {
+                to: phone,
+                body: wrapUpMessage,
+                whatsappMessageId: messageId,
+              },
+            );
+          }
+        }
+
+        actionResult = {
+          type: "send_wrapup",
+          outcome,
+          messageSent: !!wrapUpMessage,
+          status: "completed",
+        };
+        break;
+      }
+
+      case "create_escalation": {
+        // Create an escalation queue item and notify Dani
+        if (instance.memberId) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.escalations.mutations.createEscalation,
+            {
+              memberId: instance.memberId,
+              matchId: instance.matchId || undefined,
+              flowInstanceId: args.flowInstanceId,
+              issueType: args.params?.issue_type || "manual",
+              issueDescription: args.params?.description || "Flow-triggered escalation",
+              memberMessage: args.params?.member_message,
+            },
+          );
+
+          actionResult = {
+            type: "create_escalation",
+            issueType: args.params?.issue_type || "manual",
+            status: "queued",
+          };
+        }
+        break;
+      }
+
       default: {
         actionResult = {
           type: args.actionType,
@@ -926,6 +991,39 @@ export const executeEndNode = internalMutation({
       throw new Error(`Flow instance ${args.flowInstanceId} not found`);
     }
 
+    const context = instance.context as FlowContext;
+
+    // ── Send wrap-up closing message based on flow outcome ──────────
+    // Determine the appropriate wrap-up outcome from the flow context.
+    const wrapUpOutcome = determineWrapUpOutcome(context, args.endType);
+    if (wrapUpOutcome && instance.memberId) {
+      const wrapUpMessage = getWrapUpMessage(wrapUpOutcome, context);
+      if (wrapUpMessage) {
+        const messageId = await ctx.db.insert("whatsappMessages", {
+          matchId: instance.matchId || undefined,
+          memberId: instance.memberId,
+          direction: "outbound",
+          messageType: "text",
+          content: wrapUpMessage,
+          status: "sent",
+          createdAt: Date.now(),
+        });
+
+        const phone = await getMemberPhone(ctx, instance.memberId);
+        if (phone) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.twilio.whatsapp.sendTextMessage,
+            {
+              to: phone,
+              body: wrapUpMessage,
+              whatsappMessageId: messageId,
+            },
+          );
+        }
+      }
+    }
+
     const finalStatus =
       args.endType === "completed"
         ? INSTANCE_STATUS.COMPLETED
@@ -949,7 +1047,7 @@ export const executeEndNode = internalMutation({
       nodeType: NODE_TYPES.END,
       action: EXECUTION_ACTIONS.EXECUTED,
       input: JSON.stringify({ endType: args.endType }),
-      output: JSON.stringify({ finalStatus }),
+      output: JSON.stringify({ finalStatus, wrapUpOutcome }),
       duration,
       timestamp: Date.now(),
     });
@@ -1037,6 +1135,61 @@ export const executeReminderMessage = internalMutation({
 // ============================================================================
 // Helpers
 // ============================================================================
+
+/**
+ * Determine the appropriate wrap-up message outcome based on flow context.
+ * Examines memberDecision, responseType, payment status, and endType
+ * to pick the right closing message.
+ */
+function determineWrapUpOutcome(
+  context: FlowContext,
+  endType: string,
+): WrapUpOutcome | null {
+  const decision = context.memberDecision;
+  const metadata = context.metadata || {};
+
+  // Skip wrap-up if sandbox mode or if a wrap-up was already sent by an action node
+  if (metadata.sandbox || metadata.wrapUpSent) return null;
+
+  // Upsell purchased
+  if (context.paymentReceived || metadata.action_action_create_stripe_link?.status === "checkout_scheduled") {
+    if (context.paymentReceived) return "upsell_purchased";
+  }
+
+  // Recalibration triggered
+  if (metadata.action_action_recalibration?.status === "scheduled") {
+    return "recalibration_triggered";
+  }
+
+  // No response / expired
+  if (endType === "expired") return "no_response";
+
+  // Interested / accepted
+  if (decision === "interested" || decision === "upsell_yes") {
+    return "accepted_match";
+  }
+
+  // Not interested with feedback completed
+  if (decision === "not_interested") {
+    // Check if feedback categories were collected
+    if (context.feedbackCategories && context.feedbackCategories.length > 0) {
+      return "feedback_completed";
+    }
+    return "declined_match";
+  }
+
+  // Upsell declined + pass
+  if (decision === "upsell_no_pass" || decision === "interested_pass") {
+    return "upsell_declined_pass";
+  }
+
+  // Generic completed flow
+  if (endType === "completed" && decision) {
+    return "feedback_completed";
+  }
+
+  return null;
+}
 
 /**
  * Resolve template variables like {{memberName}}, {{matchName}}, etc.

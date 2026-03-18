@@ -365,6 +365,20 @@ export const handleMemberResponse = internalMutation({
     });
 
     if (instances.length === 0) {
+      // No active flow — check for special request keywords and escalate
+      const specialRequestDetected = detectSpecialRequest(args.response);
+      if (specialRequestDetected) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.escalations.mutations.createEscalation,
+          {
+            memberId: args.memberId,
+            issueType: specialRequestDetected.issueType as any,
+            issueDescription: specialRequestDetected.description,
+            memberMessage: args.response,
+          },
+        );
+      }
       return { handled: false, reason: "no_active_flow" };
     }
 
@@ -481,6 +495,25 @@ export const handleMemberResponse = internalMutation({
         });
         if (normalized) resolvedInput = normalized.value;
       }
+    }
+
+    // ── Check for special requests / frustrated language even during active flows ──
+    // This runs alongside normal flow routing — the escalation is created
+    // in parallel so Dani is notified, but the flow still proceeds.
+    const specialRequest = detectSpecialRequest(args.response);
+    if (specialRequest) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.escalations.mutations.createEscalation,
+        {
+          memberId: args.memberId,
+          matchId: bestMatchId,
+          flowInstanceId: waitingInstance._id,
+          issueType: specialRequest.issueType as any,
+          issueDescription: specialRequest.description,
+          memberMessage: args.response,
+        },
+      );
     }
 
     if (resolvedInput && isFeedbackCollectNode) {
@@ -1463,6 +1496,70 @@ export const cancelPendingPayment = internalMutation({
     }
   },
 });
+
+// ============================================================================
+// detectSpecialRequest — Keyword-based detection for escalation triggers
+// ============================================================================
+
+/**
+ * Detect if a member's message contains special request keywords, frustrated
+ * language, or upsell-related intent that should be escalated to Dani.
+ *
+ * Returns null if no escalation is needed.
+ */
+function detectSpecialRequest(
+  message: string,
+): { issueType: string; description: string } | null {
+  const lower = message.toLowerCase();
+
+  // ── Frustrated member patterns ──
+  const frustratedPatterns = [
+    "frustrated", "annoyed", "angry", "furious", "terrible",
+    "horrible", "awful", "unsubscribe", "leave me alone",
+    "stop messaging", "stop texting", "ridiculous", "pathetic",
+    "scam", "waste of time", "waste of money", "cancel my",
+    "want to cancel", "this is wrong", "i'm done",
+  ];
+  if (frustratedPatterns.some((kw) => lower.includes(kw))) {
+    return {
+      issueType: "frustrated_member",
+      description: `Member appears frustrated or upset. Detected keywords in their message.`,
+    };
+  }
+
+  // ── Special request patterns ──
+  const specialRequestPatterns = [
+    { pattern: "speak to", desc: "Wants to speak to someone" },
+    { pattern: "talk to dani", desc: "Requesting to talk to Dani" },
+    { pattern: "talk to a person", desc: "Requesting human contact" },
+    { pattern: "talk to a human", desc: "Requesting human contact" },
+    { pattern: "talk to someone", desc: "Requesting to talk to someone" },
+    { pattern: "real person", desc: "Requesting human contact" },
+    { pattern: "can you call me", desc: "Requesting a phone call" },
+    { pattern: "call me", desc: "Requesting a phone call" },
+    { pattern: "schedule a call", desc: "Requesting a scheduled call" },
+    { pattern: "different match", desc: "Requesting a different match" },
+    { pattern: "change my preferences", desc: "Wants to update preferences" },
+    { pattern: "pause my account", desc: "Wants to pause membership" },
+    { pattern: "refund", desc: "Requesting a refund" },
+    { pattern: "complaint", desc: "Filing a complaint" },
+    { pattern: "manager", desc: "Requesting to speak with a manager" },
+    { pattern: "specific person", desc: "Requesting a specific match" },
+    { pattern: "particular person", desc: "Requesting a specific match" },
+    { pattern: "i know someone", desc: "Referring a specific person" },
+  ];
+
+  for (const { pattern, desc } of specialRequestPatterns) {
+    if (lower.includes(pattern)) {
+      return {
+        issueType: "special_request",
+        description: desc,
+      };
+    }
+  }
+
+  return null;
+}
 
 /**
  * Normalize text for quick option matching.

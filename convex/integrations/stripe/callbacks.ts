@@ -119,6 +119,23 @@ export const handleCheckoutCompleted = internalMutation({
             input: "payment_completed",
           }
         );
+
+        // Create escalation to notify Dani of the upsell purchase
+        if (instance.memberId) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.escalations.mutations.createEscalation,
+            {
+              memberId: instance.memberId,
+              matchId: instance.matchId || undefined,
+              flowInstanceId: payment.flowInstanceId,
+              issueType: "upsell_purchase",
+              issueDescription:
+                `Member purchased personal outreach ($${(payment.amount / 100).toFixed(2)}). ` +
+                `Dani should initiate outreach to the match partner.`,
+            },
+          );
+        }
       }
     }
   },
