@@ -536,6 +536,37 @@ export default defineSchema({
     .index("by_created", ["createdAt"])
     .index("by_issueType", ["issueType"]),
 
+  // -- Admin Notifications --
+  notifications: defineTable({
+    type: v.union(
+      v.literal("escalation"),
+      v.literal("lead"),
+      v.literal("flow_action"),
+      v.literal("system"),
+    ),
+    title: v.string(),
+    message: v.string(),
+    severity: v.union(
+      v.literal("info"),
+      v.literal("warning"),
+      v.literal("urgent"),
+    ),
+    read: v.boolean(),
+    actionUrl: v.optional(v.string()),
+    relatedEntityType: v.optional(
+      v.union(
+        v.literal("escalation"),
+        v.literal("membershipLead"),
+        v.literal("flowInstance"),
+        v.literal("phoneCall"),
+      )
+    ),
+    relatedEntityId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_read", ["read"])
+    .index("by_created", ["createdAt"]),
+
   // -- Flow Engine: Execution Logs --
   flowExecutionLogs: defineTable({
     instanceId: v.id("flowInstances"),

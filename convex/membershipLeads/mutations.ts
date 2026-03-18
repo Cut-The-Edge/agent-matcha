@@ -88,6 +88,21 @@ export const createFromCall = internalMutation({
       createdAt: now,
     });
 
+    // Create admin notification
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notifications.mutations.createNotification,
+      {
+        type: "lead",
+        title: `New ${args.tierInterest.toUpperCase()} lead`,
+        message: `${args.prospectName} expressed interest in ${args.tierInterest} membership.`,
+        severity: args.tierInterest === "vip" ? "warning" : "info",
+        actionUrl: `/dashboard/leads`,
+        relatedEntityType: "membershipLead",
+        relatedEntityId: leadId,
+      }
+    );
+
     console.log(
       "[createFromCall] Created lead %s: %s interested in %s (deadline: %s)",
       leadId,

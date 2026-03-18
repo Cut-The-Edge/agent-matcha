@@ -81,6 +81,28 @@ export const createEscalation = internalMutation({
       { escalationId },
     );
 
+    // Create in-dashboard notification
+    const severityMap: Record<string, "info" | "warning" | "urgent"> = {
+      unrecognized_response: "warning",
+      special_request: "warning",
+      upsell_purchase: "info",
+      frustrated_member: "urgent",
+      manual: "info",
+    };
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notifications.mutations.createNotification,
+      {
+        type: "escalation" as const,
+        title: `Escalation: ${args.issueType.replace(/_/g, " ")}`,
+        message: `${memberName} — ${args.issueDescription}`,
+        severity: severityMap[args.issueType] || "warning",
+        actionUrl: "/dashboard/escalations",
+        relatedEntityType: "escalation" as const,
+        relatedEntityId: String(escalationId),
+      },
+    );
+
     console.log(
       `[escalation] Created ${args.issueType} for ${memberName} (${escalationId})`,
     );
