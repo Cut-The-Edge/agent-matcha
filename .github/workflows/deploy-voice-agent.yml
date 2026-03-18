@@ -23,9 +23,7 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SECRET_LIST: |-
-            ${{ secrets.VOICE_AGENT_SECRETS }}
-            CARTESIA_API_KEY=${{ secrets.CARTESIA_API_KEY }}
+          SECRET_LIST: ${{ secrets.VOICE_AGENT_SECRETS }}
         with:
           OPERATION: deploy
           WORKING_DIRECTORY: voice-agent
