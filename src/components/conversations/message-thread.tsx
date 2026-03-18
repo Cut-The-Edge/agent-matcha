@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import Link from "next/link"
 import { Id } from "../../../convex/_generated/dataModel"
 import { useAuthQuery } from "@/hooks/use-auth-query"
 import { api } from "../../../convex/_generated/api"
@@ -174,7 +175,7 @@ export function MessageThread({
             </AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="font-semibold text-sm">{memberName}</h2>
+            <Link href={`/dashboard/members?highlight=${memberId}`} className="font-semibold text-sm hover:underline">{memberName}</Link>
             <p className="text-xs text-muted-foreground">
               {phone ? `+***${phone.slice(-4)}` : "No phone"}
             </p>

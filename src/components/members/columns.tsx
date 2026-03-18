@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, ArrowUpDown, Pencil, RefreshCw, Loader2, ExternalLink, Send } from "lucide-react"
+import { Check, X, ArrowUpDown, Pencil, RefreshCw, Loader2, ExternalLink, Send, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Doc } from "../../../convex/_generated/dataModel"
 import { format } from "date-fns"
@@ -12,6 +12,7 @@ export interface MemberTableMeta {
   onSync?: (member: Member) => void
   onViewIntros?: (member: Member) => void
   onSendDataRequest?: (member: Member) => void
+  onViewConversations?: (member: Member) => void
   syncingMemberId?: string | null
   sendingDataRequestMemberId?: string | null
 }
@@ -303,6 +304,15 @@ export const columns: ColumnDef<Member>[] = [
               )}
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => meta?.onViewConversations?.(row.original)}
+            title="View conversations"
+          >
+            <MessageSquare className="size-3.5" />
+          </Button>
           {hasSmaId && (
             <Button
               variant="ghost"

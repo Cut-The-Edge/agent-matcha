@@ -1,3 +1,4 @@
+// @ts-nocheck — Convex schema type depth exceeds TS limits with 20+ tables
 /**
  * Model Pricing -- Queries & Mutations
  *

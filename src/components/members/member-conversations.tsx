@@ -131,9 +131,9 @@ export function MemberConversations({ member, open, onOpenChange }: MemberConver
           {/* Activity list */}
           {data && data.activities.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              {data.activities.map((activity: any) => (
+              {data.activities.map((activity: any, idx: number) => (
                 <button
-                  key={activity._id}
+                  key={`${activity.type}-${activity.date}-${idx}`}
                   className="w-full text-left rounded-md border px-3 py-2.5 text-sm hover:bg-muted/50 transition-colors space-y-1"
                   onClick={() => handleViewConversation(activity)}
                 >

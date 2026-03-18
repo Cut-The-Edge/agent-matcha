@@ -64,6 +64,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { columns, type MemberTableMeta } from "./columns"
 import { IntroDetailSheet } from "./intro-detail-sheet"
+import { MemberConversations } from "./member-conversations"
 import type { Doc } from "../../../convex/_generated/dataModel"
 
 function MemberTableSkeleton() {
@@ -147,6 +148,7 @@ export function MemberList() {
   const [isEditing, setIsEditing] = React.useState(false)
   const [syncingMemberId, setSyncingMemberId] = React.useState<string | null>(null)
   const [selectedMemberForIntros, setSelectedMemberForIntros] = React.useState<Doc<"members"> | null>(null)
+  const [selectedMemberForConversations, setSelectedMemberForConversations] = React.useState<Doc<"members"> | null>(null)
   const [sendingDataRequestMemberId, setSendingDataRequestMemberId] = React.useState<string | null>(null)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] =
@@ -266,6 +268,7 @@ export function MemberList() {
     onEdit: (member) => setEditingMember(member),
     onSync: handleSyncMember,
     onViewIntros: (member) => setSelectedMemberForIntros(member),
+    onViewConversations: (member) => setSelectedMemberForConversations(member),
     onSendDataRequest: handleSendDataRequest,
     syncingMemberId,
     sendingDataRequestMemberId,
@@ -398,6 +401,11 @@ export function MemberList() {
           member={selectedMemberForIntros}
           open={!!selectedMemberForIntros}
           onOpenChange={(open) => { if (!open) setSelectedMemberForIntros(null) }}
+        />
+        <MemberConversations
+          member={selectedMemberForConversations}
+          open={!!selectedMemberForConversations}
+          onOpenChange={(open) => { if (!open) setSelectedMemberForConversations(null) }}
         />
       </div>
 

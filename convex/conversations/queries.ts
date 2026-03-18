@@ -419,3 +419,84 @@ export const getUnreadCountByMember = query({
  * Existing frontend code references this name.
  */
 export const listConversationSummaries = getConversationSummaries;
+
+/**
+ * Get a member's conversation activity — WhatsApp messages grouped by day
+ * plus phone calls, merged into a chronological feed.
+ * Used by the MemberConversations sheet on the members page.
+ */
+export const getMemberConversationActivity = query({
+  args: {
+    sessionToken: v.optional(v.string()),
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.sessionToken);
+
+    // Fetch WhatsApp messages for this member
+    const messages = await ctx.db
+      .query("whatsappMessages")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .order("desc")
+      .take(200);
+
+    // Fetch phone calls for this member
+    const calls = await ctx.db
+      .query("phoneCalls")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .order("desc")
+      .take(50);
+
+    // Group WhatsApp messages by day
+    const dayGroups = new Map();
+    for (const msg of messages) {
+      const day = new Date(msg.createdAt).toISOString().split("T")[0];
+      if (!dayGroups.has(day)) {
+        dayGroups.set(day, { date: day, messageCount: 0, lastMessage: "", lastTimestamp: 0 });
+      }
+      const group = dayGroups.get(day);
+      group.messageCount++;
+      if (msg.createdAt > group.lastTimestamp) {
+        group.lastTimestamp = msg.createdAt;
+        group.lastMessage = (msg.content || "").slice(0, 80);
+      }
+    }
+
+    // Build activity feed
+    const activities = [];
+
+    // Add WhatsApp day groups as activities
+    for (const [, group] of dayGroups) {
+      activities.push({
+        type: "whatsapp" as const,
+        date: group.lastTimestamp,
+        preview: group.lastMessage,
+        messageCount: group.messageCount,
+        status: "delivered",
+      });
+    }
+
+    // Add phone calls as activities
+    for (const call of calls) {
+      activities.push({
+        type: "phone" as const,
+        date: call.startedAt || call.createdAt,
+        preview: call.aiSummary?.summary
+          ? String(call.aiSummary.summary).slice(0, 80)
+          : `${call.direction} call — ${call.status}`,
+        duration: call.duration,
+        status: call.status,
+        callId: call._id,
+      });
+    }
+
+    // Sort by date descending
+    activities.sort((a, b) => b.date - a.date);
+
+    return {
+      activities,
+      totalWhatsApp: messages.length,
+      totalCalls: calls.length,
+    };
+  },
+});
