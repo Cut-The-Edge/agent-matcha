@@ -1110,6 +1110,7 @@ async def entrypoint(ctx: agents.JobContext):
         # ── Hostile language check ──
         if _is_hostile(text):
             agent._hostile_strike_count += 1
+            agent._off_topic_count = 0  # Reset off-topic on hostile (different guardrail)
             logger.info("[guardrail:hostile] Strike %d — hostile text: %s",
                         agent._hostile_strike_count, text[:80])
             if agent._hostile_strike_count >= 2:
@@ -1136,6 +1137,15 @@ async def entrypoint(ctx: agents.JobContext):
                         "Wait for their response."
                     ),
                 )
+            return  # Don't also check off-topic on hostile messages
+
+        # ── Off-topic redirect (LLM-assisted via system prompt handles
+        #    detection; we track consecutive off-topic count here for
+        #    the escalating firmness described in persona.py) ──
+        # Reset off-topic count on any non-hostile message — the LLM
+        # handles the actual redirect via its system prompt instructions.
+        # We keep the counter available for future programmatic detection.
+        agent._off_topic_count = 0
 
     # Wire up transcript streaming with guardrail callback
     setup_transcript_listeners(session, call_handler, on_user_message=_on_user_message)

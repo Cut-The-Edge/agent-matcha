@@ -1021,6 +1021,10 @@ export const executeEndNode = internalMutation({
             },
           );
         }
+
+        // Mark wrapUpSent in context to prevent duplicate wrap-ups
+        const updatedContext = { ...context, metadata: { ...(context.metadata || {}), wrapUpSent: true } };
+        await ctx.db.patch(args.flowInstanceId, { context: updatedContext as any });
       }
     }
 
