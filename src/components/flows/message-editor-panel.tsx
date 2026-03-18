@@ -153,7 +153,7 @@ function MessageNavItem({
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+      className={`group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors ${
         isActive
           ? "bg-primary/10 border border-primary/20"
           : "hover:bg-muted/60 border border-transparent"
@@ -173,7 +173,7 @@ function MessageNavItem({
           <ChevronRight className={`size-3 shrink-0 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
         </div>
         <p className="mt-0.5 text-[10px] text-muted-foreground">{item.contextLabel}</p>
-        <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground/80">
+        <p className="mt-1.5 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground/80">
           {preview}
         </p>
       </div>
@@ -467,7 +467,7 @@ export function MessageEditorPanel() {
 
   return (
     <>
-      <div className="flex h-full w-[640px] flex-col border-l bg-card">
+      <div className="flex h-full w-full flex-col border-l bg-card">
         {/* Panel header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
@@ -485,9 +485,9 @@ export function MessageEditorPanel() {
         {/* Split: nav list + edit view */}
         <div className="flex flex-1 overflow-hidden">
           {/* Navigation sidebar */}
-          <div className="w-[220px] shrink-0 border-r">
+          <div className="w-[280px] shrink-0 border-r">
             <ScrollArea className="h-full">
-              <div className="space-y-1 p-2">
+              <div className="space-y-2 p-3">
                 {items.map((item) => (
                   <MessageNavItem
                     key={item.nodeId}

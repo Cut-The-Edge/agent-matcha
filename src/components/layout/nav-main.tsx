@@ -26,6 +26,13 @@ function LeadsBadge() {
   return <SidebarMenuBadge>{count}</SidebarMenuBadge>
 }
 
+function EscalationsBadge() {
+  const counts = useAuthQuery(api.escalations.queries.getCounts, {})
+  const pending = counts?.pending ?? 0
+  if (!pending) return null
+  return <SidebarMenuBadge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{pending}</SidebarMenuBadge>
+}
+
 function ComingSoonBadge() {
   return (
     <SidebarMenuBadge className="text-[10px] text-muted-foreground/70">
@@ -43,6 +50,7 @@ export function NavMain({
     url: string
     icon?: LucideIcon
     hasBadge?: boolean
+    escalationBadge?: boolean
     comingSoon?: boolean
     description?: string
   }[]
@@ -86,6 +94,7 @@ export function NavMain({
                   </SidebarMenuButton>
                 )}
                 {item.hasBadge && <LeadsBadge />}
+                {item.escalationBadge && <EscalationsBadge />}
                 {item.comingSoon && <ComingSoonBadge />}
               </SidebarMenuItem>
             )

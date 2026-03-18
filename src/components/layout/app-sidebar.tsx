@@ -50,7 +50,7 @@ const data = {
       title: "Leads",
       url: "/dashboard/leads",
       icon: UserPlus,
-      comingSoon: true,
+      hasBadge: true,
       description: "Track and manage incoming leads from your matchmaking pipeline",
     },
     {
@@ -69,7 +69,7 @@ const data = {
       title: "Escalations",
       url: "/dashboard/escalations",
       icon: AlertTriangle,
-      hasBadge: true,
+      escalationBadge: true,
       description: "Items needing attention: unrecognized responses, special requests, purchases",
     },
     {
