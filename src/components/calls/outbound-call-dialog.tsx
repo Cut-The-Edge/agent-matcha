@@ -1,7 +1,16 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { PhoneOutgoing, Search, User, X } from "lucide-react"
+import {
+  PhoneOutgoing,
+  Search,
+  User,
+  X,
+  PhoneOff,
+  PhoneMissed,
+  AlertCircle,
+  Loader2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -26,17 +35,63 @@ import { useAuthQuery } from "@/hooks/use-auth-query"
 import { api } from "../../../convex/_generated/api"
 import { toast } from "sonner"
 
+type CallErrorCode =
+  | "BUSY"
+  | "NO_ANSWER"
+  | "DECLINED"
+  | "INVALID_NUMBER"
+  | "SIP_ERROR"
+
+const ERROR_MESSAGES: Record<
+  CallErrorCode,
+  { icon: typeof PhoneOff; title: string; description: string }
+> = {
+  BUSY: {
+    icon: PhoneOff,
+    title: "Line busy",
+    description: "The member's line is busy. Try again in a few minutes.",
+  },
+  NO_ANSWER: {
+    icon: PhoneMissed,
+    title: "No answer",
+    description:
+      "The call wasn't picked up. You can try again later or the member can call in.",
+  },
+  DECLINED: {
+    icon: PhoneOff,
+    title: "Call declined",
+    description: "The recipient declined the call.",
+  },
+  INVALID_NUMBER: {
+    icon: AlertCircle,
+    title: "Invalid number",
+    description:
+      "The phone number is invalid or unreachable. Please check and try again.",
+  },
+  SIP_ERROR: {
+    icon: AlertCircle,
+    title: "Call failed",
+    description:
+      "Something went wrong connecting the call. Please try again.",
+  },
+}
+
 export function OutboundCallDialog() {
   const [open, setOpen] = useState(false)
   const [phone, setPhone] = useState("")
   const [context, setContext] = useState("full_intake")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
+  const [callError, setCallError] = useState<{
+    code: CallErrorCode
+    message: string
+  } | null>(null)
 
   // Member search
   const [memberSearch, setMemberSearch] = useState("")
   const [showResults, setShowResults] = useState(false)
   const [selectedMember, setSelectedMember] = useState<{
+    id: string
     name: string
     phone: string
   } | null>(null)
@@ -50,7 +105,10 @@ export function OutboundCallDialog() {
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(e.target as Node)
+      ) {
         setShowResults(false)
       }
     }
@@ -58,18 +116,40 @@ export function OutboundCallDialog() {
     return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
-  function selectMember(member: { firstName?: string; lastName?: string; phone?: string }) {
+  // Reset error when dialog opens/closes or phone changes
+  useEffect(() => {
+    setCallError(null)
+  }, [open, phone])
+
+  function selectMember(member: {
+    _id: string
+    firstName?: string
+    lastName?: string
+    phone?: string
+  }) {
     const name = `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim()
-    setSelectedMember({ name, phone: member.phone ?? "" })
+    setSelectedMember({ id: member._id, name, phone: member.phone ?? "" })
     setPhone(member.phone ?? "")
     setMemberSearch("")
     setShowResults(false)
+    setCallError(null)
   }
 
   function clearMember() {
     setSelectedMember(null)
     setPhone("")
     setMemberSearch("")
+    setCallError(null)
+  }
+
+  function resetDialog() {
+    setPhone("")
+    setNotes("")
+    setContext("full_intake")
+    setSelectedMember(null)
+    setMemberSearch("")
+    setCallError(null)
+    setLoading(false)
   }
 
   async function handleCall() {
@@ -79,6 +159,8 @@ export function OutboundCallDialog() {
     }
 
     setLoading(true)
+    setCallError(null)
+
     try {
       const res = await fetch("/api/outbound-call", {
         method: "POST",
@@ -87,35 +169,47 @@ export function OutboundCallDialog() {
           phone: phone.trim(),
           context,
           notes: notes.trim() || undefined,
+          memberId: selectedMember?.id,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to place call")
-      toast.success("Call in progress", {
-        description: `Dialing ${data.phone} — the agent will handle the conversation.`,
+
+      if (!res.ok) {
+        // Check for structured error with code
+        if (data.code && data.code in ERROR_MESSAGES) {
+          setCallError({ code: data.code as CallErrorCode, message: data.error })
+          return
+        }
+        throw new Error(data.error || "Failed to place call")
+      }
+
+      toast.success("Call connected", {
+        description: `Dialing ${data.phone} — the agent is handling the conversation.`,
         duration: 8000,
       })
       setOpen(false)
-      setPhone("")
-      setNotes("")
-      setSelectedMember(null)
-      setMemberSearch("")
+      resetDialog()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to initiate call")
+      toast.error(
+        err instanceof Error ? err.message : "Failed to initiate call"
+      )
     } finally {
       setLoading(false)
     }
   }
 
+  const errorInfo = callError
+    ? ERROR_MESSAGES[callError.code] || ERROR_MESSAGES.SIP_ERROR
+    : null
+
   return (
-    <Dialog open={open} onOpenChange={(v) => {
-      setOpen(v)
-      if (!v) {
-        setSelectedMember(null)
-        setMemberSearch("")
-        setShowResults(false)
-      }
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v)
+        if (!v) resetDialog()
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <PhoneOutgoing className="mr-2 size-4" />
@@ -131,6 +225,27 @@ export function OutboundCallDialog() {
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {/* Call Error Banner */}
+          {callError && errorInfo && (
+            <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-3">
+              <errorInfo.icon className="mt-0.5 size-5 shrink-0 text-destructive" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-destructive">
+                  {errorInfo.title}
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {errorInfo.description}
+                </p>
+              </div>
+              <button
+                onClick={() => setCallError(null)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+
           {/* Member Search */}
           <div className="grid gap-2" ref={searchRef}>
             <Label>Search Member</Label>
@@ -138,8 +253,13 @@ export function OutboundCallDialog() {
               <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
                 <User className="size-4 text-muted-foreground" />
                 <span className="flex-1">{selectedMember.name}</span>
-                <span className="text-muted-foreground">{selectedMember.phone}</span>
-                <button onClick={clearMember} className="text-muted-foreground hover:text-foreground">
+                <span className="text-muted-foreground">
+                  {selectedMember.phone}
+                </span>
+                <button
+                  onClick={clearMember}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X className="size-4" />
                 </button>
               </div>
@@ -153,33 +273,45 @@ export function OutboundCallDialog() {
                     setMemberSearch(e.target.value)
                     setShowResults(true)
                   }}
-                  onFocus={() => memberSearch.length >= 2 && setShowResults(true)}
+                  onFocus={() =>
+                    memberSearch.length >= 2 && setShowResults(true)
+                  }
                   className="pl-9"
                 />
                 {showResults && members && members.length > 0 && (
                   <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
-                    {members.map((m: { _id: string; firstName?: string; lastName?: string; phone?: string }) => (
-                      <button
-                        key={m._id}
-                        className="flex w-full items-center gap-3 px-3 py-2 text-sm hover:bg-accent text-left"
-                        onClick={() => selectMember(m)}
-                      >
-                        <User className="size-4 text-muted-foreground shrink-0" />
-                        <span className="flex-1 truncate">
-                          {m.firstName} {m.lastName ?? ""}
-                        </span>
-                        <span className="text-muted-foreground text-xs truncate">
-                          {m.phone ?? "no phone"}
-                        </span>
-                      </button>
-                    ))}
+                    {members.map(
+                      (m: {
+                        _id: string
+                        firstName?: string
+                        lastName?: string
+                        phone?: string
+                      }) => (
+                        <button
+                          key={m._id}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-sm hover:bg-accent text-left"
+                          onClick={() => selectMember(m)}
+                        >
+                          <User className="size-4 text-muted-foreground shrink-0" />
+                          <span className="flex-1 truncate">
+                            {m.firstName} {m.lastName ?? ""}
+                          </span>
+                          <span className="text-muted-foreground text-xs truncate">
+                            {m.phone ?? "no phone"}
+                          </span>
+                        </button>
+                      )
+                    )}
                   </div>
                 )}
-                {showResults && memberSearch.length >= 2 && members && members.length === 0 && (
-                  <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-3 text-sm text-muted-foreground shadow-md">
-                    No members found
-                  </div>
-                )}
+                {showResults &&
+                  memberSearch.length >= 2 &&
+                  members &&
+                  members.length === 0 && (
+                    <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-3 text-sm text-muted-foreground shadow-md">
+                      No members found
+                    </div>
+                  )}
               </div>
             )}
           </div>
@@ -230,7 +362,16 @@ export function OutboundCallDialog() {
             Cancel
           </Button>
           <Button onClick={handleCall} disabled={loading}>
-            {loading ? "Dialing..." : "Place Call"}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Dialing...
+              </>
+            ) : callError ? (
+              "Retry Call"
+            ) : (
+              "Place Call"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

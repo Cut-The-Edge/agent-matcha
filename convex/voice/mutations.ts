@@ -220,6 +220,23 @@ export const linkCallToMember = internalMutation({
   },
 });
 
+/**
+ * Update a call's status to no_answer (used when outbound call is not picked up).
+ */
+export const markCallNoAnswer = internalMutation({
+  args: {
+    callId: v.id("phoneCalls"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.callId, {
+      status: "no_answer",
+      endedAt: Date.now(),
+      escalationReason: args.reason,
+    });
+  },
+});
+
 export const updateSmaSyncStatus = internalMutation({
   args: {
     callId: v.id("phoneCalls"),

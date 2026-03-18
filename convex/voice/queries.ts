@@ -316,3 +316,36 @@ export const getMemberFullContext = internalQuery({
     };
   },
 });
+
+/**
+ * Get a member's phone and basic info for placing an outbound call.
+ * Returns null if member not found or has no phone number.
+ */
+export const getMemberForOutboundCall = internalQuery({
+  args: { memberId: v.id("members") },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) return null;
+
+    const phone = member.phone;
+    if (!phone) return null;
+
+    // Check if there's already an active call for this member
+    const activeCall = await ctx.db
+      .query("phoneCalls")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .filter((q) => q.eq(q.field("status"), "in_progress"))
+      .first();
+
+    return {
+      _id: member._id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      phone,
+      tier: member.tier,
+      status: member.status,
+      profileComplete: member.profileComplete,
+      hasActiveCall: !!activeCall,
+    };
+  },
+});

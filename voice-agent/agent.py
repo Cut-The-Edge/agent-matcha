@@ -722,17 +722,59 @@ async def entrypoint(ctx: agents.JobContext):
         except (json.JSONDecodeError, AttributeError):
             logger.warning("[entrypoint] Failed to parse dispatch metadata: %s", ctx.job.metadata)
 
-    # Wait for a participant to join
+    # Wait for the SIP participant to join.
+    # For inbound calls, they may already be in the room.
+    # For outbound calls, we dispatched first so we need to wait for the
+    # callee to answer and appear as a SIP participant.
     caller_phone = phone_number or call_handler.get_caller_phone(ctx.room)
 
-    # Log call start
     sip_call_id = None
+    # Check if SIP participant is already in the room
     for p in ctx.room.remote_participants.values():
         if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
             sip_call_id = p.sid
             if not caller_phone:
                 caller_phone = call_handler.get_caller_phone(ctx.room)
             break
+
+    # For outbound calls, if no SIP participant yet, wait for them to answer
+    if call_direction == "outbound" and sip_call_id is None:
+        logger.info("[entrypoint] Outbound call — waiting for callee to answer...")
+        try:
+            # Wait up to 45 seconds for the callee to pick up
+            # (the SIP gateway handles ringing / no-answer / busy detection)
+            wait_event = asyncio.Event()
+
+            def on_participant_connected(participant: rtc.RemoteParticipant):
+                if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                    wait_event.set()
+
+            ctx.room.on("participant_connected", on_participant_connected)
+            try:
+                await asyncio.wait_for(wait_event.wait(), timeout=45.0)
+            except asyncio.TimeoutError:
+                logger.warning("[entrypoint] Outbound call — callee did not answer within 45s")
+                await call_handler.on_call_start(
+                    room=ctx.room,
+                    phone=caller_phone,
+                    direction="outbound",
+                    lk_api=ctx.api,
+                )
+                await call_handler.on_call_end(status="no_answer")
+                await convex.close()
+                get_job_context().shutdown()
+                return
+
+            # Re-scan for the SIP participant
+            for p in ctx.room.remote_participants.values():
+                if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                    sip_call_id = p.sid
+                    if not caller_phone:
+                        caller_phone = call_handler.get_caller_phone(ctx.room)
+                    break
+            logger.info("[entrypoint] Outbound call — callee answered (sip_call_id=%s)", sip_call_id)
+        except Exception as e:
+            logger.error("[entrypoint] Error waiting for outbound callee: %s", e)
 
     await call_handler.on_call_start(
         room=ctx.room,
