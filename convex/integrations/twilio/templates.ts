@@ -46,7 +46,7 @@ export const WA_TEMPLATES = {
   // NOTE: Template must be updated in Twilio Console to include {{2}} profile link
   // and remove "Reply here to get started!" — then re-approved by Meta.
   WELCOME: {
-    contentSid: "HXc0a86dde028e42b5678481fedc0151d2",
+    contentSid: "HX25ad2dc0434e3fb726af6827a778dbfb",
     variables: ["memberName", "profileLink"],
   },
 
