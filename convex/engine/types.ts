@@ -112,7 +112,9 @@ export interface ActionNodeConfig {
     | "send_introduction"
     | "create_group_chat"
     | "schedule_recalibration"
-    | "expire_match";
+    | "expire_match"
+    | "send_wrapup"
+    | "create_escalation";
   params: Record<string, any>;
 }
 

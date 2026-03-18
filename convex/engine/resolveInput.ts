@@ -248,6 +248,21 @@ export const resolveInputWithLLM = internalAction({
             args.memberId,
             "Hey, give me just a moment — I want to make sure I understand you correctly 😊",
           );
+
+          // Escalate: both quick matching and AI fallback failed
+          await ctx.runMutation(
+            internal.escalations.mutations.createEscalation,
+            {
+              memberId: args.memberId,
+              matchId: args.matchId,
+              flowInstanceId: args.flowInstanceId,
+              issueType: "unrecognized_response",
+              issueDescription:
+                `Member's response could not be matched to any flow option and AI fallback also failed. ` +
+                `Question: "${(args.question || "").slice(0, 100)}"`,
+              memberMessage: args.rawInput,
+            },
+          );
         }
       }
       // Don't advance flow — keep waiting for valid input

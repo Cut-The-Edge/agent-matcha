@@ -451,6 +451,39 @@ export default defineSchema({
     .index("by_member", ["memberId"])
     .index("by_slaDeadline", ["status", "slaDeadline"]),
 
+  // -- Escalations (items needing Dani's attention) --
+  escalations: defineTable({
+    memberId: v.id("members"),
+    matchId: v.optional(v.id("matches")),
+    flowInstanceId: v.optional(v.id("flowInstances")),
+    issueType: v.union(
+      v.literal("unrecognized_response"),
+      v.literal("special_request"),
+      v.literal("upsell_purchase"),
+      v.literal("frustrated_member"),
+      v.literal("manual"),
+    ),
+    memberName: v.string(),
+    matchContext: v.optional(v.string()),
+    issueDescription: v.string(),
+    memberMessage: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("resolved"),
+    ),
+    notificationSent: v.boolean(),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.id("admins")),
+    adminNotes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_member", ["memberId"])
+    .index("by_created", ["createdAt"])
+    .index("by_issueType", ["issueType"]),
+
   // -- Flow Engine: Execution Logs --
   flowExecutionLogs: defineTable({
     instanceId: v.id("flowInstances"),
