@@ -13,6 +13,7 @@ import {
   saveIntakeDataHandler,
   fetchSmaProfileHandler,
   sendDataRequestHandler,
+  lookupPhoneHandler,
 } from "./voice/http";
 
 const http = httpRouter();
@@ -45,6 +46,7 @@ http.route({ path: "/voice/transcript-segment", method: "POST", handler: transcr
 http.route({ path: "/voice/save-intake-data", method: "POST", handler: saveIntakeDataHandler });
 http.route({ path: "/voice/fetch-sma-profile", method: "POST", handler: fetchSmaProfileHandler });
 http.route({ path: "/voice/send-data-request", method: "POST", handler: sendDataRequestHandler });
+http.route({ path: "/voice/lookup-phone", method: "POST", handler: lookupPhoneHandler });
 
 // ── Stripe webhook (uses @convex-dev/stripe built-in registration) ─
 registerStripeRoutes(http, components.stripe, {

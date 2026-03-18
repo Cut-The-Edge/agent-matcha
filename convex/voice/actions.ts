@@ -11,6 +11,7 @@ import {
 import { fetchAndMapClient, extractValue } from "../integrations/smartmatchapp/contacts";
 import {
   createClient,
+  findClientByPhone,
   getClientProfile,
   getClientPreferences,
   getClientDetails,
@@ -437,6 +438,93 @@ export const fetchSmaProfile = internalAction({
         created: clientDetails.created,
         assignedUsers: clientDetails.assigned_users,
       } : null,
+    };
+  },
+});
+
+// ── Phone Lookup in SMA ──────────────────────────────────────────────
+
+/**
+ * Search SmartMatchApp by phone number and sync the found client
+ * into the local members table if not already present.
+ *
+ * Called by the lookupPhone HTTP handler when the phone isn't in local DB.
+ */
+export const lookupPhoneInSma = internalAction({
+  args: { phone: v.string() },
+  handler: async (ctx, args) => {
+    console.log("[lookupPhoneInSma] Searching SMA for phone:", args.phone);
+
+    const smaClient = await findClientByPhone(args.phone);
+    if (!smaClient) {
+      console.log("[lookupPhoneInSma] No SMA client found for phone:", args.phone);
+      return { found: false };
+    }
+
+    const smaId = String(smaClient.id);
+    console.log("[lookupPhoneInSma] Found SMA client: id=%s", smaId);
+
+    // Check if this SMA client already exists in our local DB
+    let member = await ctx.runQuery(
+      internal.members.queries.getBySmaIdInternal,
+      { smaId }
+    );
+
+    // If not in local DB, fetch full profile from SMA and create the member
+    if (!member) {
+      console.log("[lookupPhoneInSma] SMA client %s not in local DB — syncing", smaId);
+      try {
+        const apiData = await fetchAndMapClient(Number(smaId));
+        await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
+          smaId: apiData.smaId,
+          firstName: apiData.firstName,
+          middleName: apiData.middleName,
+          lastName: apiData.lastName,
+          email: apiData.email,
+          phone: apiData.phone,
+          profilePictureUrl: apiData.profilePictureUrl,
+          location: apiData.location,
+          gender: apiData.gender,
+          profileData: apiData.smaProfile,
+          tier: apiData.tier,
+          profileComplete: apiData.profileComplete,
+          matchmakerNotes: apiData.matchmakerNotes,
+        });
+        member = await ctx.runQuery(
+          internal.members.queries.getBySmaIdInternal,
+          { smaId }
+        );
+      } catch (err: any) {
+        console.warn("[lookupPhoneInSma] Failed to sync SMA client:", err.message);
+        // Return basic info even if full sync fails
+        return {
+          found: true,
+          source: "sma_partial",
+          smaId,
+          firstName: smaClient.prof_239 ?? "Unknown",
+          lastName: smaClient.prof_241 ?? undefined,
+        };
+      }
+    }
+
+    if (!member) {
+      return { found: false };
+    }
+
+    // Return full member context
+    const memberContext = await ctx.runQuery(
+      internal.voice.queries.getMemberFullContext,
+      { memberId: member._id }
+    );
+
+    return {
+      found: true,
+      source: "sma",
+      smaId,
+      memberId: member._id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      member: memberContext,
     };
   },
 });
