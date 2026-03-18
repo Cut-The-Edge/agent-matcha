@@ -47,15 +47,15 @@ function StatCard({
 
   const card = (
     <Card
-      className={`@container/card ${href ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}`}
+      className={`@container/card card-hover ${href ? "cursor-pointer" : ""}`}
       onClick={href ? () => router.push(href) : undefined}
     >
       <CardHeader>
         <CardDescription className="flex items-center gap-2">
           <Icon className="size-4" />
-          {title}
+          <span className="text-xs font-medium uppercase tracking-wider">{title}</span>
         </CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle className="text-2xl font-semibold tabular-nums tracking-tight @[250px]/card:text-3xl">
           {isLoading ? "..." : value}
         </CardTitle>
         {badge && (
@@ -68,7 +68,7 @@ function StatCard({
         <div className="line-clamp-1 flex gap-2 font-medium">
           {description}
         </div>
-        <div className="text-muted-foreground">{footer}</div>
+        <div className="text-xs text-muted-foreground">{footer}</div>
       </CardFooter>
     </Card>
   )
@@ -96,7 +96,7 @@ export function SectionCards() {
   const isLoading = overviewStats === undefined
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-2 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+    <div className="stagger *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-2 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
       <StatCard
         title="Total Members"
         value={overviewStats?.totalMembers ?? 0}

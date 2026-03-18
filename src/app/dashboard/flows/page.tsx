@@ -105,11 +105,13 @@ export default function FlowsPage() {
     }
 
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-        <Workflow className="size-12 text-muted-foreground" />
+      <div className="flex h-full flex-col items-center justify-center gap-5 text-center animate-fade-in">
+        <div className="rounded-2xl bg-muted/50 p-5">
+          <Workflow className="size-10 text-muted-foreground" />
+        </div>
         <div>
-          <h2 className="text-lg font-semibold">No Flow Configured</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="text-lg font-semibold tracking-tight">No Flow Configured</h2>
+          <p className="text-sm text-muted-foreground mt-1.5 max-w-[280px]">
             Create the Match Introduction Flow to get started
           </p>
         </div>
@@ -301,15 +303,15 @@ function FlowEditorPage({
   return (
     <div className="flex h-[calc(100vh-var(--header-height))] flex-col">
       {/* Editor Header */}
-      <div className="flex items-center gap-3 border-b px-4 py-2">
+      <div className="flex items-center gap-3 border-b border-border/60 px-4 py-2.5">
         <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
           <ArrowLeft className="mr-1 size-4" />
           Back
         </Button>
 
-        <div className="h-6 w-px bg-border" />
+        <div className="h-5 w-px bg-border/60" />
 
-        <h3 className="text-sm font-semibold">{flowName}</h3>
+        <h3 className="text-sm font-semibold tracking-tight">{flowName}</h3>
 
         <Badge variant="secondary" className="text-[10px]">
           {flowType}

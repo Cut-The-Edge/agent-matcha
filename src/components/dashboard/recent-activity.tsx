@@ -75,46 +75,50 @@ export function RecentActivity() {
   })
 
   return (
-    <div className="grid gap-4 px-4 lg:grid-cols-2 lg:px-6">
+    <div className="stagger grid gap-5 px-4 lg:grid-cols-2 lg:px-6">
       {/* Recent Activity */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="size-4" />
-            Recent Activity
+            <span className="tracking-tight">Recent Activity</span>
           </CardTitle>
           <CardDescription>Latest events across your CRM</CardDescription>
         </CardHeader>
         <CardContent>
           {activities === undefined ? (
-            <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+            <div className="flex h-[220px] items-center justify-center text-muted-foreground">
               <p className="text-sm">Loading activity...</p>
             </div>
           ) : activities.length === 0 ? (
-            <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+            <div className="flex h-[220px] items-center justify-center text-muted-foreground">
               <div className="text-center">
-                <Activity className="mx-auto mb-3 size-8 opacity-40" />
+                <div className="mx-auto mb-4 rounded-2xl bg-muted/50 p-4 w-fit">
+                  <Activity className="size-7 opacity-40" />
+                </div>
                 <p className="text-sm font-medium">No activity yet</p>
-                <p className="mt-1 text-xs">
+                <p className="mt-1.5 text-xs text-muted-foreground/70 max-w-[200px]">
                   Events will appear here as you use the CRM
                 </p>
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-1">
               {activities.slice(0, 6).map((activity: ActivityItem, i: number) => {
                 const Icon = getActivityIcon(activity)
                 return (
                   <div
                     key={i}
-                    className="flex items-start gap-3 rounded-md p-2 text-sm transition-colors hover:bg-muted/50"
+                    className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 hover:bg-muted/50"
                   >
-                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div className="mt-0.5 rounded-md bg-muted/60 p-1.5">
+                      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium">
+                      <p className="truncate font-medium leading-snug">
                         {getActivityLabel(activity)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground/70">
                         {formatTimeAgo(activity.timestamp)}
                       </p>
                     </div>
@@ -129,7 +133,7 @@ export function RecentActivity() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle className="tracking-tight">Quick Actions</CardTitle>
           <CardDescription>Jump to common tasks</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -137,18 +141,18 @@ export function RecentActivity() {
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                className="h-auto justify-start gap-3 px-4 py-3"
+                className="h-auto justify-start gap-3 px-4 py-3.5 transition-all duration-200 hover:shadow-sm"
                 onClick={() => router.push("/dashboard/conversations")}
               >
                 <MessageSquare className="size-4 shrink-0 text-primary" />
                 <div className="flex flex-1 items-center justify-between">
                   <div className="text-left">
                     <div className="text-sm font-medium">View Messages</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="mt-0.5 text-xs text-muted-foreground">
                       Check WhatsApp conversations
                     </div>
                   </div>
-                  <ArrowRight className="size-4 text-muted-foreground" />
+                  <ArrowRight className="size-4 text-muted-foreground transition-transform duration-200 group-hover/button:translate-x-0.5" />
                 </div>
               </Button>
             </TooltipTrigger>
@@ -161,18 +165,18 @@ export function RecentActivity() {
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                className="h-auto justify-start gap-3 px-4 py-3"
+                className="h-auto justify-start gap-3 px-4 py-3.5 transition-all duration-200 hover:shadow-sm"
                 onClick={() => router.push("/dashboard/calls")}
               >
                 <Phone className="size-4 shrink-0 text-accent" />
                 <div className="flex flex-1 items-center justify-between">
                   <div className="text-left">
                     <div className="text-sm font-medium">Call Logs</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="mt-0.5 text-xs text-muted-foreground">
                       View recent voice calls and transcripts
                     </div>
                   </div>
-                  <ArrowRight className="size-4 text-muted-foreground" />
+                  <ArrowRight className="size-4 text-muted-foreground transition-transform duration-200 group-hover/button:translate-x-0.5" />
                 </div>
               </Button>
             </TooltipTrigger>

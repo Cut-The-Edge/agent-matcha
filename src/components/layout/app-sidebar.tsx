@@ -150,7 +150,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="/dashboard">
                 <span className="text-2xl leading-none" role="img" aria-label="matcha">🍵</span>
-                <span className="text-base font-semibold">Agent Matcha</span>
+                <span className="text-base font-semibold tracking-tight">Agent Matcha</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

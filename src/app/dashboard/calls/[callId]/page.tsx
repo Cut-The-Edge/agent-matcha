@@ -92,7 +92,7 @@ export default function CallDetailPage({
   }
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+    <div className="flex flex-col gap-6 py-6 md:gap-8 md:py-8 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-4">
@@ -102,8 +102,8 @@ export default function CallDetailPage({
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold tracking-tight">
+            <div className="flex items-center gap-2.5">
+              <h2 className="page-heading">
                 {call.member
                   ? `${call.member.firstName}${call.member.lastName ? ` ${call.member.lastName}` : ""}`
                   : call.phone ?? "Unknown Caller"}
@@ -152,7 +152,7 @@ export default function CallDetailPage({
       </div>
 
       {/* Call info cards */}
-      <div className="grid grid-cols-2 gap-4 px-4 lg:grid-cols-4 lg:px-6">
+      <div className="stagger grid grid-cols-2 gap-4 px-4 lg:grid-cols-4 lg:px-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

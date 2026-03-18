@@ -7,20 +7,20 @@ import { VoiceSandbox } from "@/components/sandbox/voice-sandbox"
 
 export default function SandboxPage() {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-fade-in">
       {/* Header */}
-      <div className="border-b border-border px-6 py-4">
-        <div className="flex items-center gap-2">
+      <div className="border-b border-border/60 px-6 py-5">
+        <div className="flex items-center gap-2.5">
           <FlaskConical className="size-5 text-primary" />
-          <h1 className="text-lg font-semibold">Sandbox</h1>
+          <h1 className="page-heading text-xl">Sandbox</h1>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           Test flows and voice calls end-to-end with real members
         </p>
       </div>
 
       <Tabs defaultValue="whatsapp" className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b border-border px-6 pt-2">
+        <div className="border-b border-border/60 px-6 pt-2">
           <TabsList>
             <TabsTrigger value="whatsapp">WhatsApp Flows</TabsTrigger>
             <TabsTrigger value="voice">

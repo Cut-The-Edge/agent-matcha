@@ -31,7 +31,7 @@ export default function ConversationsPage() {
   // Mobile: show either list or thread, not both
   if (isMobile) {
     return (
-      <div className="flex flex-col h-[calc(100vh-var(--header-height))] overflow-hidden">
+      <div className="flex flex-col h-[calc(100vh-var(--header-height))] overflow-hidden animate-fade-in">
         {selectedMemberId && selectedSummary ? (
           <MessageThread
             memberId={selectedMemberId as Id<"members">}
@@ -52,9 +52,9 @@ export default function ConversationsPage() {
 
   // Desktop: split pane layout
   return (
-    <div className="flex h-[calc(100vh-var(--header-height))] overflow-hidden">
+    <div className="flex h-[calc(100vh-var(--header-height))] overflow-hidden animate-fade-in">
       {/* Left panel - Conversation list */}
-      <div className="w-80 xl:w-96 border-r shrink-0">
+      <div className="w-80 xl:w-96 border-r border-border/60 shrink-0">
         <ConversationList
           summaries={summaries}
           selectedMemberId={selectedMemberId}

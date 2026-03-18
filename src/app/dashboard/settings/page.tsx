@@ -55,19 +55,19 @@ export default function SettingsPage() {
   }, [settings])
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+    <div className="flex flex-col gap-6 py-6 md:gap-8 md:py-8 animate-fade-in">
       <div className="px-4 lg:px-6">
-        <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
-        <p className="text-muted-foreground">
+        <h2 className="page-heading">Settings</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Configure application settings
         </p>
       </div>
 
-      <div className="flex flex-col gap-6 px-4 lg:px-6">
+      <div className="flex flex-col gap-8 px-4 lg:px-6">
         {/* General Section */}
         <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2.5 tracking-tight">
+            <Settings className="h-4.5 w-4.5" />
             General
           </h3>
 
@@ -161,8 +161,8 @@ export default function SettingsPage() {
 
         {/* Voice Agent Section */}
         <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Phone className="h-5 w-5" />
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2.5 tracking-tight">
+            <Phone className="h-4.5 w-4.5" />
             Voice Agent
           </h3>
 
@@ -200,8 +200,8 @@ export default function SettingsPage() {
 
         {/* Data Requests Section */}
         <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" />
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2.5 tracking-tight">
+            <ClipboardList className="h-4.5 w-4.5" />
             Data Requests
           </h3>
 

@@ -38,18 +38,18 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, subtitle, icon: Icon }: MetricCardProps) {
   return (
-    <Card className="@container/card">
+    <Card className="@container/card card-hover">
       <CardHeader>
         <CardDescription className="flex items-center gap-2">
           <Icon className="size-4" />
-          {title}
+          <span className="text-xs font-medium uppercase tracking-wider">{title}</span>
         </CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardTitle className="text-2xl font-semibold tabular-nums tracking-tight @[250px]/card:text-3xl">
           {value}
         </CardTitle>
       </CardHeader>
       <CardFooter>
-        <div className="text-sm text-muted-foreground">{subtitle}</div>
+        <div className="text-xs text-muted-foreground">{subtitle}</div>
       </CardFooter>
     </Card>
   )
@@ -77,7 +77,7 @@ export function CallMetricsCards() {
   }
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-2 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3 @5xl/main:grid-cols-6">
+    <div className="stagger *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-2 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-3 @5xl/main:grid-cols-6">
       <MetricCard
         title="Calls Today"
         value={metrics.callsToday}

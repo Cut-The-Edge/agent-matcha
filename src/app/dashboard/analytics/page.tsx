@@ -106,10 +106,12 @@ const PROCESS_LABELS: Record<string, string> = {
 
 function ChartEmptyState({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <Icon className="h-10 w-10 text-muted-foreground/40 mb-3" />
-      <p className="text-sm text-muted-foreground">No {label} data yet</p>
-      <p className="text-xs text-muted-foreground mt-1">
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="rounded-2xl bg-muted/50 p-4 mb-4">
+        <Icon className="h-8 w-8 text-muted-foreground/40" />
+      </div>
+      <p className="text-sm font-medium text-muted-foreground">No {label} data yet</p>
+      <p className="text-xs text-muted-foreground/70 mt-1.5 max-w-[200px]">
         Data will appear here once matches are created
       </p>
     </div>
@@ -270,12 +272,12 @@ function UsageSummaryPanel() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">Total this month</p>
-                <p className="text-3xl font-bold mt-1">{formatCost(totalMonthCost)}</p>
+                <p className="text-3xl font-semibold tabular-nums tracking-tight mt-1">{formatCost(totalMonthCost)}</p>
                 <p className="text-xs text-muted-foreground mt-1">{totalCalls} API calls</p>
               </div>
               <div className="rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">Projected monthly total</p>
-                <p className="text-3xl font-bold mt-1">{formatCost(projectedMonthlyCost)}</p>
+                <p className="text-3xl font-semibold tabular-nums tracking-tight mt-1">{formatCost(projectedMonthlyCost)}</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Based on {dayOfMonth} day{dayOfMonth !== 1 ? "s" : ""} of usage
                 </p>
@@ -290,7 +292,7 @@ function UsageSummaryPanel() {
                   <Phone className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium">Phone Agent</p>
-                    <p className="text-lg font-bold">{formatCost(categories.phoneAgent.cost)}</p>
+                    <p className="text-lg font-semibold tabular-nums">{formatCost(categories.phoneAgent.cost)}</p>
                     <p className="text-xs text-muted-foreground">{categories.phoneAgent.calls} calls</p>
                   </div>
                 </div>
@@ -298,7 +300,7 @@ function UsageSummaryPanel() {
                   <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium">WhatsApp Bot</p>
-                    <p className="text-lg font-bold">{formatCost(categories.whatsappBot.cost)}</p>
+                    <p className="text-lg font-semibold tabular-nums">{formatCost(categories.whatsappBot.cost)}</p>
                     <p className="text-xs text-muted-foreground">{categories.whatsappBot.calls} calls</p>
                   </div>
                 </div>
@@ -306,7 +308,7 @@ function UsageSummaryPanel() {
                   <Cpu className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium">Other</p>
-                    <p className="text-lg font-bold">{formatCost(categories.other.cost)}</p>
+                    <p className="text-lg font-semibold tabular-nums">{formatCost(categories.other.cost)}</p>
                     <p className="text-xs text-muted-foreground">{categories.other.calls} calls</p>
                   </div>
                 </div>
@@ -322,7 +324,7 @@ function UsageSummaryPanel() {
                     <Target className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">Intake call</span>
                   </div>
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium tabular-nums">
                     {perOperation.avgIntakeCall > 0 ? formatCost(perOperation.avgIntakeCall) : "--"}
                   </span>
                 </div>
@@ -331,7 +333,7 @@ function UsageSummaryPanel() {
                     <Target className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">Feedback cycle</span>
                   </div>
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium tabular-nums">
                     {perOperation.avgFeedbackCycle > 0 ? formatCost(perOperation.avgFeedbackCycle) : "--"}
                   </span>
                 </div>
@@ -340,7 +342,7 @@ function UsageSummaryPanel() {
                     <Target className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">Intro cycle</span>
                   </div>
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium tabular-nums">
                     {perOperation.avgIntroCycle > 0 ? formatCost(perOperation.avgIntroCycle) : "--"}
                   </span>
                 </div>
@@ -349,7 +351,7 @@ function UsageSummaryPanel() {
                     <Target className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">Analysis</span>
                   </div>
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium tabular-nums">
                     {perOperation.avgAnalysis > 0 ? formatCost(perOperation.avgAnalysis) : "--"}
                   </span>
                 </div>
@@ -448,62 +450,62 @@ function TokenAnalyticsTab() {
       </div>
 
       {/* Summary stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="card-hover">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
             <Coins className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight">
               {isLoading ? "--" : formatCost(summary?.totalCostUsd ?? 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Last {daysNum} days
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-hover">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
             <Cpu className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight">
               {isLoading ? "--" : formatTokenCount(summary?.totalTokens ?? 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {isLoading ? "--" : formatTokenCount(summary?.totalInputTokens ?? 0)} in / {isLoading ? "--" : formatTokenCount(summary?.totalOutputTokens ?? 0)} out
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-hover">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">API Calls</CardTitle>
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight">
               {isLoading ? "--" : (summary?.totalCalls ?? 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {isLoading ? "--" : summary?.uniqueProcesses ?? 0} process types
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-hover">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg Latency</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight">
               {isLoading ? "--" : `${summary?.avgLatencyMs ?? 0}ms`}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {isLoading ? "--" : summary?.uniqueModels ?? 0} models used
             </p>
           </CardContent>
@@ -565,7 +567,7 @@ function TokenAnalyticsTab() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2">
         {/* Cost by process type -- pie chart */}
         <Card>
           <CardHeader>
@@ -774,10 +776,10 @@ export default function AnalyticsPage() {
   const responseTimeData: { date: string; avgMinutes: number }[] = []
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+    <div className="flex flex-col gap-6 py-6 md:gap-8 md:py-8 animate-fade-in">
       <div className="px-4 lg:px-6">
-        <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
-        <p className="text-muted-foreground">
+        <h2 className="page-heading">Analytics</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Matchmaking analytics, AI usage, and cost insights
         </p>
       </div>
@@ -791,11 +793,11 @@ export default function AnalyticsPage() {
 
           {/* Matchmaking Tab */}
           <TabsContent value="matchmaking">
-            <div className="flex flex-col gap-4 pt-4">
+            <div className="flex flex-col gap-5 pt-4">
               {/* Summary stat cards */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {summaryStats.map((stat) => (
-                  <Card key={stat.title}>
+                  <Card key={stat.title} className="card-hover">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
                         {stat.title}
@@ -803,8 +805,8 @@ export default function AnalyticsPage() {
                       <stat.icon className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                      <p className="text-xs text-muted-foreground">
+                      <div className="text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</div>
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {stat.description}
                       </p>
                     </CardContent>
@@ -812,7 +814,7 @@ export default function AnalyticsPage() {
                 ))}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-5 md:grid-cols-2">
                 {/* Match Outcomes Donut Chart */}
                 <Card>
                   <CardHeader>

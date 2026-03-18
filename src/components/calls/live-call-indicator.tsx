@@ -26,15 +26,15 @@ export function LiveCallIndicator() {
   if (!activeCalls || activeCalls.length === 0) return null
 
   return (
-    <div className="mx-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3 lg:mx-6">
-      <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+    <div className="mx-4 rounded-xl border border-green-500/20 bg-green-500/5 p-4 lg:mx-6 animate-scale-in">
+      <div className="flex items-center gap-2.5 text-sm font-medium text-green-700 dark:text-green-400">
         <span className="relative flex size-2">
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400 opacity-75" />
           <span className="relative inline-flex size-2 rounded-full bg-green-500" />
         </span>
         {activeCalls.length === 1 ? "1 Active Call" : `${activeCalls.length} Active Calls`}
       </div>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2.5 space-y-1.5">
         {activeCalls.map((call: any) => (
           <div
             key={call._id}
@@ -47,7 +47,7 @@ export function LiveCallIndicator() {
                 {call.direction === "outbound" ? "Outbound" : "Inbound"}
               </span>
             </div>
-            <span className="tabular-nums">{formatElapsed(call.startedAt)}</span>
+            <span className="tabular-nums font-medium">{formatElapsed(call.startedAt)}</span>
           </div>
         ))}
       </div>

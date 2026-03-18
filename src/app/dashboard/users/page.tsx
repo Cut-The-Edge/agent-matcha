@@ -303,15 +303,15 @@ export default function UsersPage() {
   ).length ?? 0
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+    <div className="flex flex-col gap-6 py-6 md:gap-8 md:py-8 animate-fade-in">
       {/* Header */}
       <div className="flex justify-between items-start px-4 lg:px-6">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <h2 className="page-heading flex items-center gap-2.5">
             <Users className="h-6 w-6" />
             User Management
           </h2>
-          <p className="text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage admin users and their permissions
           </p>
         </div>
@@ -425,29 +425,29 @@ export default function UsersPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 lg:px-6">
-        <Card>
+      <div className="stagger grid grid-cols-1 md:grid-cols-3 gap-4 px-4 lg:px-6">
+        <Card className="card-hover">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Admins</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{admins?.length ?? 0}</div>
+            <div className="text-3xl font-semibold tabular-nums tracking-tight">{admins?.length ?? 0}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-hover">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">{activeCount}</div>
+            <div className="text-3xl font-semibold tabular-nums tracking-tight text-green-600">{activeCount}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-hover">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Inactive</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-muted-foreground">{inactiveCount}</div>
+            <div className="text-3xl font-semibold tabular-nums tracking-tight text-muted-foreground">{inactiveCount}</div>
           </CardContent>
         </Card>
       </div>

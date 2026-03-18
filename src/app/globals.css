@@ -45,6 +45,12 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Dashboard motion tokens */
+  --animate-fade-in-up: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-scale-in: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-in-right: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 :root {
@@ -71,7 +77,7 @@
   --chart-3: oklch(0.25 0.06 330);
   --chart-4: oklch(0.60 0.10 340);
   --chart-5: oklch(0.45 0.12 335);
-  --radius: 0.45rem;
+  --radius: 0.625rem;
   --sidebar: oklch(0.985 0.005 335);
   --sidebar-foreground: oklch(0.16 0.005 285);
   --sidebar-primary: oklch(0.37 0.14 335);
@@ -122,8 +128,57 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Dashboard motion keyframes                                         */
+/* ------------------------------------------------------------------ */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard utility classes                                          */
+/* ------------------------------------------------------------------ */
 
 @layer utilities {
   /* Custom scrollbar styles for horizontal scrolling */
@@ -152,5 +207,57 @@
 
   .dark .scrollbar-track-gray-100::-webkit-scrollbar-track {
     background-color: rgb(31 41 55);
+  }
+
+  /* Interactive card lift on hover */
+  .card-hover {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 28px -6px rgb(0 0 0 / 0.06),
+      0 4px 12px -4px rgb(0 0 0 / 0.03);
+  }
+
+  /* Staggered entrance for child elements */
+  .stagger > * {
+    animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger > *:nth-child(6) { animation-delay: 300ms; }
+  .stagger > *:nth-child(7) { animation-delay: 360ms; }
+  .stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+  /* Page heading typographic treatment */
+  .page-heading {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  /* Subtle surface grain texture overlay */
+  .surface-grain {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .surface-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.35;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 }
