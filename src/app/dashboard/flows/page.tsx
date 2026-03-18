@@ -9,6 +9,7 @@ import type { Node, Edge } from "@xyflow/react"
 
 import { FlowEditor } from "@/components/flows/flow-editor"
 import { FlowSimpleView } from "@/components/flows/flow-simple-view"
+import { MessageEditorPanel } from "@/components/flows/message-editor-panel"
 import { useFlowEditorStore } from "@/stores/flow-editor-store"
 import {
   defaultNodes as daniFlowNodes,
@@ -386,9 +387,11 @@ function FlowEditorPage({
         </div>
       </div>
 
-      {/* Canvas / Simple View */}
+      {/* Canvas / Simple View / Message Editor */}
       <div className="flex-1 overflow-hidden">
-        {viewMode === "editor" ? (
+        {messageEditorOpen ? (
+          <MessageEditorPanel />
+        ) : viewMode === "editor" ? (
           <FlowEditor />
         ) : (
           <FlowSimpleView

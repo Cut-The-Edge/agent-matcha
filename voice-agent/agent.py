@@ -1099,6 +1099,9 @@ async def entrypoint(ctx: agents.JobContext):
         turn_detection=MultilingualModel(),
     )
 
+    # Track the LLM model name for usage analytics
+    call_handler._llm_model = LLM_MODEL
+
     # ── Guardrail: user-message callback ─────────────────────────────
     # This fires on every caller utterance to drive hostile detection,
     # off-topic counting, and silence-timer resets.

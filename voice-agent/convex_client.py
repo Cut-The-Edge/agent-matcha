@@ -122,6 +122,32 @@ class ConvexClient:
             "data": data,
         })
 
+    # ── Token analytics ──────────────────────────────────────────────
+
+    async def log_voice_usage(
+        self,
+        *,
+        call_id: str,
+        duration_secs: int,
+        stt_model: str,
+        llm_model: str,
+        tts_model: str,
+        user_tokens: int,
+        agent_tokens: int,
+        transcript_segments: int,
+    ) -> dict[str, Any]:
+        """Log voice call provider usage for token/cost analytics."""
+        return await self._post("/voice/log-usage", {
+            "callId": call_id,
+            "durationSecs": duration_secs,
+            "sttModel": stt_model,
+            "llmModel": llm_model,
+            "ttsModel": tts_model,
+            "userTokens": user_tokens,
+            "agentTokens": agent_tokens,
+            "transcriptSegments": transcript_segments,
+        })
+
     # ── Cleanup ───────────────────────────────────────────────────────
 
     async def close(self):

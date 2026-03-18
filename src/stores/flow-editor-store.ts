@@ -22,6 +22,10 @@ export interface MessageEditItem {
   text: string
   /** Where in the pipeline this message appears */
   contextLabel: string
+  /** If true, this message uses a pre-approved Twilio/Meta template and cannot be edited */
+  isTemplate: boolean
+  /** The template key (e.g. "MATCH_INTRO") if this is a persist template */
+  templateKey?: string
 }
 
 export type SaveStatus =
@@ -107,6 +111,8 @@ function extractMessageItems(nodes: Node[], edges: Edge[]): MessageEditItem[] {
         textField,
         text,
         contextLabel: getContextLabel(nodeType, data.label as string),
+        isTemplate: !!config.templateKey,
+        templateKey: config.templateKey,
       })
     }
   }

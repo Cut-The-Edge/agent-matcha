@@ -40,6 +40,7 @@ class CallHandler:
         self._start_time: float = 0
         self._egress_id: str | None = None
         self._ended: bool = False
+        self._llm_model: str | None = None  # Set by agent after session creation
 
     async def on_call_start(
         self,
@@ -194,8 +195,47 @@ class CallHandler:
                 )
             except Exception as e:
                 logger.error("[on_call_end] Failed to send call-ended to Convex: %s", e)
+
+            # Log voice provider usage for token analytics
+            await self._log_voice_usage(duration)
         else:
             logger.warning("[on_call_end] No call_id — transcript not saved (call-started probably failed)")
+
+    async def _log_voice_usage(self, duration: int):
+        """Log STT, LLM, and TTS usage metrics for cost tracking.
+
+        Estimates token counts from transcript data and call duration
+        since LiveKit providers don't expose granular token metrics directly.
+        """
+        try:
+            # Count words from transcript for STT/LLM estimation
+            user_words = 0
+            agent_words = 0
+            for seg in self._transcript:
+                words = len(seg.get("text", "").split())
+                if seg.get("speaker") == "user":
+                    user_words += words
+                else:
+                    agent_words += words
+
+            # Estimate tokens (~1.3 tokens per word for English)
+            user_tokens = int(user_words * 1.3)
+            agent_tokens = int(agent_words * 1.3)
+
+            await self._convex.log_voice_usage(
+                call_id=self.call_id,
+                duration_secs=duration,
+                stt_model="deepgram/nova-3",
+                llm_model=self._llm_model or "openrouter/unknown",
+                tts_model="elevenlabs/hA4zGnmTwX2NQiTRMt7o",
+                user_tokens=user_tokens,
+                agent_tokens=agent_tokens,
+                transcript_segments=len(self._transcript),
+            )
+            logger.info("[on_call_end] Voice usage logged — user_tokens=%d agent_tokens=%d duration=%ds",
+                        user_tokens, agent_tokens, duration)
+        except Exception as e:
+            logger.warning("[on_call_end] Failed to log voice usage (non-fatal): %s", e)
 
     def get_caller_phone(self, room: rtc.Room) -> str | None:
         """Extract the caller's phone number from the SIP participant identity."""

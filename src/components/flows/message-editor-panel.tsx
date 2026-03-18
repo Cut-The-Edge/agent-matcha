@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   Loader2,
   ChevronRight,
+  Lock,
 } from "lucide-react"
 
 // ============================================================================
@@ -166,6 +167,9 @@ function MessageNavItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="truncate text-xs font-medium">{item.label}</p>
+          {item.isTemplate && (
+            <Lock className="size-3 shrink-0 text-amber-500" />
+          )}
           <ChevronRight className={`size-3 shrink-0 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
         </div>
         <p className="mt-0.5 text-[10px] text-muted-foreground">{item.contextLabel}</p>
@@ -252,17 +256,33 @@ function MessageEditView({
 
       {/* Edit body */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Template lock banner */}
+        {item.isTemplate && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800 dark:bg-amber-950/30">
+            <Lock className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                Pre-approved WhatsApp template
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-700/80 dark:text-amber-400/80">
+                This message uses a Meta/Twilio-approved template ({item.templateKey}). The actual text sent to members is controlled by Twilio — editing here won&apos;t change what&apos;s delivered.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Textarea */}
         <div className="space-y-2">
           <label className="text-xs font-medium text-muted-foreground">
-            Message text
+            {item.isTemplate ? "Template preview (read-only)" : "Message text"}
           </label>
           <Textarea
             ref={textareaRef}
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
-            className="min-h-[160px] font-mono text-xs"
+            className={`min-h-[160px] font-mono text-xs ${item.isTemplate ? "opacity-60 cursor-not-allowed" : ""}`}
             placeholder="Enter message text..."
+            disabled={item.isTemplate}
           />
         </div>
 
@@ -302,6 +322,7 @@ function MessageEditView({
       </div>
 
       {/* Edit footer */}
+      {!item.isTemplate && (
       <div className="border-t px-4 py-3">
         <div className="flex items-center justify-between">
           <SaveStatusIndicator status={saveStatus} />
@@ -332,6 +353,7 @@ function MessageEditView({
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }
