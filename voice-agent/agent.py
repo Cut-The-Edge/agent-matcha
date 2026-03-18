@@ -482,6 +482,18 @@ class MatchaAgent(Agent):
         self._phase2_active = True
         self._instructions += PHASE_2_DEEP_DIVE_ADDENDUM
         logger.info("[start_deep_dive] Phase 2 activated — deep dive instructions injected")
+
+        # Mark Phase 2 started on the call record so the fallback extractor
+        # can detect it reliably (instead of brittle string matching)
+        call_id = self._call_handler.call_id
+        if call_id:
+            try:
+                await self._convex.save_intake_data(
+                    call_id=call_id, data={"phase2Started": True}
+                )
+            except Exception:
+                pass  # Non-critical — fallback detection still works
+
         return "Phase 2 activated. Transition naturally into the deeper conversation."
 
     @function_tool()

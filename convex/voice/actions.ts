@@ -393,12 +393,12 @@ Respond with ONLY valid JSON. No markdown, no code fences, no explanation.`,
       callId: args.callId,
     });
     const hasDeepDive = freshCall?.deepDiveData;
-    const transcriptHasPhase2 = transcript.includes("get to know you a bit better") ||
-      transcript.includes("deeper") ||
-      transcript.includes("most meaningful relationship") ||
-      transcript.includes("what matters most to you");
+    // Check if Phase 2 was started — the agent sets this flag in extractedData
+    // when start_deep_dive() is called, which is more reliable than string matching
+    const freshExtracted = (freshCall?.extractedData as Record<string, unknown>) ?? {};
+    const phase2WasStarted = freshExtracted.phase2Started === true;
 
-    if (!hasDeepDive && transcriptHasPhase2 && call.memberId) {
+    if (!hasDeepDive && phase2WasStarted && call.memberId) {
       console.log("[generateSummary] No deepDiveData but transcript contains Phase 2 content — extracting fallback");
       try {
         const ddResponse = await fetch(OPENROUTER_API_URL, {
@@ -1587,10 +1587,14 @@ export const syncDeepDiveToSma = internalAction({
         if (deepDiveFiles.length > 0) {
           try {
             existingContent = await downloadClientFile(clientSmaId, deepDiveFiles[0]);
-          } catch {}
+          } catch (err: any) {
+            console.warn("[syncDeepDiveToSma] Failed to download existing file:", err?.message);
+          }
 
           for (const oldFile of deepDiveFiles) {
-            try { await deleteClientFile(clientSmaId, oldFile.id); } catch {}
+            try { await deleteClientFile(clientSmaId, oldFile.id); } catch (err: any) {
+              console.warn("[syncDeepDiveToSma] Failed to delete old file:", err?.message);
+            }
           }
         }
       } catch {}
