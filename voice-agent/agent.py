@@ -11,6 +11,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import time
 
 from dotenv import load_dotenv
 
@@ -47,6 +49,55 @@ load_dotenv()
 
 logger = logging.getLogger("matcha-agent")
 
+# ── Guardrail constants ──────────────────────────────────────────────
+
+# Hostile language patterns — words/phrases that signal abusive callers.
+# Matched case-insensitively against the full user utterance.
+_HOSTILE_PATTERNS: list[re.Pattern] = [
+    re.compile(p, re.IGNORECASE)
+    for p in [
+        r"\bfuck\s*you\b",
+        r"\bfuck\s*off\b",
+        r"\bgo\s*fuck\b",
+        r"\bshut\s*(the\s*)?fuck\s*up\b",
+        r"\bbullshit\b",
+        r"\bpiece\s*of\s*shit\b",
+        r"\bstupid\s*(ass|bitch|bot|machine|ai)\b",
+        r"\bdumb\s*(ass|bitch|bot|machine|ai)\b",
+        r"\byou'?re?\s*(an?\s*)?(idiot|moron|stupid|useless|worthless|trash|garbage)\b",
+        r"\bkill\s*your\s*self\b",
+        r"\bkys\b",
+        r"\bwaste\s*of\s*(my\s*)?time\b",
+        r"\bscam(mer)?\b",
+        r"\bfraud\b",
+        r"\bgo\s*to\s*hell\b",
+        r"\bsuck\s*my\b",
+        r"\bscrew\s*you\b",
+        r"\bbitch\b",
+        r"\bass\s*hole\b",
+        r"\bcunt\b",
+    ]
+]
+
+# Seconds of silence before prompting "are you still there?"
+_SILENCE_THRESHOLD_SECS = 10.0
+
+# Seconds of silence after the "are you still there?" prompt
+# before concluding the caller is gone.
+_SILENCE_AFTER_PROMPT_SECS = 10.0
+
+# Soft cap on call duration in seconds (25 minutes)
+_MAX_CALL_DURATION_SECS = 25 * 60
+
+# Off-topic redirect threshold — after this many consecutive off-topic
+# user turns, the agent should redirect more firmly.
+_OFF_TOPIC_REDIRECT_THRESHOLD = 2
+
+
+def _is_hostile(text: str) -> bool:
+    """Return True if the text matches any hostile language pattern."""
+    return any(pat.search(text) for pat in _HOSTILE_PATTERNS)
+
 
 # ── Agent class with function tools ──────────────────────────────────
 
@@ -62,6 +113,15 @@ class MatchaAgent(Agent):
         super().__init__(instructions=SYSTEM_PROMPT)
         self._convex = convex
         self._call_handler = call_handler
+
+        # ── Guardrail state ──
+        self._hostile_strike_count: int = 0
+        self._off_topic_count: int = 0
+        self._silence_timer_task: asyncio.Task | None = None
+        self._silence_prompted: bool = False  # True after "are you still there?"
+        self._duration_warned: bool = False  # True once we issue the 25-min warning
+        self._duration_check_task: asyncio.Task | None = None
+        self._call_start_time: float = 0.0
 
     @function_tool()
     async def save_intake_data(
@@ -322,6 +382,7 @@ class MatchaAgent(Agent):
         """End the conversation. Call this after you've said goodbye and
         after you've called save_intake_data with the collected information."""
         logger.info("[end_call] Agent initiating call end — waiting 3s for goodbye audio")
+        self._cancel_guardrail_timers()
         await asyncio.sleep(3)
         # Must call on_call_end BEFORE shutdown — shutdown kills the process immediately
         logger.info("[end_call] Sending call-ended to Convex before shutdown")
@@ -329,6 +390,99 @@ class MatchaAgent(Agent):
         logger.info("[end_call] Calling shutdown()")
         get_job_context().shutdown()
         return "Call ended."
+
+    @function_tool()
+    async def transfer_to_human(self, context: RunContext) -> str:
+        """Transfer the caller to a human team member. Call this when the
+        caller is hostile or explicitly requests to speak with a person.
+        Say 'Let me connect you with a team member' first, then call this."""
+        logger.info("[transfer_to_human] Transferring caller to human — saving data first")
+        self._cancel_guardrail_timers()
+        await asyncio.sleep(2)
+        await self._call_handler.on_call_end(status="transferred")
+        get_job_context().shutdown()
+        return "Call transferred."
+
+    # ── Guardrail helpers (not tools) ─────────────────────────────────
+
+    def _cancel_guardrail_timers(self):
+        """Cancel any active silence / duration timer tasks."""
+        if self._silence_timer_task and not self._silence_timer_task.done():
+            self._silence_timer_task.cancel()
+            self._silence_timer_task = None
+        if self._duration_check_task and not self._duration_check_task.done():
+            self._duration_check_task.cancel()
+            self._duration_check_task = None
+
+    def _reset_silence_timer(self, session: AgentSession):
+        """Reset the silence detection timer — called every time we
+        receive a user utterance."""
+        # Cancel any existing timer
+        if self._silence_timer_task and not self._silence_timer_task.done():
+            self._silence_timer_task.cancel()
+
+        self._silence_prompted = False
+        self._silence_timer_task = asyncio.create_task(
+            self._silence_watchdog(session)
+        )
+
+    async def _silence_watchdog(self, session: AgentSession):
+        """Background task: wait for silence threshold, then prompt."""
+        try:
+            await asyncio.sleep(_SILENCE_THRESHOLD_SECS)
+            # No user speech for _SILENCE_THRESHOLD_SECS — prompt them
+            logger.info("[guardrail:silence] No speech for %ds — prompting caller",
+                        int(_SILENCE_THRESHOLD_SECS))
+            self._silence_prompted = True
+            await session.generate_reply(
+                instructions=(
+                    "The caller has been silent for a while. "
+                    "Say: 'Hey, are you still there?' in a warm, checking-in tone. "
+                    "Wait for a response."
+                ),
+            )
+
+            # Wait another interval — if still silent, gracefully end
+            await asyncio.sleep(_SILENCE_AFTER_PROMPT_SECS)
+            logger.info("[guardrail:silence] Still silent after prompt — ending call gracefully")
+            await session.generate_reply(
+                instructions=(
+                    "The caller is still silent after your check-in. "
+                    "Say: 'Looks like I might have lost you. I'll save everything "
+                    "we've covered so far — feel free to call back anytime!' "
+                    "Then call save_intake_data with whatever data you have, "
+                    "followed by end_call."
+                ),
+            )
+        except asyncio.CancelledError:
+            pass  # Timer was reset or call ended — this is normal
+
+    async def _duration_watchdog(self, session: AgentSession):
+        """Background task: watch for the 25-minute soft cap."""
+        try:
+            remaining = _MAX_CALL_DURATION_SECS - (time.time() - self._call_start_time)
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+
+            if self._duration_warned:
+                return  # Already warned — don't double-fire
+
+            self._duration_warned = True
+            logger.info("[guardrail:duration] Call hit %d-minute soft cap — triggering wrap-up",
+                        _MAX_CALL_DURATION_SECS // 60)
+            await session.generate_reply(
+                instructions=(
+                    "The call has been going for about 25 minutes. "
+                    "Start wrapping up gracefully. Say something like: "
+                    "'We're covering great ground! Let me just wrap up "
+                    "the key items real quick.' Then prioritize any remaining "
+                    "high-priority missing fields, ask if there's anything else, "
+                    "send the form link if needed, and close out warmly. "
+                    "Do NOT abruptly end — but move toward the finish."
+                ),
+            )
+        except asyncio.CancelledError:
+            pass
 
 
 # ── SMA Profile Field Definitions ─────────────────────────────────────
@@ -833,8 +987,46 @@ async def entrypoint(ctx: agents.JobContext):
         turn_detection=MultilingualModel(),
     )
 
-    # Wire up transcript streaming
-    setup_transcript_listeners(session, call_handler)
+    # ── Guardrail: user-message callback ─────────────────────────────
+    # This fires on every caller utterance to drive hostile detection,
+    # off-topic counting, and silence-timer resets.
+    async def _on_user_message(text: str):
+        """Process each user message for guardrail checks."""
+        # Reset silence timer — the caller just spoke
+        agent._reset_silence_timer(session)
+
+        # ── Hostile language check ──
+        if _is_hostile(text):
+            agent._hostile_strike_count += 1
+            logger.info("[guardrail:hostile] Strike %d — hostile text: %s",
+                        agent._hostile_strike_count, text[:80])
+            if agent._hostile_strike_count >= 2:
+                # Second strike — transfer immediately
+                logger.info("[guardrail:hostile] Second strike — initiating transfer")
+                await session.generate_reply(
+                    instructions=(
+                        "The caller has been hostile multiple times. "
+                        "Say: 'I understand you're frustrated. Let me "
+                        "connect you with a team member who can help you "
+                        "directly.' Then call transfer_to_human."
+                    ),
+                )
+            elif agent._hostile_strike_count == 1:
+                # First strike — de-escalate and warn
+                await session.generate_reply(
+                    instructions=(
+                        "The caller just used hostile or abusive language. "
+                        "Stay calm and empathetic. Say something like: "
+                        "'I completely understand your frustration. I'm here "
+                        "to help — if you'd prefer to speak with a team "
+                        "member, I can connect you right away. Otherwise, "
+                        "I'd love to keep going with your profile.' "
+                        "Wait for their response."
+                    ),
+                )
+
+    # Wire up transcript streaming with guardrail callback
+    setup_transcript_listeners(session, call_handler, on_user_message=_on_user_message)
 
     # Use an event to keep entrypoint alive until session closes
     session_closed = asyncio.Event()
@@ -894,12 +1086,20 @@ async def entrypoint(ctx: agents.JobContext):
         instructions=greeting,
     )
 
+    # ── Start guardrail timers after greeting ─────────────────────────
+    agent._call_start_time = time.time()
+    agent._reset_silence_timer(session)
+    agent._duration_check_task = asyncio.create_task(
+        agent._duration_watchdog(session)
+    )
+
     # Block here until the session closes (user hangs up or agent calls end_call)
     # This keeps the event loop alive so cleanup can run
     await session_closed.wait()
 
     # Now run cleanup — the event loop is still alive because entrypoint hasn't returned
     logger.info("[entrypoint] Session ended — running on_call_end + cleanup")
+    agent._cancel_guardrail_timers()
     await call_handler.on_call_end()
     await convex.close()
     logger.info("[entrypoint] Cleanup complete")

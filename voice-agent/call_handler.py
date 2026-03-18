@@ -216,11 +216,17 @@ class CallHandler:
 def setup_transcript_listeners(
     session: AgentSession,
     call_handler: CallHandler,
+    on_user_message=None,
 ):
     """Wire up AgentSession events to stream transcripts to Convex in real-time.
 
     Uses the 'conversation_item_added' event which fires for both user and
     assistant messages with a ChatMessage containing role and content.
+
+    Args:
+        on_user_message: Optional async callback(text: str) invoked for each
+            user (caller) message — used by guardrails to detect hostile
+            language and reset silence timers.
     """
 
     @session.on("conversation_item_added")
@@ -236,3 +242,6 @@ def setup_transcript_listeners(
         asyncio.create_task(
             call_handler.on_transcript_segment(speaker=speaker, text=text)
         )
+        # Fire guardrail callback for user messages
+        if speaker == "caller" and on_user_message:
+            asyncio.create_task(on_user_message(text))
