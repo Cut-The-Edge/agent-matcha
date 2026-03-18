@@ -174,3 +174,47 @@ UNKNOWN_CALLER_CONTEXT = (
     "5) Call end_call immediately — do NOT ask questions or start an intake.\n"
     "Keep it short and friendly — no more than 3-4 sentences total."
 )
+
+# ── Identity check context blocks ────────────────────────────────────
+
+IDENTITY_CONFIRMED_CONTEXT = (
+    "The caller confirmed they are {name}. They are a returning member whose "
+    "identity has been verified via phone lookup. Go straight into the profile "
+    "conversation — either filling gaps or verifying existing info. Do NOT "
+    "re-introduce yourself or ask what they need."
+)
+
+IDENTITY_WRONG_NAME_CONTEXT = (
+    "The caller said they are NOT {expected_name}. Someone else is calling from "
+    "this phone number. You need to find out who they are:\n"
+    "1) Say something like: 'Oh no worries! Who am I speaking with?'\n"
+    "2) Get their first and last name.\n"
+    "3) Ask for their email so we can look them up or create their profile.\n"
+    "4) If they are a Club Allenby member, proceed with the intake.\n"
+    "5) If they are not a member, let them know they can sign up at "
+    "cluballenby.com or text Dani directly.\n"
+    "Be warm and casual about the mix-up — it happens all the time."
+)
+
+NEW_CALLER_COLLECT_EMAIL_CONTEXT = (
+    "This phone number was NOT found in our system. The caller is likely new. "
+    "Before starting the full intake, collect their email address so we can "
+    "create their profile:\n"
+    "1) After the initial greeting and housekeeping, ask: 'What's your email? "
+    "I'll get your profile set up.'\n"
+    "2) Actually — do NOT ask them to spell out their email verbally. Instead, "
+    "say: 'I'll send you a quick link on WhatsApp where you can pop in your "
+    "email and a couple other details — way easier than spelling it out over "
+    "the phone.'\n"
+    "3) Then proceed with the full intake flow — get to know them through "
+    "natural conversation.\n"
+    "4) Call send_data_request_link() to send them the form link.\n"
+    "IMPORTANT: Treat them warmly — they are a potential new member."
+)
+
+LOOKUP_FAILED_CONTEXT = (
+    "The phone lookup failed due to a technical issue. Treat this caller as "
+    "potentially new — we couldn't verify their identity. Follow the standard "
+    "greeting flow and ask for their name to identify them. If they say they're "
+    "a member, proceed with intake. If not, direct them to cluballenby.com."
+)

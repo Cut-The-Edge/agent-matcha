@@ -41,6 +41,10 @@ from flows.intake import (
     OUTBOUND_GREETING,
     OUTBOUND_CONTEXT,
     OUTBOUND_BAD_TIME_INSTRUCTIONS,
+    IDENTITY_CONFIRMED_CONTEXT,
+    IDENTITY_WRONG_NAME_CONTEXT,
+    NEW_CALLER_COLLECT_EMAIL_CONTEXT,
+    LOOKUP_FAILED_CONTEXT,
 )
 
 load_dotenv()
@@ -743,13 +747,64 @@ async def entrypoint(ctx: agents.JobContext):
         sandbox=is_sandbox,
     )
 
-    # Fetch fresh SMA profile + client details for full context
+    # ── Identity Check: Phone Lookup → Branching Logic ─────────────────
+    #
+    # Decision tree:
+    # 1. call_handler.on_call_start already looked up phone in local DB
+    # 2. If NOT found locally, try a deeper lookup (SMA CRM fallback)
+    # 3. Result determines the greeting and flow:
+    #    a) Existing profile found → confirm name → shortened intake
+    #    b) No profile found → new caller → collect email → full intake
+    #    c) Lookup failed → treat as new (graceful fallback)
+
+    caller_status = "unknown"  # "existing", "new", "lookup_failed"
+    lookup_source = None
+
     if call_handler.member and call_handler.member.get("_id"):
-        logger.info("[entrypoint] Member found: %s (id=%s, smaId=%s)",
+        # Found in local DB during call_started
+        caller_status = "existing"
+        lookup_source = "local"
+        logger.info("[entrypoint] Member found in local DB: %s (id=%s, smaId=%s)",
                      call_handler.member.get("firstName"),
                      call_handler.member.get("_id"),
                      call_handler.member.get("smaId"))
-        # Always fetch fresh data from SMA so agent has the latest profile
+    elif caller_phone and call_direction == "inbound":
+        # Not in local DB — try deeper phone lookup (SMA CRM fallback)
+        logger.info("[entrypoint] No local member — running deep phone lookup for %s", caller_phone)
+        try:
+            lookup_result = await convex.lookup_phone(caller_phone)
+            if lookup_result and lookup_result.get("found"):
+                # Found in SMA — the backend already synced to local DB
+                member_data = lookup_result.get("member")
+                if member_data:
+                    call_handler.member = member_data
+                    lookup_source = lookup_result.get("source", "sma")
+                    caller_status = "existing"
+                    logger.info("[entrypoint] Deep lookup found member: %s (source=%s)",
+                                member_data.get("firstName"), lookup_source)
+                else:
+                    # Partial SMA result (basic info only)
+                    caller_status = "existing"
+                    lookup_source = "sma_partial"
+                    call_handler.member = {
+                        "firstName": lookup_result.get("firstName", ""),
+                        "lastName": lookup_result.get("lastName"),
+                        "smaId": lookup_result.get("smaId"),
+                    }
+                    logger.info("[entrypoint] Deep lookup found partial SMA data: %s",
+                                lookup_result.get("firstName"))
+            else:
+                caller_status = "new"
+                logger.info("[entrypoint] Deep lookup returned no results — caller is new")
+        except Exception as e:
+            caller_status = "lookup_failed"
+            logger.warning("[entrypoint] Deep phone lookup failed (treating as new): %s", e)
+    else:
+        caller_status = "new" if caller_phone else "unknown"
+        logger.info("[entrypoint] No member match — caller_status=%s", caller_status)
+
+    # Fetch fresh SMA profile + client details for existing members
+    if caller_status == "existing" and call_handler.member and call_handler.member.get("_id"):
         if call_handler.member.get("smaId"):
             logger.info("[entrypoint] Fetching fresh SMA profile + client details")
             try:
@@ -767,22 +822,23 @@ async def entrypoint(ctx: agents.JobContext):
                 # Fall back to cached data if available
                 cached = call_handler.member.get("smaProfile") or {}
                 if cached:
-                    # Cached data has preferences nested inside
                     prefs = cached.pop("preferences", {}) if isinstance(cached.get("preferences"), dict) else {}
                     call_handler.member["smaProfile"] = cached
                     call_handler.member["smaPreferences"] = prefs
                     logger.info("[entrypoint] Using cached profile: %d fields", len(cached))
         else:
             logger.info("[entrypoint] Member has no smaId — no SMA data to fetch")
-    else:
-        logger.info("[entrypoint] No member match — caller is unknown")
 
     # Build the agent
     agent = MatchaAgent(convex=convex, call_handler=call_handler)
 
-    # Enrich the system prompt with caller context
-    if call_handler.member:
+    # Enrich the system prompt based on caller status
+    if caller_status == "existing" and call_handler.member:
         agent._instructions += "\n\n" + _build_member_context(call_handler.member)
+    elif caller_status == "new":
+        agent._instructions += f"\n\n## Caller context\n{NEW_CALLER_COLLECT_EMAIL_CONTEXT}"
+    elif caller_status == "lookup_failed":
+        agent._instructions += f"\n\n## Caller context\n{LOOKUP_FAILED_CONTEXT}"
     else:
         agent._instructions += f"\n\n## Caller context\n{UNKNOWN_CALLER_CONTEXT}"
 
@@ -795,6 +851,20 @@ async def entrypoint(ctx: agents.JobContext):
             agent._instructions += f"\n\n## Agent Notes (from dashboard)\n{agent_notes}"
         # Add bad-time handling
         agent._instructions += f"\n\n## If they say it's not a good time\n{OUTBOUND_BAD_TIME_INSTRUCTIONS}"
+
+    # Add identity check handling instructions for existing callers
+    if caller_status == "existing" and call_handler.member:
+        member_name = call_handler.member.get("firstName", "")
+        if member_name:
+            agent._instructions += (
+                f"\n\n## Identity confirmation handling\n"
+                f"You believe this caller is **{member_name}** based on their phone number.\n"
+                f"Your greeting should confirm this: 'Hey, is this {member_name}?'\n\n"
+                f"**If they confirm** (yes, yeah, that's me, etc.):\n"
+                f"{IDENTITY_CONFIRMED_CONTEXT.format(name=member_name)}\n\n"
+                f"**If they say no / wrong person:**\n"
+                f"{IDENTITY_WRONG_NAME_CONTEXT.format(expected_name=member_name)}"
+            )
 
     # Create and start the session
     # VAD tuned for phone calls: higher threshold to ignore background noise,
@@ -849,7 +919,7 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
     )
 
-    # Greet the caller — adapt based on direction and caller type
+    # ── Greeting: adapt based on direction, caller status, and identity ──
     if call_direction == "outbound":
         # Outbound call — use context-specific greeting
         ctx_key = call_context.split(":")[0].strip() if call_context else "full_intake"
@@ -864,18 +934,44 @@ async def entrypoint(ctx: agents.JobContext):
             f"say 'No worries at all! You can call us back anytime at this number.' "
             f"and then call end_call."
         )
-    elif call_handler.member:
+    elif caller_status == "existing" and call_handler.member:
+        # Existing member — confirm identity first
         member_name = call_handler.member.get("firstName", "")
+        if member_name:
+            greeting = (
+                f"You believe this is {member_name} based on phone number lookup. "
+                f"Confirm their identity by saying something like: 'Hey! Is this "
+                f"{member_name}?' Keep it casual and warm — like you recognize them. "
+                f"Wait for their response before continuing. "
+                f"If they confirm, greet them warmly and go straight into the profile. "
+                f"If they say it's not them, ask who you're speaking with."
+            )
+        else:
+            # Existing member but no name — fall back to generic warm greeting
+            greeting = (
+                "Greet the caller casually and warmly. Say something like "
+                "'Hey! Thanks for calling Club Allenby, I'm Matcha. Who am I speaking with?' "
+                "Wait for their response."
+            )
+    elif caller_status == "new":
+        # New caller — warm greeting, then full intake
         greeting = (
-            f"Greet {member_name} warmly by name — they're a returning member. "
-            f"Say something like 'Hey {member_name}! Great to hear from you, "
-            f"how are you doing?' Keep it brief and warm. After they respond, "
-            f"go straight into the profile — either filling gaps or verifying "
-            f"existing info. Do NOT ask 'what can I help you with?' or 'what "
-            f"brings you in?' — you already know what to do: work on their profile."
+            "This is a new caller — their phone number wasn't found in our system. "
+            "Greet them warmly: 'Hey there! Thanks for calling Club Allenby, I'm "
+            "Matcha. What's your name?' Wait for their answer. Then proceed with "
+            "the standard intake — housekeeping, the big opening question, and the "
+            "full deep dive. At a natural point, mention you'll send them a link "
+            "on WhatsApp for their email and other details."
+        )
+    elif caller_status == "lookup_failed":
+        # Lookup failed — treat as potentially new
+        greeting = (
+            "Greet the caller casually and warmly. Say something like "
+            "'Hey! Thanks for calling Club Allenby, I'm Matcha. How are you doing?' "
+            "Wait for their response. Then ask their name to identify them."
         )
     else:
-        # Unknown caller — say a fixed message and hang up, no LLM needed
+        # Unknown caller (no phone number at all) — polite redirect
         await session.say(
             "Hey there! This line is for Club Allenby members. "
             "If you'd like to join, you can sign up at club allenby dot com, "
@@ -890,6 +986,7 @@ async def entrypoint(ctx: agents.JobContext):
         get_job_context().shutdown()
         return
 
+    logger.info("[entrypoint] Greeting caller — status=%s source=%s", caller_status, lookup_source)
     await session.generate_reply(
         instructions=greeting,
     )

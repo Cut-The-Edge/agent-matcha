@@ -173,6 +173,89 @@ export const sendDataRequestHandler = httpAction(async (ctx, request) => {
 });
 
 /**
+ * POST /voice/lookup-phone
+ * Look up a phone number in the local DB and (optionally) SMA CRM.
+ * Called by the voice agent at the start of a call to determine
+ * whether the caller is an existing profile or a new person.
+ *
+ * Returns: { found: true, member: {...} } or { found: false }
+ */
+export const lookupPhoneHandler = httpAction(async (ctx, request) => {
+  const body = await request.json();
+  let rawPhone = body.phone;
+
+  // Normalize phone
+  if (rawPhone) {
+    rawPhone = String(rawPhone).replace(/^sip_/, "");
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.length === 10) rawPhone = `+1${digits}`;
+    else if (digits.length === 11 && digits.startsWith("1")) rawPhone = `+${digits}`;
+    else if (!rawPhone.startsWith("+")) rawPhone = `+${digits}`;
+  }
+
+  const phone: string | undefined = rawPhone || undefined;
+  console.log("[lookupPhone] phone=%s", phone);
+
+  if (!phone) {
+    return new Response(
+      JSON.stringify({ found: false, reason: "no_phone" }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // 1. Check local Convex members table
+  const member = await ctx.runQuery(internal.voice.queries.lookupMemberByPhone, {
+    phone,
+  });
+
+  if (member) {
+    console.log("[lookupPhone] Found in local DB: %s (id=%s smaId=%s)",
+      member.firstName, member._id, member.smaId);
+
+    // Return rich context for the agent
+    const memberContext = await ctx.runQuery(
+      internal.voice.queries.getMemberFullContext,
+      { memberId: member._id }
+    );
+
+    return new Response(
+      JSON.stringify({
+        found: true,
+        source: "local",
+        member: memberContext,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // 2. Fallback: search SMA CRM by phone
+  console.log("[lookupPhone] Not in local DB — searching SMA CRM");
+  try {
+    const smaResult = await ctx.runAction(
+      internal.voice.actions.lookupPhoneInSma,
+      { phone }
+    );
+
+    if (smaResult && smaResult.found) {
+      console.log("[lookupPhone] Found in SMA: %s (smaId=%s memberId=%s)",
+        smaResult.firstName, smaResult.smaId, smaResult.memberId);
+      return new Response(
+        JSON.stringify(smaResult),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  } catch (err: any) {
+    console.warn("[lookupPhone] SMA lookup failed (non-fatal):", err.message);
+  }
+
+  console.log("[lookupPhone] Phone not found anywhere");
+  return new Response(
+    JSON.stringify({ found: false }),
+    { status: 200, headers: { "Content-Type": "application/json" } }
+  );
+});
+
+/**
  * POST /voice/fetch-sma-profile
  * Fetch a member's SMA profile and preferences, store in profileData.
  */

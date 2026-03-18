@@ -82,6 +82,23 @@ class ConvexClient:
             "confidence": confidence,
         })
 
+    # ── Phone lookup ────────────────────────────────────────────────────
+
+    async def lookup_phone(self, phone: str) -> dict[str, Any] | None:
+        """Look up a phone number in Convex DB and SMA CRM.
+
+        Returns member data if found, or None if the phone is unknown.
+        The backend first checks the local members table, then falls back
+        to searching SmartMatchApp by phone number.
+        """
+        try:
+            result = await self._post("/voice/lookup-phone", {"phone": phone})
+            if result.get("found"):
+                return result
+            return None
+        except Exception:
+            return None
+
     # ── Member operations ─────────────────────────────────────────────
 
     async def fetch_sma_profile(self, member_id: str) -> dict[str, Any] | None:
