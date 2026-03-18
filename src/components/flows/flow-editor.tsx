@@ -16,6 +16,7 @@ import "@xyflow/react/dist/style.css"
 
 import { useFlowEditorStore } from "@/stores/flow-editor-store"
 import { PropertiesPanel } from "@/components/flows/properties-panel"
+import { MessageEditorPanel } from "@/components/flows/message-editor-panel"
 
 import { StartNode } from "@/components/flows/nodes/start-node"
 import { MessageNode } from "@/components/flows/nodes/message-node"
@@ -44,6 +45,7 @@ function FlowEditorInner() {
     nodes,
     edges,
     selectedNode,
+    messageEditorOpen,
     onNodesChange,
     onEdgesChange,
     selectNode,
@@ -114,7 +116,8 @@ function FlowEditorInner() {
           />
         </ReactFlow>
       </div>
-      {selectedNode && <PropertiesPanel />}
+      {selectedNode && !messageEditorOpen && <PropertiesPanel />}
+      {messageEditorOpen && <MessageEditorPanel />}
     </div>
   )
 }
