@@ -17,21 +17,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build secrets list
+        id: secrets
+        run: |
+          {
+            echo 'LIST<<SECRETS_EOF'
+            echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+            echo "DEEPGRAM_API_KEY=$DEEPGRAM_API_KEY"
+            echo "CARTESIA_API_KEY=$CARTESIA_API_KEY"
+            echo "CONVEX_URL=$CONVEX_URL"
+            echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID"
+            echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN"
+            echo "TWILIO_SIP_TRUNK_SID=$TWILIO_SIP_TRUNK_SID"
+            echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER"
+            echo 'SECRETS_EOF'
+          } >> "$GITHUB_OUTPUT"
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+          CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
+          CONVEX_URL: ${{ secrets.CONVEX_SITE_URL }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID_SECRET }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN_SECRET }}
+          TWILIO_SIP_TRUNK_SID: ${{ secrets.TWILIO_SIP_TRUNK_SID_SECRET }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER_SECRET }}
+
       - name: Deploy to LiveKit Cloud
         uses: livekit/deploy-action@v2.12.1
         env:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SECRET_LIST: |-
-            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
-            DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
-            CARTESIA_API_KEY=${{ secrets.CARTESIA_API_KEY }}
-            CONVEX_URL=${{ secrets.CONVEX_SITE_URL }}
-            TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID_SECRET }}
-            TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN_SECRET }}
-            TWILIO_SIP_TRUNK_SID=${{ secrets.TWILIO_SIP_TRUNK_SID_SECRET }}
-            TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER_SECRET }}
+          SECRET_LIST: ${{ steps.secrets.outputs.LIST }}
         with:
           OPERATION: deploy
           WORKING_DIRECTORY: voice-agent
