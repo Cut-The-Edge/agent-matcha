@@ -211,9 +211,14 @@ class MatchaAgent(Agent):
         pref_partner_interests: str | None = None,
         membership_interest: str | None = None,
     ) -> dict:
-        """Save all profile information gathered during the intake call.
-        Call this ONCE at the end of the conversation after saying goodbye,
-        with everything you learned about the caller.
+        """Save NEW profile information gathered during THIS intake call.
+        Call this ONCE at the end of the conversation after saying goodbye.
+
+        CRITICAL: Only save information the caller EXPLICITLY told you during
+        THIS conversation. Do NOT save data from the pre-loaded caller context
+        or SMA profile — that data already exists in the CRM. If the call was
+        very short and the caller barely said anything, call this with NO fields
+        or skip calling it entirely.
 
         Args:
             first_name: The caller's first name.
@@ -1350,8 +1355,8 @@ async def entrypoint(ctx: agents.JobContext):
         ),
         llm=openai_plugin.LLM(
             model=LLM_MODEL,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            api_key=os.environ.get("GEMINI_API_KEY", os.environ.get("OPENROUTER_API_KEY", "")),
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
         tts=cartesia.TTS(
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
@@ -1366,7 +1371,6 @@ async def entrypoint(ctx: agents.JobContext):
         # ── Latency optimizations ──
         min_endpointing_delay=0.2,        # 200ms min wait after user stops (default 500ms)
         max_endpointing_delay=1.5,        # 1.5s max wait cap (default 3.0s)
-        preemptive_generation=True,       # start LLM inference before turn is confirmed (~300ms savings)
     )
 
     # Track the LLM model name for usage analytics
