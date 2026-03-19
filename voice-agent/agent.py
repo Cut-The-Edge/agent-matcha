@@ -1325,8 +1325,9 @@ async def entrypoint(ctx: agents.JobContext):
             )
 
     # Create and start the session
-    # VAD tuned for phone calls: higher threshold to ignore background noise,
-    # longer silence padding so it doesn't cut off mid-sentence
+    # ── Latency-optimized configuration ──
+    # Total latency chain: VAD end-of-speech → Turn detector → LLM → TTS
+    # Each parameter below is tuned to minimize perceived response delay.
     session = AgentSession(
         stt=deepgram.STT(
             model="nova-3",
@@ -1352,13 +1353,20 @@ async def entrypoint(ctx: agents.JobContext):
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
-        tts=cartesia.TTS(voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b"),
+        tts=cartesia.TTS(
+            voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
+            speed=1.05,              # slightly faster speech to reduce playback latency
+        ),
         vad=silero.VAD.load(
-            min_speech_duration=0.15,     # ignore very short sounds (< 150ms)
-            min_silence_duration=0.6,     # wait longer before deciding user stopped talking
-            activation_threshold=0.65,    # higher = less sensitive to background noise (default 0.5)
+            min_speech_duration=0.1,      # 100ms — detect speech faster (was 150ms)
+            min_silence_duration=0.35,    # 350ms — respond sooner after user stops (was 600ms)
+            activation_threshold=0.6,     # slightly more sensitive (was 0.65)
         ),
         turn_detection=MultilingualModel(),
+        # ── Latency optimizations ──
+        min_endpointing_delay=0.2,        # 200ms min wait after user stops (default 500ms)
+        max_endpointing_delay=1.5,        # 1.5s max wait cap (default 3.0s)
+        preemptive_generation=True,       # start LLM inference before turn is confirmed (~300ms savings)
     )
 
     # Track the LLM model name for usage analytics
