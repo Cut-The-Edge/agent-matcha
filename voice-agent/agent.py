@@ -1362,16 +1362,16 @@ async def entrypoint(ctx: agents.JobContext):
         ),
         vad=silero.VAD.load(
             min_speech_duration=0.1,      # 100ms — detect speech fast, filter noise bursts
-            min_silence_duration=0.4,     # 400ms — telephony-optimized (was 350ms; research rec: 400-550ms)
-            activation_threshold=0.5,     # more sensitive for telephony audio (was 0.6)
+            min_silence_duration=0.55,    # 550ms — let people pause naturally without cutting them off
+            activation_threshold=0.5,     # sensitive for telephony audio
             force_cpu=True,               # recommended for telephony — consistent latency
         ),
         turn_detection=MultilingualModel(),
-        # ── Endpointing — let the turn detector decide, don't rush ──
-        min_endpointing_delay=0.3,        # 300ms — aggressive low-latency (research rec: 300-500ms)
-        max_endpointing_delay=5.0,        # 5s cap — trust the turn detector (default 3.0s)
-        # ── Speculative execution — start LLM+TTS before turn confirmed ──
-        preemptive_generation=True,       # ~200-400ms savings when prediction correct
+        # ── Endpointing — give people time to finish their thought ──
+        min_endpointing_delay=0.5,        # 500ms — wait for natural pauses (was 300ms, too jumpy)
+        max_endpointing_delay=5.0,        # 5s cap — trust the turn detector
+        # ── preemptive_generation DISABLED — causes agent to jump in too early ──
+        preemptive_generation=False,
         # ── Telephony interruption handling — higher thresholds for noisy PSTN ──
         min_interruption_duration=0.6,    # 600ms — ignore phone noise as interruptions
         false_interruption_timeout=2.0,   # 2s — resume speaking after false interrupts
