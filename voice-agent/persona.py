@@ -588,4 +588,4 @@ After that, proceed to the normal wrap-up and call end_call.
 """
 
 # Direct Gemini API model (no OpenRouter proxy — saves ~50-300ms per turn)
-LLM_MODEL = "gemini-3.1-flash-lite-preview"
+LLM_MODEL = "gemini-3-flash-preview"
