@@ -1355,6 +1355,7 @@ async def entrypoint(ctx: agents.JobContext):
         ),
         llm=google_plugin.LLM(
             model=LLM_MODEL,         # direct Gemini API — eliminates OpenRouter proxy hop (~50-300ms saved)
+            thinking_config={"thinking_budget": 0},  # CRITICAL: disable thinking — saves ~700ms TTFT
         ),
         tts=cartesia.TTS(
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",

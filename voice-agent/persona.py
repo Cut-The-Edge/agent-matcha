@@ -587,5 +587,5 @@ Then call save_deep_dive_data with everything you learned in Phase 2. \
 After that, proceed to the normal wrap-up and call end_call.
 """
 
-# Direct Gemini API model (no OpenRouter proxy — saves ~50-300ms per turn)
-LLM_MODEL = "gemini-3-flash-preview"
+# Direct Gemini API — thinking disabled, best function calling for voice
+LLM_MODEL = "gemini-2.5-flash"
