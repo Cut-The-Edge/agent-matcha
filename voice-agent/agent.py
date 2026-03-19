@@ -1423,10 +1423,22 @@ async def entrypoint(ctx: agents.JobContext):
         logger.info("[session:close] Session closed — signaling entrypoint to run cleanup")
         session_closed.set()
 
-    await session.start(
-        agent=agent,
-        room=ctx.room,
-    )
+    try:
+        await session.start(
+            agent=agent,
+            room=ctx.room,
+        )
+    except Exception as e:
+        logger.error("[entrypoint] session.start() FAILED — caller will hear silence: %s", e)
+        logger.error("[entrypoint] This usually means a provider API key is missing or invalid "
+                     "(CARTESIA_API_KEY, OPENROUTER_API_KEY, DEEPGRAM_API_KEY)")
+        # Try to end the call cleanly so it doesn't hang forever
+        try:
+            await call_handler.on_call_end(status="failed")
+        except Exception:
+            pass
+        await convex.close()
+        return
 
     # ── Greeting: adapt based on direction, caller status, and identity ──
     if call_direction == "outbound":

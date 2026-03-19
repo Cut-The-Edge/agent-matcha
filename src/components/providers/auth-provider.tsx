@@ -128,7 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearAuthCookie();
       setSession(null);
       setIsLoading(false);
-      if (pathname && !pathname.startsWith("/login")) {
+      // Don't redirect on public routes — these are accessible without auth
+      const publicPrefixes = ["/form/", "/intro/", "/payment/"];
+      const isPublicRoute = publicPrefixes.some(p => pathname?.startsWith(p));
+      if (!isPublicRoute && pathname && !pathname.startsWith("/login")) {
         router.push(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
       }
     }
