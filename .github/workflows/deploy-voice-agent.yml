@@ -23,7 +23,15 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SECRET_LIST: ${{ secrets.VOICE_AGENT_SECRETS }}
+          SECRET_LIST: |-
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
+            CARTESIA_API_KEY=${{ secrets.CARTESIA_API_KEY }}
+            CONVEX_URL=${{ secrets.CONVEX_SITE_URL }}
+            TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID_SECRET }}
+            TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN_SECRET }}
+            TWILIO_SIP_TRUNK_SID=${{ secrets.TWILIO_SIP_TRUNK_SID_SECRET }}
+            TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER_SECRET }}
         with:
           OPERATION: deploy
           WORKING_DIRECTORY: voice-agent
