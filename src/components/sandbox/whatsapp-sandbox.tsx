@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Loader2,
   RotateCcw,
+  UserX,
 } from "lucide-react"
 
 export function WhatsAppSandboxContent() {
@@ -32,8 +33,10 @@ export function WhatsAppSandboxContent() {
   const resetMember = useMutation(api.engine.sandbox.resetMember)
   const { mutateWithAuth: generateProfileToken } = useAuthMutation(api.members.mutations.generateProfileToken)
   const { actionWithAuth: syncMemberFromSma } = useAuthAction(api.integrations.smartmatchapp.actions.syncMember)
+  const { actionWithAuth: resetCrmProfile } = useAuthAction(api.integrations.smartmatchapp.actions.resetCrmProfile)
   const [isSeeding, setIsSeeding] = useState(false)
   const [resettingMemberId, setResettingMemberId] = useState<string | null>(null)
+  const [resettingCrmId, setResettingCrmId] = useState<string | null>(null)
   const [generatingProfileId, setGeneratingProfileId] = useState<string | null>(null)
   const [syncingMemberId, setSyncingMemberId] = useState<string | null>(null)
 
@@ -228,6 +231,29 @@ export function WhatsAppSandboxContent() {
                             <Loader2 className="size-3.5 animate-spin" />
                           ) : (
                             <RotateCcw className="size-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          title="Reset CRM profile — clears all SMA data except name and phone"
+                          disabled={resettingCrmId === m._id || !m.smaId}
+                          onClick={async () => {
+                            if (!confirm(`Reset CRM profile for ${m.firstName} ${m.lastName || ""}?\n\nThis will clear ALL data in SmartMatchApp (profile, preferences, photos, socials, files) and keep only their name and phone number.`)) return
+                            setResettingCrmId(m._id)
+                            try {
+                              await resetCrmProfile({ smaClientId: Number(m.smaId) })
+                            } catch (err: any) {
+                              console.error("CRM reset failed:", err)
+                            } finally {
+                              setResettingCrmId(null)
+                            }
+                          }}
+                          className="rounded p-1 text-muted-foreground hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"
+                        >
+                          {resettingCrmId === m._id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <UserX className="size-3.5" />
                           )}
                         </button>
                       </div>

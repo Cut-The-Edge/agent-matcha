@@ -413,6 +413,34 @@ export const syncFromSmaInternal = internalMutation({
 });
 
 /**
+ * Force-clear all profile fields on a member except firstName, lastName, phone.
+ * Used after a CRM profile reset to ensure local DB matches the cleared SMA state.
+ */
+export const clearProfileFields = internalMutation({
+  args: { smaId: v.string() },
+  handler: async (ctx, args) => {
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_smaId", (q) => q.eq("smaId", args.smaId))
+      .first();
+    if (!member) return;
+
+    await ctx.db.patch(member._id, {
+      middleName: undefined,
+      email: undefined,
+      profilePictureUrl: undefined,
+      location: undefined,
+      gender: undefined,
+      matchmakerNotes: undefined,
+      tier: "free",
+      profileComplete: false,
+      profileData: { firstName: member.firstName, lastName: member.lastName, phone: member.phone },
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
  * Sync SMA introduction summary + detail records for a member.
  * Deletes old introductions and inserts fresh ones (atomic in Convex).
  */

@@ -10,7 +10,16 @@ import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { fetchAndMapClient, fetchAndMapIntroductions } from "./contacts";
-import { getClientMatches, updateClientMatch } from "./client";
+import {
+  getClientMatches,
+  updateClientMatch,
+  getClientProfile,
+  getClientPreferences,
+  updateClientProfile,
+  updateClientPreferences,
+  listClientFiles,
+  deleteClientFile,
+} from "./client";
 
 /**
  * Handle a match_added event from SMA.
@@ -599,6 +608,129 @@ export const syncMember = action({
     }
 
     return { memberId: result.memberId, action: result.action };
+  },
+});
+
+/**
+ * Reset a client's CRM profile in SMA.
+ * Clears everything except first name, last name, and phone.
+ * Deletes all files (including cover photo) and clears all preferences.
+ * Then re-syncs the cleaned profile back to local DB.
+ */
+export const resetCrmProfile = action({
+  args: {
+    sessionToken: v.optional(v.string()),
+    smaClientId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const KEEP_FIELDS = new Set(["prof_239", "prof_241", "prof_243"]);
+
+    // Step 1: Get current profile to discover which fields to clear
+    const profileGroups = await getClientProfile(args.smaClientId);
+    const clearData: Record<string, string> = {};
+
+    for (const group of profileGroups) {
+      if (!group.fields) continue;
+      for (const [fieldId, field] of Object.entries(group.fields)) {
+        if (KEEP_FIELDS.has(fieldId)) continue;
+        if ((field as any).value == null || (field as any).value === "") continue;
+
+        const type = ((field as any).type ?? "").toLowerCase();
+        if (type === "location") {
+          clearData[`${fieldId}_country`] = "";
+          clearData[`${fieldId}_city`] = "";
+          clearData[`${fieldId}_state`] = "";
+          clearData[`${fieldId}_zip_code`] = "";
+        } else {
+          clearData[fieldId] = "";
+        }
+      }
+    }
+
+    if (Object.keys(clearData).length > 0) {
+      await updateClientProfile(args.smaClientId, clearData);
+    }
+    console.log(`resetCrmProfile: cleared ${Object.keys(clearData).length} profile fields for client ${args.smaClientId}`);
+
+    // Step 2: Clear preferences one-by-one (SMA rejects bulk empty updates)
+    // Rate limit: 10 req / 10s → add 1.1s delay between requests
+    const prefGroups = await getClientPreferences(args.smaClientId);
+    let prefsCleared = 0;
+    let prefIdx = 0;
+
+    for (const group of prefGroups) {
+      if (!group.fields) continue;
+      for (const [fieldId, field] of Object.entries(group.fields)) {
+        if ((field as any).value == null || (field as any).value === "") continue;
+
+        const val = (field as any).value;
+        const clearEntry: Record<string, string> = {};
+
+        if (typeof val === "object" && val !== null && "start" in val) {
+          clearEntry[`${fieldId}_start`] = "";
+          clearEntry[`${fieldId}_end`] = "";
+        } else {
+          clearEntry[fieldId] = "";
+        }
+
+        if (prefIdx > 0 && prefIdx % 9 === 0) {
+          await new Promise((r) => setTimeout(r, 10500));
+        }
+
+        try {
+          await updateClientPreferences(args.smaClientId, clearEntry);
+          prefsCleared++;
+        } catch (err) {
+          console.warn(`resetCrmProfile: could not clear pref ${fieldId}:`, err);
+        }
+        prefIdx++;
+      }
+    }
+    console.log(`resetCrmProfile: cleared ${prefsCleared} preference fields for client ${args.smaClientId}`);
+
+    // Step 3: Delete all files (cover photo, bot notes, etc.)
+    const files = await listClientFiles(args.smaClientId);
+    for (const file of files) {
+      try {
+        await deleteClientFile(args.smaClientId, file.id);
+      } catch (err) {
+        console.warn(`resetCrmProfile: failed to delete file ${file.id}:`, err);
+      }
+    }
+    console.log(`resetCrmProfile: deleted ${files.length} files for client ${args.smaClientId}`);
+
+    // Step 4: Re-sync from SMA and explicitly clear local fields
+    const apiData = await fetchAndMapClient(args.smaClientId);
+    await ctx.runMutation(
+      internal.members.mutations.syncFromSmaInternal,
+      {
+        smaId: apiData.smaId,
+        firstName: apiData.firstName,
+        middleName: apiData.middleName,
+        lastName: apiData.lastName,
+        email: apiData.email,
+        phone: apiData.phone,
+        profilePictureUrl: apiData.profilePictureUrl,
+        location: apiData.location,
+        gender: apiData.gender,
+        profileData: apiData.smaProfile,
+        tier: apiData.tier,
+        profileComplete: apiData.profileComplete,
+        matchmakerNotes: apiData.matchmakerNotes,
+      }
+    );
+
+    // Force-clear local fields that syncFromSmaInternal won't overwrite when undefined
+    await ctx.runMutation(
+      internal.members.mutations.clearProfileFields,
+      { smaId: String(args.smaClientId) }
+    );
+
+    return {
+      fieldsCleared: Object.keys(clearData).length,
+      prefsCleared,
+      filesDeleted: files.length,
+    };
   },
 });
 
