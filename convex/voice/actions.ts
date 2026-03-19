@@ -10,7 +10,6 @@ import {
 } from "../integrations/openrouter/config";
 import { fetchAndMapClient, extractValue } from "../integrations/smartmatchapp/contacts";
 import {
-  createClient,
   findClientByPhone,
   getClientProfile,
   getClientPreferences,
@@ -81,6 +80,37 @@ export const generateSummary = internalAction({
             )
             .join("\n");
 
+    // ── Transcript quality gate ──────────────────────────────────────
+    // Count only CALLER words (exclude agent/Matcha lines) to determine
+    // if there was any real conversation. Agent greetings don't count.
+    const callerLines = transcript
+      .split("\n")
+      .filter((l: string) => l.startsWith("Caller:"))
+      .map((l: string) => l.replace("Caller:", "").trim());
+    const callerWordCount = callerLines.join(" ").split(/\s+/).filter(Boolean).length;
+    const isEmptyTranscript = callerWordCount < 10;
+
+    if (isEmptyTranscript) {
+      console.log("[generateSummary] Transcript too short (%d caller words) — skipping LLM extraction", callerWordCount);
+      // Clear any agent-saved extractedData too — the agent may have
+      // hallucinated data from the pre-loaded caller context on a short call
+      await ctx.runMutation(internal.voice.mutations.updateCall, {
+        callId: args.callId,
+        status: "completed",
+        extractedData: {},
+        aiSummary: {
+          summary: "Call too short for meaningful data extraction.",
+          extractedFields: {},
+          profileCompleteness: 0,
+          recommendedNextSteps: ["Schedule a follow-up call"],
+          sentiment: "neutral",
+          flags: ["short_call", "no_transcript"],
+        },
+        qualityFlags: ["short_call", "no_transcript"],
+      });
+      return;
+    }
+
     const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
       headers: {
@@ -109,8 +139,10 @@ Think deeply about the transcript like a skilled matchmaker would. Read between 
 
 ## What NOT to do
 - Do NOT invent information that has zero basis in the transcript
-- Do NOT fill fields for very short or empty calls — if they barely spoke, return few fields
+- Do NOT fill fields for very short or empty calls — if the caller barely spoke, return nearly empty extractedFields and a low profileCompleteness
 - Do NOT include "N/A", "unknown", null, or empty strings as values
+- Do NOT hallucinate or fabricate data. If the transcript does not contain information for a field, LEAVE IT OUT. Every field you return MUST be grounded in something the caller actually said or clearly implied in THIS transcript.
+- CRITICAL: Only extract data from what the CALLER said. Do not extract data from the agent's greetings or questions.
 
 ## Output format
 Return a single flat JSON object with these top-level keys:
@@ -762,61 +794,13 @@ export const syncCallToSMA = internalAction({
       smaClientId = parseInt(member.smaId, 10);
       console.log("[syncCallToSMA] UPDATE mode — existing SMA client ID: %d", smaClientId);
     } else {
-      // INSERT path — need to create a new SMA client
-      console.log("[syncCallToSMA] INSERT mode — creating new SMA client");
-      const extractedData = call.extractedData as Record<string, any>;
-
-      try {
-        // Create client shell in SMA (POST /clients/)
-        const newClient = await createClient();
-        smaClientId = newClient.id;
-        console.log("[syncCallToSMA] Created SMA client: %d", smaClientId);
-
-        // Link the SMA ID back to the local member record
-        if (member) {
-          await ctx.runMutation(internal.voice.mutations.setMemberSmaId, {
-            memberId: member._id,
-            smaId: String(smaClientId),
-          });
-          console.log("[syncCallToSMA] Linked SMA ID %d to existing member %s", smaClientId, member._id);
-        } else if (extractedData.firstName) {
-          // No local member — create one from the extracted data
-          const result = await ctx.runMutation(internal.members.mutations.syncFromSmaInternal, {
-            smaId: String(smaClientId),
-            firstName: extractedData.firstName || "Unknown",
-            lastName: extractedData.lastName,
-            phone: call.phone,
-          });
-          console.log("[syncCallToSMA] Created local member %s for new SMA client %d", result.memberId, smaClientId);
-
-          // Link the call to the new member
-          await ctx.runMutation(internal.voice.mutations.linkCallToMember, {
-            callId: args.callId,
-            memberId: result.memberId,
-          });
-
-          // Send profile completion form to the new member via WhatsApp
-          if (call.phone && !call.sandbox) {
-            try {
-              await ctx.runMutation(internal.dataRequests.mutations.createAndSendFromAgent, {
-                memberId: result.memberId,
-              });
-              console.log("[syncCallToSMA] Sent profile completion form to new member %s", result.memberId);
-            } catch (e: any) {
-              console.error("[syncCallToSMA] Failed to send data request to new member (non-fatal):", e.message);
-            }
-          }
-        } else {
-          console.log("[syncCallToSMA] No member and no firstName — skipping member creation but still syncing to SMA");
-        }
-      } catch (e: any) {
-        console.error("[syncCallToSMA] Failed to create SMA client:", e.message);
-        await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
-          callId: args.callId,
-          status: "failed",
-        });
-        return;
-      }
+      // No SMA ID — skip sync (we never create new clients in SMA from code)
+      console.log("[syncCallToSMA] Skipping — member has no SMA ID, cannot create clients in SMA");
+      await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
+        callId: args.callId,
+        status: "skipped",
+      });
+      return;
     }
     // Flatten nested objects + filter out N/A values before syncing
     const rawData = call.extractedData as Record<string, any>;
