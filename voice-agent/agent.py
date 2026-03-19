@@ -25,9 +25,7 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
-from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
 from livekit.plugins import google as google_plugin
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from convex_client import ConvexClient
 from call_handler import CallHandler, setup_transcript_listeners
@@ -35,7 +33,6 @@ from persona import (
     SYSTEM_PROMPT,
     PHASE_2_DEEP_DIVE_ADDENDUM,
     INBOUND_GREETING_INSTRUCTIONS,
-    LLM_MODEL,
 )
 from flows.intake import (
     EXISTING_MEMBER_MOSTLY_COMPLETE,
@@ -1330,56 +1327,22 @@ async def entrypoint(ctx: agents.JobContext):
             )
 
     # Create and start the session
-    # ── Latency-optimized configuration ──
-    # Target: 600-900ms end-to-end (from ~1.5-4.5s baseline)
-    # Latency chain: VAD → Turn detector → STT final → LLM TTFT → TTS TTFB → audio
+    # ── Gemini Live: speech-to-speech — eliminates STT→LLM→TTS chain ──
+    # Single model handles audio in + reasoning + audio out
+    # Expected latency: ~500ms (vs ~2-4s with cascaded pipeline)
     session = AgentSession(
-        stt=deepgram.STT(
-            model="nova-3",
-            language="en",
-            smart_format=False,      # DISABLED — smart_format waits up to 3s for incomplete entities
-            filler_words=True,       # keep "um", "uh" — persona uses them for natural feel
-            keyterm=[                # boost recognition of domain-specific terms
-                "Club Allenby",
-                "Dani Bergman",
-                "Matcha",
-                "Ashkenazi",
-                "Sephardic",
-                "Mizrachi",
-                "Conservadox",
-                "Modern Orthodox",
-                "Shabbat",
-                "Shabbos",
-                "kosher",
-            ],
+        llm=google_plugin.realtime.RealtimeModel(
+            model="gemini-2.5-flash-native-audio-preview-12-2025",
+            voice="Kore",            # warm female voice — fits the matchmaker persona
         ),
-        llm=google_plugin.LLM(
-            model=LLM_MODEL,         # gemini-2.5-flash-lite — no thinking, ~470ms TTFT direct API
-        ),
-        tts=cartesia.TTS(
-            voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
-            speed=1.05,              # slightly faster speech to reduce playback latency
-        ),
-        vad=silero.VAD.load(
-            min_speech_duration=0.1,      # 100ms — detect speech fast, filter noise bursts
-            min_silence_duration=0.4,     # 400ms — telephony-optimized (was 350ms; research rec: 400-550ms)
-            activation_threshold=0.5,     # more sensitive for telephony audio (was 0.6)
-            force_cpu=True,               # recommended for telephony — consistent latency
-        ),
-        turn_detection=MultilingualModel(),
-        # ── Endpointing — let the turn detector decide, don't rush ──
-        min_endpointing_delay=0.3,        # 300ms — aggressive low-latency (research rec: 300-500ms)
-        max_endpointing_delay=5.0,        # 5s cap — trust the turn detector (default 3.0s)
-        # ── Speculative execution — start LLM+TTS before turn confirmed ──
-        preemptive_generation=True,       # ~200-400ms savings when prediction correct
-        # ── Telephony interruption handling — higher thresholds for noisy PSTN ──
+        # ── Telephony interruption handling ──
         min_interruption_duration=0.6,    # 600ms — ignore phone noise as interruptions
         false_interruption_timeout=2.0,   # 2s — resume speaking after false interrupts
         resume_false_interruption=True,   # resume agent speech after noise-triggered interrupt
     )
 
     # Track the LLM model name for usage analytics
-    call_handler._llm_model = LLM_MODEL
+    call_handler._llm_model = "gemini-2.5-flash-native-audio"
 
     # ── Guardrail: user-message callback ─────────────────────────────
     # This fires on every caller utterance to drive hostile detection,
@@ -1448,7 +1411,7 @@ async def entrypoint(ctx: agents.JobContext):
     except Exception as e:
         logger.error("[entrypoint] session.start() FAILED — caller will hear silence: %s", e)
         logger.error("[entrypoint] This usually means a provider API key is missing or invalid "
-                     "(CARTESIA_API_KEY, GOOGLE_API_KEY, DEEPGRAM_API_KEY)")
+                     "(GOOGLE_API_KEY must be set for Gemini Live)")
         # Try to end the call cleanly so it doesn't hang forever
         try:
             await call_handler.on_call_end(status="failed")
