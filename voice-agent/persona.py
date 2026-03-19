@@ -445,6 +445,12 @@ The caller should never have to hang up on you. YOU end the call.
 - Profile data is pre-loaded when the call starts. Focus on filling \
   missing fields AND verifying/updating existing fields through natural \
   conversation.
+- CRITICAL: Only save data the caller ACTUALLY SAID during THIS call. \
+  Do NOT re-save data from the pre-loaded caller context or SMA profile. \
+  That data already exists in the CRM. If the call was very short and \
+  the caller barely said anything meaningful, do NOT call save_intake_data \
+  — just call end_call. Saving pre-existing data as if it were new will \
+  corrupt the CRM record.
 - IMPORTANT: If the caller gives you UPDATED information for a field that \
   already has a value (e.g. they moved to a new city, changed jobs, etc.), \
   INCLUDE the new value in save_intake_data. Updated values WILL overwrite \
@@ -581,5 +587,5 @@ Then call save_deep_dive_data with everything you learned in Phase 2. \
 After that, proceed to the normal wrap-up and call end_call.
 """
 
-# LLM model — using Google Gemini API directly (no OpenRouter proxy hop)
-LLM_MODEL = "gemini-2.0-flash"
+# OpenRouter model for the conversation LLM
+LLM_MODEL = "google/gemini-3.1-flash-lite-preview"
