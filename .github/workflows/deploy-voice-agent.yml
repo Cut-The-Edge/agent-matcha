@@ -17,49 +17,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build secrets list
-        id: secrets
+      - name: Install LiveKit CLI
         run: |
-          {
-            echo 'LIST<<SECRETS_EOF'
-            echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
-            echo "DEEPGRAM_API_KEY=$DEEPGRAM_API_KEY"
-            echo "CARTESIA_API_KEY=$CARTESIA_API_KEY"
-            echo "CONVEX_URL=$CONVEX_URL"
-            echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID"
-            echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN"
-            echo "TWILIO_SIP_TRUNK_SID=$TWILIO_SIP_TRUNK_SID"
-            echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER"
-            echo 'SECRETS_EOF'
-          } >> "$GITHUB_OUTPUT"
+          curl -sSL https://get.livekit.io/cli | bash
+          echo "$HOME/.livekit" >> "$GITHUB_PATH"
+
+      - name: Write secrets file
+        run: |
+          printf '%s\n' \
+            "OPENROUTER_API_KEY=${SECRET_OPENROUTER}" \
+            "DEEPGRAM_API_KEY=${SECRET_DEEPGRAM}" \
+            "CARTESIA_API_KEY=${SECRET_CARTESIA}" \
+            "CONVEX_URL=${SECRET_CONVEX}" \
+            "TWILIO_ACCOUNT_SID=${SECRET_TWILIO_SID}" \
+            "TWILIO_AUTH_TOKEN=${SECRET_TWILIO_TOKEN}" \
+            "TWILIO_SIP_TRUNK_SID=${SECRET_TWILIO_TRUNK}" \
+            "TWILIO_PHONE_NUMBER=${SECRET_TWILIO_PHONE}" \
+            > /tmp/agent-secrets.env
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
-          CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
-          CONVEX_URL: ${{ secrets.CONVEX_SITE_URL }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID_SECRET }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN_SECRET }}
-          TWILIO_SIP_TRUNK_SID: ${{ secrets.TWILIO_SIP_TRUNK_SID_SECRET }}
-          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER_SECRET }}
+          SECRET_OPENROUTER: ${{ secrets.OPENROUTER_API_KEY }}
+          SECRET_DEEPGRAM: ${{ secrets.DEEPGRAM_API_KEY }}
+          SECRET_CARTESIA: ${{ secrets.CARTESIA_API_KEY }}
+          SECRET_CONVEX: ${{ secrets.CONVEX_SITE_URL }}
+          SECRET_TWILIO_SID: ${{ secrets.TWILIO_ACCOUNT_SID_SECRET }}
+          SECRET_TWILIO_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN_SECRET }}
+          SECRET_TWILIO_TRUNK: ${{ secrets.TWILIO_SIP_TRUNK_SID_SECRET }}
+          SECRET_TWILIO_PHONE: ${{ secrets.TWILIO_PHONE_NUMBER_SECRET }}
 
       - name: Deploy to LiveKit Cloud
-        uses: livekit/deploy-action@v2.12.1
+        run: |
+          cd voice-agent
+          lk agent deploy \
+            --secrets-file /tmp/agent-secrets.env \
+            --region us-east \
+            --yes
         env:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          SECRET_LIST: ${{ steps.secrets.outputs.LIST }}
-        with:
-          OPERATION: deploy
-          WORKING_DIRECTORY: voice-agent
+
+      - name: Cleanup secrets file
+        if: always()
+        run: rm -f /tmp/agent-secrets.env
 
       - name: Verify deployment
-        uses: livekit/deploy-action@v2.12.1
+        run: |
+          cd voice-agent
+          timeout 300 bash -c 'while true; do
+            STATUS=$(lk agent status 2>&1 | grep -o "Running\|Error\|Starting")
+            if [ "$STATUS" = "Running" ]; then
+              echo "Agent is running!"
+              exit 0
+            elif [ "$STATUS" = "Error" ]; then
+              echo "Agent is in error state!"
+              exit 1
+            fi
+            echo "Waiting for agent... (status: $STATUS)"
+            sleep 10
+          done'
         env:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-        with:
-          OPERATION: status-retry
-          WORKING_DIRECTORY: voice-agent
-          TIMEOUT: 5m
