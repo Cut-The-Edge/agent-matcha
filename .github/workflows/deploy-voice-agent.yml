@@ -25,6 +25,7 @@ jobs:
       - name: Write secrets file
         run: |
           printf '%s\n' \
+            "GEMINI_API_KEY=${SECRET_GEMINI}" \
             "OPENROUTER_API_KEY=${SECRET_OPENROUTER}" \
             "DEEPGRAM_API_KEY=${SECRET_DEEPGRAM}" \
             "CARTESIA_API_KEY=${SECRET_CARTESIA}" \
@@ -35,6 +36,7 @@ jobs:
             "TWILIO_PHONE_NUMBER=${SECRET_TWILIO_PHONE}" \
             > /tmp/agent-secrets.env
         env:
+          SECRET_GEMINI: ${{ secrets.GEMINI_API_KEY }}
           SECRET_OPENROUTER: ${{ secrets.OPENROUTER_API_KEY }}
           SECRET_DEEPGRAM: ${{ secrets.DEEPGRAM_API_KEY }}
           SECRET_CARTESIA: ${{ secrets.CARTESIA_API_KEY }}

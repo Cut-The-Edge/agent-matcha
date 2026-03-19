@@ -581,5 +581,5 @@ Then call save_deep_dive_data with everything you learned in Phase 2. \
 After that, proceed to the normal wrap-up and call end_call.
 """
 
-# OpenRouter model for the conversation LLM
-LLM_MODEL = "google/gemini-3-flash-preview"
+# LLM model — using Google Gemini API directly (no OpenRouter proxy hop)
+LLM_MODEL = "gemini-2.0-flash"

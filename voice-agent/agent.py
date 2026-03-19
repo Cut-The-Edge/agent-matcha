@@ -1350,8 +1350,8 @@ async def entrypoint(ctx: agents.JobContext):
         ),
         llm=openai_plugin.LLM(
             model=LLM_MODEL,
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            api_key=os.environ.get("GEMINI_API_KEY", os.environ.get("OPENROUTER_API_KEY", "")),
         ),
         tts=cartesia.TTS(
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
