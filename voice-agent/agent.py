@@ -1339,10 +1339,15 @@ async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         stt=deepgram.STT(
             model="nova-3",
-            language="en",
-            smart_format=False,      # DISABLED — can add up to 3s delay
-            filler_words=True,       # keep "um", "uh" for natural feel
-            vad_events=False,        # DISABLED — prevents Deepgram finalize latency spikes
+            language="en-US",            # specific locale — faster than generic "en"
+            detect_language=False,       # no auto-detect overhead
+            smart_format=False,          # DISABLED — can add up to 3s delay
+            punctuate=False,             # DISABLED — LLM handles raw text fine, saves processing
+            filler_words=True,           # keep "um", "uh" for natural feel
+            vad_events=False,            # DISABLED — prevents Deepgram finalize latency spikes
+            endpointing_ms=25,           # 25ms — fastest possible (already default)
+            no_delay=True,               # immediate results, no batching
+            profanity_filter=False,      # no filtering overhead
             keyterm=[
                 "Club Allenby", "Dani Bergman", "Matcha",
                 "Ashkenazi", "Sephardic", "Mizrachi",
