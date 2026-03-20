@@ -24,7 +24,9 @@ from livekit.agents import (
     WorkerOptions,
     function_tool,
     get_job_context,
+    TurnHandlingOptions,
 )
+from livekit.agents.metrics import LLMMetrics
 from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
 from livekit.plugins import google as google_plugin
 from livekit.plugins import openai as openai_plugin
@@ -1331,55 +1333,56 @@ async def entrypoint(ctx: agents.JobContext):
             )
 
     # Create and start the session
-    # ── Latency-optimized configuration ──
-    # Matching proven Pipecat settings that achieved ~1.1s response time
+    # ── Latency-optimized: TurnHandlingOptions + adaptive interruptions ──
     session = AgentSession(
         stt=deepgram.STT(
             model="nova-3",
             language="en",
             smart_format=False,      # DISABLED — can add up to 3s delay
             filler_words=True,       # keep "um", "uh" for natural feel
-            vad_events=False,        # DISABLED — prevents Deepgram finalize latency spikes (Pipecat technique)
-            keyterm=[                # boost domain-specific recognition
-                "Club Allenby",
-                "Dani Bergman",
-                "Matcha",
-                "Ashkenazi",
-                "Sephardic",
-                "Mizrachi",
-                "Conservadox",
-                "Modern Orthodox",
-                "Shabbat",
-                "Shabbos",
-                "kosher",
+            vad_events=False,        # DISABLED — prevents Deepgram finalize latency spikes
+            keyterm=[
+                "Club Allenby", "Dani Bergman", "Matcha",
+                "Ashkenazi", "Sephardic", "Mizrachi",
+                "Conservadox", "Modern Orthodox",
+                "Shabbat", "Shabbos", "kosher",
             ],
         ),
         llm=openai_plugin.LLM(
-            model=LLM_MODEL,         # Groq LPU — ~270ms TTFT (was Gemini ~470ms)
+            model=LLM_MODEL,
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY", ""),
         ),
         tts=cartesia.TTS(
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
-            speed=1.05,              # slightly faster speech
+            speed=1.05,
         ),
         vad=silero.VAD.load(
-            min_speech_duration=0.1,      # 100ms — match Pipecat start_duration
-            min_silence_duration=0.3,     # 300ms — match Pipecat stop_duration (was 550ms!)
-            activation_threshold=0.5,     # sensitive for telephony
+            min_speech_duration=0.1,
+            min_silence_duration=0.3,     # 300ms — match Pipecat
+            activation_threshold=0.5,
             force_cpu=True,
         ),
-        turn_detection=MultilingualModel(),
-        # ── Aggressive endpointing — match Pipecat's ~300ms total ──
-        min_endpointing_delay=0.2,        # 200ms — match Pipecat Deepgram endpointing (was 500ms!)
-        max_endpointing_delay=1.5,        # 1.5s cap — don't wait forever (was 5s!)
-        # ── Speculative execution — Pipecat's quick-ack serves same purpose ──
-        preemptive_generation=True,
-        # ── Telephony interruption handling ──
-        min_interruption_duration=0.5,    # 500ms — match Pipecat
-        false_interruption_timeout=2.0,   # 2s — resume after false interrupts
-        resume_false_interruption=True,   # resume agent speech after noise-triggered interrupt
+        # ── New TurnHandlingOptions API (replaces deprecated params) ──
+        turn_handling=TurnHandlingOptions(
+            turn_detection=MultilingualModel(),
+            min_endpointing_delay=0.2,
+            max_endpointing_delay=1.5,
+            preemptive_generation=True,
+            interruption={
+                "mode": "adaptive",       # LiveKit Cloud ML model — better than VAD-only
+            },
+        ),
     )
+
+    # ── LLM Metrics — log TTFT so we can see actual latency ──
+    def _on_llm_metrics(metrics: LLMMetrics):
+        logger.info(
+            "[metrics] TTFT=%.3fs duration=%.3fs tokens=%d tok/s=%.1f prompt_tokens=%d",
+            metrics.ttft, metrics.duration, metrics.completion_tokens,
+            metrics.tokens_per_second, metrics.prompt_tokens,
+        )
+    session.llm.on("metrics_collected", _on_llm_metrics)
 
     # Track the LLM model name for usage analytics
     call_handler._llm_model = LLM_MODEL
