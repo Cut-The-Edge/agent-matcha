@@ -1361,7 +1361,7 @@ async def entrypoint(ctx: agents.JobContext):
         tts=cartesia.TTS(
             model="sonic-3",            # upgraded from sonic-2 — ~90ms TTFA
             language="en",              # English only — faster than auto-detect
-            voice="694f9389-aac1-45b6-b726-9d9369183238",  # Sarah — most popular, warm & natural
+            voice="e3827ec5-697a-4b7c-9704-1a23041bbc51",  # Sweet Lady — warm, friendly
             speed=1.05,
         ),
         vad=silero.VAD.load(
