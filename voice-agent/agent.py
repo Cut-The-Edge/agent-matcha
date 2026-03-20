@@ -1356,6 +1356,8 @@ async def entrypoint(ctx: agents.JobContext):
             api_key=os.environ.get("GROQ_API_KEY", ""),
         ),
         tts=cartesia.TTS(
+            model="sonic-3",            # upgraded from sonic-2 — ~90ms TTFA
+            language="en",              # English only — faster than auto-detect
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
             speed=1.05,
         ),
