@@ -587,5 +587,5 @@ Then call save_deep_dive_data with everything you learned in Phase 2. \
 After that, proceed to the normal wrap-up and call end_call.
 """
 
-# Direct Gemini API — lite model, no thinking, fastest TTFT (~470ms)
-LLM_MODEL = "gemini-2.5-flash-lite"
+# Groq LPU — llama-3.3-70b at ~270ms TTFT (was Gemini ~470ms)
+LLM_MODEL = "llama-3.3-70b-versatile"

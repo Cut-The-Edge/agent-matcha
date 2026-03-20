@@ -27,6 +27,7 @@ from livekit.agents import (
 )
 from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
 from livekit.plugins import google as google_plugin
+from livekit.plugins import openai as openai_plugin
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from convex_client import ConvexClient
@@ -1353,8 +1354,10 @@ async def entrypoint(ctx: agents.JobContext):
                 "kosher",
             ],
         ),
-        llm=google_plugin.LLM(
-            model=LLM_MODEL,         # gemini-2.5-flash-lite — ~470ms TTFT (Groq would be ~50ms)
+        llm=openai_plugin.LLM(
+            model=LLM_MODEL,         # Groq LPU — ~270ms TTFT (was Gemini ~470ms)
+            base_url="https://api.groq.com/openai/v1",
+            api_key=os.environ.get("GROQ_API_KEY", ""),
         ),
         tts=cartesia.TTS(
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
@@ -1448,7 +1451,7 @@ async def entrypoint(ctx: agents.JobContext):
     except Exception as e:
         logger.error("[entrypoint] session.start() FAILED — caller will hear silence: %s", e)
         logger.error("[entrypoint] This usually means a provider API key is missing or invalid "
-                     "(CARTESIA_API_KEY, GOOGLE_API_KEY, DEEPGRAM_API_KEY)")
+                     "(CARTESIA_API_KEY, GROQ_API_KEY, DEEPGRAM_API_KEY)")
         # Try to end the call cleanly so it doesn't hang forever
         try:
             await call_handler.on_call_end(status="failed")

@@ -25,6 +25,7 @@ jobs:
       - name: Write secrets file
         run: |
           printf '%s\n' \
+            "GROQ_API_KEY=${SECRET_GROQ}" \
             "GOOGLE_API_KEY=${SECRET_GOOGLE}" \
             "DEEPGRAM_API_KEY=${SECRET_DEEPGRAM}" \
             "CARTESIA_API_KEY=${SECRET_CARTESIA}" \
@@ -35,6 +36,7 @@ jobs:
             "TWILIO_PHONE_NUMBER=${SECRET_TWILIO_PHONE}" \
             > /tmp/agent-secrets.env
         env:
+          SECRET_GROQ: ${{ secrets.GROQ_API_KEY }}
           SECRET_GOOGLE: ${{ secrets.GOOGLE_API_KEY }}
           SECRET_DEEPGRAM: ${{ secrets.DEEPGRAM_API_KEY }}
           SECRET_CARTESIA: ${{ secrets.CARTESIA_API_KEY }}
