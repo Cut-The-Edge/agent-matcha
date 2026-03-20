@@ -1355,10 +1355,8 @@ async def entrypoint(ctx: agents.JobContext):
                 "Shabbat", "Shabbos", "kosher",
             ],
         ),
-        llm=openai_plugin.LLM(
+        llm=google_plugin.LLM(
             model=LLM_MODEL,
-            base_url="https://api.groq.com/openai/v1",
-            api_key=os.environ.get("GROQ_API_KEY", ""),
         ),
         tts=cartesia.TTS(
             model="sonic-3",            # upgraded from sonic-2 — ~90ms TTFA

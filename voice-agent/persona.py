@@ -587,5 +587,5 @@ Then call save_deep_dive_data with everything you learned in Phase 2. \
 After that, proceed to the normal wrap-up and call end_call.
 """
 
-# Groq LPU — Llama 3.3 70B, ~80ms TTFT, top of Berkeley Function Calling Leaderboard
-LLM_MODEL = "llama-3.3-70b-versatile"
+# Direct Gemini API — no rate limit issues, ~470ms TTFT
+LLM_MODEL = "gemini-2.5-flash-lite"
