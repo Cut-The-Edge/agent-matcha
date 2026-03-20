@@ -1333,7 +1333,7 @@ async def entrypoint(ctx: agents.JobContext):
             )
 
     # Create and start the session
-    # ── Latency-optimized: TurnHandlingOptions + adaptive interruptions ──
+    # ── Latency-optimized: proper TurnHandlingOptions API ──
     session = AgentSession(
         stt=deepgram.STT(
             model="nova-3",
@@ -1358,19 +1358,23 @@ async def entrypoint(ctx: agents.JobContext):
             speed=1.05,
         ),
         vad=silero.VAD.load(
-            min_speech_duration=0.1,
-            min_silence_duration=0.3,     # 300ms — match Pipecat
+            min_speech_duration=0.05,     # 50ms — doc default, detect speech faster
+            min_silence_duration=0.3,     # 300ms — match Pipecat (doc default is 0.55)
             activation_threshold=0.5,
             force_cpu=True,
         ),
-        # ── New TurnHandlingOptions API (replaces deprecated params) ──
+        # ── Speculative execution — start LLM+TTS before turn fully confirmed ──
+        preemptive_generation=True,
+        # ── TurnHandlingOptions — correct API for v1.5+ ──
         turn_handling=TurnHandlingOptions(
             turn_detection=MultilingualModel(),
-            min_endpointing_delay=0.2,
-            max_endpointing_delay=1.5,
-            preemptive_generation=True,
+            endpointing={
+                "mode": "dynamic",        # adapts delay based on conversation pace
+                "min_delay": 0.2,         # 200ms min — aggressive for speed
+                "max_delay": 1.5,         # 1.5s max cap
+            },
             interruption={
-                "mode": "adaptive",       # LiveKit Cloud ML model — better than VAD-only
+                "mode": "adaptive",       # LiveKit Cloud ML model — ignores backchanneling
             },
         ),
     )
