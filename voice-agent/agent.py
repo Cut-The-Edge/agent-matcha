@@ -465,8 +465,10 @@ class MatchaAgent(Agent):
 
     @function_tool()
     async def end_call(self, context: RunContext) -> str:
-        """End the conversation. Call this after you've said goodbye and
-        after you've called save_intake_data with the collected information."""
+        """End the call ONLY after the conversation is naturally wrapping up.
+        NEVER call this at the start of a call or during active conversation.
+        Only call this AFTER: 1) saying a warm goodbye, 2) calling save_intake_data.
+        If the caller just said hello or you just greeted them, do NOT call this."""
         logger.info("[end_call] Agent initiating call end — waiting 3s for goodbye audio")
         self._cancel_guardrail_timers()
         await asyncio.sleep(3)

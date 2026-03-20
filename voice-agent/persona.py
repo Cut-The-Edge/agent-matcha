@@ -587,5 +587,5 @@ Then call save_deep_dive_data with everything you learned in Phase 2. \
 After that, proceed to the normal wrap-up and call end_call.
 """
 
-# Groq LPU — OpenAI GPT-OSS 120B, production model, excellent tool use (~434ms TTFT)
-LLM_MODEL = "openai/gpt-oss-120b"
+# Groq LPU — Llama 3.3 70B, ~80ms TTFT, top of Berkeley Function Calling Leaderboard
+LLM_MODEL = "llama-3.3-70b-versatile"
