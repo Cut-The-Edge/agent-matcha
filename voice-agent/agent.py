@@ -1331,15 +1331,15 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Create and start the session
     # ── Latency-optimized configuration ──
-    # Target: 600-900ms end-to-end (from ~1.5-4.5s baseline)
-    # Latency chain: VAD → Turn detector → STT final → LLM TTFT → TTS TTFB → audio
+    # Matching proven Pipecat settings that achieved ~1.1s response time
     session = AgentSession(
         stt=deepgram.STT(
             model="nova-3",
             language="en",
-            smart_format=False,      # DISABLED — smart_format waits up to 3s for incomplete entities
-            filler_words=True,       # keep "um", "uh" — persona uses them for natural feel
-            keyterm=[                # boost recognition of domain-specific terms
+            smart_format=False,      # DISABLED — can add up to 3s delay
+            filler_words=True,       # keep "um", "uh" for natural feel
+            vad_events=False,        # DISABLED — prevents Deepgram finalize latency spikes (Pipecat technique)
+            keyterm=[                # boost domain-specific recognition
                 "Club Allenby",
                 "Dani Bergman",
                 "Matcha",
@@ -1354,27 +1354,27 @@ async def entrypoint(ctx: agents.JobContext):
             ],
         ),
         llm=google_plugin.LLM(
-            model=LLM_MODEL,         # gemini-2.5-flash-lite — no thinking, ~470ms TTFT direct API
+            model=LLM_MODEL,         # gemini-2.5-flash-lite — ~470ms TTFT (Groq would be ~50ms)
         ),
         tts=cartesia.TTS(
             voice="e07c00bc-4134-4eae-9ea4-1a55fb45746b",
-            speed=1.05,              # slightly faster speech to reduce playback latency
+            speed=1.05,              # slightly faster speech
         ),
         vad=silero.VAD.load(
-            min_speech_duration=0.1,      # 100ms — detect speech fast, filter noise bursts
-            min_silence_duration=0.55,    # 550ms — let people pause naturally without cutting them off
-            activation_threshold=0.5,     # sensitive for telephony audio
-            force_cpu=True,               # recommended for telephony — consistent latency
+            min_speech_duration=0.1,      # 100ms — match Pipecat start_duration
+            min_silence_duration=0.3,     # 300ms — match Pipecat stop_duration (was 550ms!)
+            activation_threshold=0.5,     # sensitive for telephony
+            force_cpu=True,
         ),
         turn_detection=MultilingualModel(),
-        # ── Endpointing — give people time to finish their thought ──
-        min_endpointing_delay=0.5,        # 500ms — wait for natural pauses (was 300ms, too jumpy)
-        max_endpointing_delay=5.0,        # 5s cap — trust the turn detector
-        # ── preemptive_generation DISABLED — causes agent to jump in too early ──
-        preemptive_generation=False,
-        # ── Telephony interruption handling — higher thresholds for noisy PSTN ──
-        min_interruption_duration=0.6,    # 600ms — ignore phone noise as interruptions
-        false_interruption_timeout=2.0,   # 2s — resume speaking after false interrupts
+        # ── Aggressive endpointing — match Pipecat's ~300ms total ──
+        min_endpointing_delay=0.2,        # 200ms — match Pipecat Deepgram endpointing (was 500ms!)
+        max_endpointing_delay=1.5,        # 1.5s cap — don't wait forever (was 5s!)
+        # ── Speculative execution — Pipecat's quick-ack serves same purpose ──
+        preemptive_generation=True,
+        # ── Telephony interruption handling ──
+        min_interruption_duration=0.5,    # 500ms — match Pipecat
+        false_interruption_timeout=2.0,   # 2s — resume after false interrupts
         resume_false_interruption=True,   # resume agent speech after noise-triggered interrupt
     )
 
