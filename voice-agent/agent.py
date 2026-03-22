@@ -38,7 +38,6 @@ from persona import (
     SYSTEM_PROMPT,
     PHASE_2_DEEP_DIVE_ADDENDUM,
     PHASE_3_MEMBERSHIP_PITCH_ADDENDUM,
-    INBOUND_GREETING_INSTRUCTIONS,
     LLM_MODEL,
 )
 from flows.intake import (
@@ -1534,16 +1533,19 @@ async def entrypoint(ctx: agents.JobContext):
             f"and then call end_call."
         )
     elif caller_status == "existing" and call_handler.member:
-        # Existing member — confirm identity first
+        # Existing member — confirm identity, explain intake purpose + duration
         _raw = call_handler.member.get("firstName", "")
         member_name = "" if _raw in ("", "Unknown") else _raw
         if member_name:
             greeting = (
                 f"You believe this is {member_name} based on phone number lookup. "
-                f"Confirm their identity by saying something like: 'Hey! Is this "
-                f"{member_name}?' Keep it casual and warm — like you recognize them. "
-                f"Wait for their response before continuing. "
-                f"If they confirm, greet them warmly and go straight into the profile. "
+                f"Confirm their identity by saying: 'Hey, is this {member_name}?' "
+                f"Keep it casual and warm. Wait for their response. "
+                f"If they confirm, say: 'Great! So this call is basically an intake "
+                f"— I'm going to go through your profile with you, ask you some "
+                f"questions so we can find you the best matches. It usually takes "
+                f"about 20-25 minutes. Just so you know, this call is recorded and "
+                f"I have a note taker on. Sound good?' Then proceed to the opening question. "
                 f"If they say it's not them, ask who you're speaking with."
             )
         else:
@@ -1554,14 +1556,15 @@ async def entrypoint(ctx: agents.JobContext):
                 "Wait for their response."
             )
     elif caller_status == "new":
-        # New caller — warm greeting, then full intake
+        # New caller — warm greeting, explain intake purpose + duration
         greeting = (
             "This is a new caller — their phone number wasn't found in our system. "
-            "Greet them warmly: 'Hey there! Thanks for calling Club Allenby, I'm "
-            "Matcha. What's your name?' Wait for their answer. Then proceed with "
-            "the standard intake — housekeeping, the big opening question, and the "
-            "full deep dive. At a natural point, mention you'll send them a link "
-            "on WhatsApp for their email and other details."
+            "Greet them warmly: 'Hey there! I'm Matcha from Club Allenby. What's "
+            "your name?' Wait for their answer. After they tell you their name, say: "
+            "'Nice to meet you, [Name]! So this call is an intake — I'm going to "
+            "ask you some questions to build your matchmaking profile. It usually "
+            "takes about 20-25 minutes. Just so you know, this call is recorded and "
+            "I have a note taker on. Sound good?' Then proceed to the opening question."
         )
     elif caller_status == "lookup_failed":
         # Lookup failed — treat as potentially new
