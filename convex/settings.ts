@@ -9,6 +9,7 @@ const DEFAULTS = {
   dataRequestAutoSendEnabled: false,
   dataRequestAutoSendDelayDays: 3,
   dataRequestAllowResubmit: true,
+  summaryPrompt: "",
 };
 
 export const get = query({
@@ -23,6 +24,7 @@ export const get = query({
       dataRequestAutoSendEnabled: DEFAULTS.dataRequestAutoSendEnabled,
       dataRequestAutoSendDelayDays: DEFAULTS.dataRequestAutoSendDelayDays,
       dataRequestAllowResubmit: DEFAULTS.dataRequestAllowResubmit,
+      summaryPrompt: DEFAULTS.summaryPrompt,
     };
   },
 });
@@ -36,6 +38,7 @@ export const update = mutation({
     dataRequestAutoSendEnabled: v.optional(v.boolean()),
     dataRequestAutoSendDelayDays: v.optional(v.number()),
     dataRequestAllowResubmit: v.optional(v.boolean()),
+    summaryPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.sessionToken);
@@ -61,6 +64,9 @@ export const update = mutation({
     if (args.dataRequestAllowResubmit !== undefined) {
       updates.dataRequestAllowResubmit = args.dataRequestAllowResubmit;
     }
+    if (args.summaryPrompt !== undefined) {
+      updates.summaryPrompt = args.summaryPrompt;
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, updates);
@@ -72,6 +78,7 @@ export const update = mutation({
         dataRequestAutoSendEnabled: args.dataRequestAutoSendEnabled ?? DEFAULTS.dataRequestAutoSendEnabled,
         dataRequestAutoSendDelayDays: args.dataRequestAutoSendDelayDays ?? DEFAULTS.dataRequestAutoSendDelayDays,
         dataRequestAllowResubmit: args.dataRequestAllowResubmit ?? DEFAULTS.dataRequestAllowResubmit,
+        summaryPrompt: args.summaryPrompt ?? DEFAULTS.summaryPrompt,
         updatedAt: now,
       });
     }
@@ -91,5 +98,13 @@ export const getAutoSyncCallsToCrm = internalQuery({
   handler: async (ctx) => {
     const doc = await ctx.db.query("appSettings").first();
     return doc?.autoSyncCallsToCrm ?? DEFAULTS.autoSyncCallsToCrm;
+  },
+});
+
+export const getSummaryPrompt = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const doc = await ctx.db.query("appSettings").first();
+    return doc?.summaryPrompt || "";
   },
 });

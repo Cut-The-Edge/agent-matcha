@@ -31,97 +31,112 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { useCurrentUser } from "@/hooks/use-current-user"
+import { useWorkspace } from "@/hooks/use-workspace"
 
-const data = {
-  navCRM: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-      description: "Your command center — see key metrics and recent activity at a glance",
-    },
-    {
-      title: "Members",
-      url: "/dashboard/members",
-      icon: Users,
-      description: "View, search, and manage all community members in your network",
-    },
-    {
-      title: "Leads",
-      url: "/dashboard/leads",
-      icon: UserPlus,
-      hasBadge: true,
-      description: "Track and manage incoming leads from your matchmaking pipeline",
-    },
-    {
-      title: "Messages",
-      url: "/dashboard/conversations",
-      icon: MessageSquare,
-      description: "Read and manage WhatsApp conversations with your members",
-    },
-    {
-      title: "Calls",
-      url: "/dashboard/calls",
-      icon: Phone,
-      description: "View voice call logs, listen to recordings, and check transcripts",
-    },
-    {
-      title: "Escalations",
-      url: "/dashboard/escalations",
-      icon: AlertTriangle,
-      escalationBadge: true,
-      description: "Items needing attention: unrecognized responses, special requests, purchases",
-    },
-    {
-      title: "Recalibration",
-      url: "/dashboard/recalibration",
-      icon: RefreshCcw,
-      description: "Members who rejected a match and need their preferences updated",
-    },
-    {
-      title: "Data Requests",
-      url: "/dashboard/data-requests",
-      icon: ClipboardList,
-      description: "Send profile completion forms to members with missing data",
-    },
-  ],
-  navTools: [
-    {
-      title: "Automations",
-      url: "/dashboard/flows",
-      icon: Workflow,
-      description: "Create and edit automated WhatsApp conversation flows",
-    },
-  ],
-  navDevTools: [
-    {
-      title: "Sandbox",
-      url: "/dashboard/sandbox",
-      icon: FlaskConical,
-      description: "Test your automations and messages before sending them live",
-    },
-  ],
-  navAdmin: [
-    {
-      title: "Analytics",
-      url: "/dashboard/analytics",
-      icon: BarChart3,
-    },
-    {
-      title: "Users",
-      url: "/dashboard/users",
-      icon: UserCog,
-    },
-    {
-      title: "Settings",
-      url: "/dashboard/settings",
-      icon: Settings,
-    },
-  ],
-}
+/** Shared pages visible in both workspaces */
+const navShared = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: LayoutDashboard,
+    description: "Your command center — see key metrics and recent activity at a glance",
+  },
+  {
+    title: "Members",
+    url: "/dashboard/members",
+    icon: Users,
+    description: "View, search, and manage all community members in your network",
+  },
+]
+
+/** Matchmaking-specific pages (WhatsApp bot operations) */
+const navMatchmaking = [
+  {
+    title: "Messages",
+    url: "/dashboard/conversations",
+    icon: MessageSquare,
+    description: "Read and manage WhatsApp conversations with your members",
+  },
+  {
+    title: "Leads",
+    url: "/dashboard/leads",
+    icon: UserPlus,
+    hasBadge: true,
+    description: "Track and manage incoming leads from your matchmaking pipeline",
+  },
+  {
+    title: "Escalations",
+    url: "/dashboard/escalations",
+    icon: AlertTriangle,
+    escalationBadge: true,
+    description: "Items needing attention: unrecognized responses, special requests, purchases",
+  },
+  {
+    title: "Recalibration",
+    url: "/dashboard/recalibration",
+    icon: RefreshCcw,
+    description: "Members who rejected a match and need their preferences updated",
+  },
+  {
+    title: "Data Requests",
+    url: "/dashboard/data-requests",
+    icon: ClipboardList,
+    description: "Send profile completion forms to members with missing data",
+  },
+]
+
+/** Matchmaking tools */
+const navMatchmakingTools = [
+  {
+    title: "Automations",
+    url: "/dashboard/flows",
+    icon: Workflow,
+    description: "Create and edit automated WhatsApp conversation flows",
+  },
+]
+
+/** Interviewer-specific pages (voice agent operations) */
+const navInterviewer = [
+  {
+    title: "Calls",
+    url: "/dashboard/calls",
+    icon: Phone,
+    description: "View voice call logs, listen to recordings, and check transcripts",
+  },
+]
+
+/** Dev-only tools */
+const navDevTools = [
+  {
+    title: "Sandbox",
+    url: "/dashboard/sandbox",
+    icon: FlaskConical,
+    description: "Test your automations and messages before sending them live",
+  },
+]
+
+/** Admin nav items */
+const navAdmin = [
+  {
+    title: "Analytics",
+    url: "/dashboard/analytics",
+    icon: BarChart3,
+  },
+  {
+    title: "Users",
+    url: "/dashboard/users",
+    icon: UserCog,
+  },
+  {
+    title: "Settings",
+    url: "/dashboard/settings",
+    icon: Settings,
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const currentUser = useCurrentUser()
+  const { workspace } = useWorkspace()
 
   const user = {
     name: currentUser.name,
@@ -129,15 +144,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: "",
   }
 
-  // Filter admin nav items — super_admin and developer
-  const filteredAdmin = data.navAdmin.filter(() => {
-    return currentUser.role === "super_admin" || currentUser.role === "developer"
-  })
+  const isAdmin = currentUser.role === "super_admin" || currentUser.role === "developer"
+  const isDev = currentUser.role === "developer"
 
-  // Developer-only tools (Sandbox)
-  const filteredDevTools = data.navDevTools.filter(() => {
-    return currentUser.role === "developer"
-  })
+  const filteredAdmin = isAdmin ? navAdmin : []
+  const filteredDevTools = isDev ? navDevTools : []
+
+  // Build workspace-specific nav
+  const workspaceNav =
+    workspace === "matchmaking"
+      ? [...navShared, ...navMatchmaking]
+      : [...navShared, ...navInterviewer]
+
+  const toolsNav =
+    workspace === "matchmaking"
+      ? [...navMatchmakingTools, ...filteredDevTools]
+      : [...filteredDevTools]
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -157,9 +179,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navCRM} />
-        <SidebarSeparator />
-        <NavMain items={[...data.navTools, ...filteredDevTools]} label="Tools" />
+        <NavMain items={workspaceNav} />
+        {toolsNav.length > 0 && (
+          <>
+            <SidebarSeparator />
+            <NavMain items={toolsNav} label="Tools" />
+          </>
+        )}
         {filteredAdmin.length > 0 && (
           <NavSecondary items={filteredAdmin} className="mt-auto" />
         )}

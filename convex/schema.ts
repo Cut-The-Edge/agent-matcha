@@ -423,6 +423,7 @@ export default defineSchema({
     dataRequestAutoSendEnabled: v.optional(v.boolean()),
     dataRequestAutoSendDelayDays: v.optional(v.number()),
     dataRequestAllowResubmit: v.optional(v.boolean()),
+    summaryPrompt: v.optional(v.string()),
     updatedAt: v.number(),
   }),
 
