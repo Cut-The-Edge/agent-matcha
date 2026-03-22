@@ -37,6 +37,7 @@ from call_handler import CallHandler, setup_transcript_listeners
 from persona import (
     SYSTEM_PROMPT,
     PHASE_2_DEEP_DIVE_ADDENDUM,
+    PHASE_3_MEMBERSHIP_PITCH_ADDENDUM,
     INBOUND_GREETING_INSTRUCTIONS,
     LLM_MODEL,
 )
@@ -130,6 +131,11 @@ class MatchaAgent(Agent):
 
         # ── Phase tracking ──
         self._phase2_active: bool = False
+        self._phase3_active: bool = False
+
+        # ── Membership pitch settings (wired from call_handler.settings) ──
+        self._membership_pitch_enabled: bool = True
+        self._membership_pitch_prompt: str = ""
 
         # ── Guardrail state ──
         self._hostile_strike_count: int = 0
@@ -505,6 +511,38 @@ class MatchaAgent(Agent):
                 pass  # Non-critical — fallback detection still works
 
         return "Phase 2 activated. Transition naturally into the deeper conversation."
+
+    @function_tool()
+    async def start_membership_pitch(self, context: RunContext) -> str:
+        """Activate Phase 3 — the membership soft-sell pitch.
+        Call this AFTER you have called save_deep_dive_data with the deep dive insights.
+        If the pitch is disabled in settings or the call is running long, this will
+        tell you to skip to wrap-up. Otherwise, it activates the membership pitch
+        instructions — follow them to briefly present membership tiers."""
+        if self._phase3_active:
+            return "Phase 3 is already active."
+
+        if not self._membership_pitch_enabled:
+            logger.info("[start_membership_pitch] Pitch disabled in settings — skipping to wrap-up")
+            return "Membership pitch is disabled. Skip to the normal wrap-up and end the call."
+
+        if self._duration_warned:
+            logger.info("[start_membership_pitch] Call running long — skipping pitch")
+            return "Call is running long. Skip the membership pitch and go straight to wrap-up."
+
+        self._phase3_active = True
+
+        if self._membership_pitch_prompt:
+            # Use custom prompt from dashboard settings
+            self._instructions += f"\n\n## PHASE 3 — Membership Pitch (NOW ACTIVE)\n\n{self._membership_pitch_prompt}"
+            logger.info("[start_membership_pitch] Phase 3 activated with CUSTOM prompt (%d chars)",
+                        len(self._membership_pitch_prompt))
+        else:
+            # Use default addendum from persona.py
+            self._instructions += PHASE_3_MEMBERSHIP_PITCH_ADDENDUM
+            logger.info("[start_membership_pitch] Phase 3 activated with default prompt")
+
+        return "Phase 3 activated. Transition naturally into the membership overview."
 
     @function_tool()
     async def save_deep_dive_data(
@@ -1298,6 +1336,10 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Build the agent
     agent = MatchaAgent(convex=convex, call_handler=call_handler)
+
+    # Wire membership pitch settings from dashboard
+    agent._membership_pitch_enabled = call_handler.settings.get("membershipPitchEnabled", True)
+    agent._membership_pitch_prompt = call_handler.settings.get("membershipPitchPrompt", "")
 
     # Enrich the system prompt based on caller status
     if caller_status == "existing" and call_handler.member:

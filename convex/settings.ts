@@ -10,6 +10,8 @@ const DEFAULTS = {
   dataRequestAutoSendDelayDays: 3,
   dataRequestAllowResubmit: true,
   summaryPrompt: "",
+  membershipPitchEnabled: true,
+  membershipPitchPrompt: "",
 };
 
 export const get = query({
@@ -25,6 +27,8 @@ export const get = query({
       dataRequestAutoSendDelayDays: DEFAULTS.dataRequestAutoSendDelayDays,
       dataRequestAllowResubmit: DEFAULTS.dataRequestAllowResubmit,
       summaryPrompt: DEFAULTS.summaryPrompt,
+      membershipPitchEnabled: DEFAULTS.membershipPitchEnabled,
+      membershipPitchPrompt: DEFAULTS.membershipPitchPrompt,
     };
   },
 });
@@ -39,6 +43,8 @@ export const update = mutation({
     dataRequestAutoSendDelayDays: v.optional(v.number()),
     dataRequestAllowResubmit: v.optional(v.boolean()),
     summaryPrompt: v.optional(v.string()),
+    membershipPitchEnabled: v.optional(v.boolean()),
+    membershipPitchPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.sessionToken);
@@ -67,6 +73,12 @@ export const update = mutation({
     if (args.summaryPrompt !== undefined) {
       updates.summaryPrompt = args.summaryPrompt;
     }
+    if (args.membershipPitchEnabled !== undefined) {
+      updates.membershipPitchEnabled = args.membershipPitchEnabled;
+    }
+    if (args.membershipPitchPrompt !== undefined) {
+      updates.membershipPitchPrompt = args.membershipPitchPrompt;
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, updates);
@@ -79,6 +91,8 @@ export const update = mutation({
         dataRequestAutoSendDelayDays: args.dataRequestAutoSendDelayDays ?? DEFAULTS.dataRequestAutoSendDelayDays,
         dataRequestAllowResubmit: args.dataRequestAllowResubmit ?? DEFAULTS.dataRequestAllowResubmit,
         summaryPrompt: args.summaryPrompt ?? DEFAULTS.summaryPrompt,
+        membershipPitchEnabled: args.membershipPitchEnabled ?? DEFAULTS.membershipPitchEnabled,
+        membershipPitchPrompt: args.membershipPitchPrompt ?? DEFAULTS.membershipPitchPrompt,
         updatedAt: now,
       });
     }
@@ -106,5 +120,16 @@ export const getSummaryPrompt = internalQuery({
   handler: async (ctx) => {
     const doc = await ctx.db.query("appSettings").first();
     return doc?.summaryPrompt || "";
+  },
+});
+
+export const getMembershipPitchSettings = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const doc = await ctx.db.query("appSettings").first();
+    return {
+      enabled: doc?.membershipPitchEnabled ?? DEFAULTS.membershipPitchEnabled,
+      prompt: doc?.membershipPitchPrompt ?? DEFAULTS.membershipPitchPrompt,
+    };
   },
 });

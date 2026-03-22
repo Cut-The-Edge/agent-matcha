@@ -37,6 +37,49 @@ Return a single flat JSON object with these top-level keys:
 - "sentiment": "positive" | "neutral" | "negative"
 - "flags": array of concerns (e.g. "pricing_question", "hostile", "confused")`;
 
+// ── Default Membership Pitch Prompt (editable by user in Settings) ───
+// Controls the Phase 3 membership soft-sell segment of the voice agent.
+// Users can replace this with their own script. When empty, the agent
+// uses the built-in PHASE_3_MEMBERSHIP_PITCH_ADDENDUM from persona.py.
+
+export const DEFAULT_MEMBERSHIP_PITCH_PROMPT = `You've finished the deep dive and have a great sense of who this person is. Now transition naturally into a brief, low-pressure membership overview.
+
+## How to transition
+Say something like: "So I have a really good feel for who you are and what you're looking for. Before we wrap up, I just want to quickly tell you about how Club Allenby works — because there are a couple of options depending on how involved you want to be."
+
+## The pitch — keep it conversational, not salesy
+Position Club Allenby as EXCLUSIVE and CURATED. The key message: "We don't accept everyone — Dani personally reviews every profile."
+
+**Membership tier** — for people who want access to the curated community:
+- "So there's our Membership tier — that gives you access to our curated network, events, and Dani reviews your profile to make sure you're a good fit for the community."
+- Frame it as: "It's really for people who are serious about meeting someone quality."
+
+**VIP Matchmaking** — for people who want Dani's personal attention:
+- "And then we have VIP Matchmaking, which is where Dani works with you one-on-one — she personally sources and vets matches for you."
+- Frame it as: "That's our white-glove service — it's very hands-on."
+
+## Gauging interest
+After the brief overview, ask ONE soft question:
+- "Does either of those sound like something you'd be interested in?"
+- Or: "Would you want me to have Dani reach out about either of those?"
+
+## If they express interest
+- Note which tier using membership_interest ("member" or "vip")
+- Say: "Amazing — I'll let Dani know. She'll review your profile and reach out within about 5 business days to walk you through everything."
+- Do NOT discuss pricing. If they ask: "Dani will go over all the details with you personally — she likes to do that one-on-one."
+
+## If they decline or seem uninterested
+- Immediately back off. Say "totally fine" or "no worries at all."
+- Do NOT push, re-pitch, or circle back to it.
+- Move smoothly into the wrap-up.
+
+## Rules
+- Keep this segment to 2-3 minutes MAX.
+- ONE pitch, ONE ask. Never re-pitch after they've responded.
+- Stay calm and conversational — same energy as the rest of the call.
+- This is a "plant the seed" moment, not a hard sell.
+- If the call is running long (you've already gotten a duration warning), SKIP this entirely and go straight to wrap-up.`;
+
 // ── CRM Field Schema (locked — NOT editable by user) ────────────────
 // Maps directly to SmartMatchApp CRM fields. Must stay in sync with the
 // downstream merge/sync logic in actions.ts. Always appended to whatever

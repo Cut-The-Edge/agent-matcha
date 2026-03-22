@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
 import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
 import { api } from "../../../../convex/_generated/api"
-import { DEFAULT_INSTRUCTIONS_PROMPT, CRM_FIELD_SCHEMA } from "../../../../convex/voice/prompts"
+import { DEFAULT_INSTRUCTIONS_PROMPT, CRM_FIELD_SCHEMA, DEFAULT_MEMBERSHIP_PITCH_PROMPT } from "../../../../convex/voice/prompts"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,6 +41,7 @@ import { useWorkspace } from "@/hooks/use-workspace"
 import { cn } from "@/lib/utils"
 
 type SettingsTab = "global" | "workspace"
+type PromptTab = "summary" | "membership"
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
@@ -59,7 +60,12 @@ export default function SettingsPage() {
   const [spSaving, setSpSaving] = useState(false)
   const [spSaved, setSpSaved] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [membershipPitchPrompt, setMembershipPitchPrompt] = useState<string>("")
+  const [mpSaving, setMpSaving] = useState(false)
+  const [mpSaved, setMpSaved] = useState(false)
+  const [mpPreviewOpen, setMpPreviewOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<SettingsTab>("workspace")
+  const [promptTab, setPromptTab] = useState<PromptTab>("summary")
 
   useEffect(() => {
     setMounted(true)
@@ -77,6 +83,9 @@ export default function SettingsPage() {
     }
     if (settings && "summaryPrompt" in settings) {
       setSummaryPrompt((settings.summaryPrompt as string) ?? "")
+    }
+    if (settings && "membershipPitchPrompt" in settings) {
+      setMembershipPitchPrompt((settings.membershipPitchPrompt as string) ?? "")
     }
   }, [settings])
 
@@ -160,96 +169,250 @@ export default function SettingsPage() {
               </CardHeader>
             </Card>
 
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  Summary Prompt
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-[300px]">
-                        <p>Controls how the AI analyzes call transcripts and generates summaries. The CRM field schema is automatically appended and cannot be edited — this ensures extracted data always maps correctly to SmartMatch.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </CardTitle>
-                <CardDescription>
-                  Customize the AI instructions for generating post-call summaries. CRM field mappings are locked and appended automatically.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={summaryPrompt || DEFAULT_INSTRUCTIONS_PROMPT}
-                  onChange={(e) => {
-                    setSummaryPrompt(e.target.value)
-                    setSpSaved(false)
-                  }}
-                  maxLength={10000}
-                  className="min-h-[300px] font-mono text-xs leading-relaxed"
-                />
-                <div className="flex items-center gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    disabled={spSaving}
-                    onClick={async () => {
-                      setSpSaving(true)
-                      setSpSaved(false)
-                      try {
-                        // Save empty string if user hasn't changed from default
-                        const valueToSave = summaryPrompt === DEFAULT_INSTRUCTIONS_PROMPT ? "" : summaryPrompt
-                        await updateSettings({ summaryPrompt: valueToSave })
-                        setSpSaved(true)
-                      } finally {
-                        setSpSaving(false)
-                      }
-                    }}
-                  >
-                    {spSaving ? "Saving..." : spSaved ? "Saved" : "Save"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={spSaving || !summaryPrompt || summaryPrompt === DEFAULT_INSTRUCTIONS_PROMPT}
-                    onClick={async () => {
-                      setSummaryPrompt("")
-                      setSpSaved(false)
-                      setSpSaving(true)
-                      try {
-                        await updateSettings({ summaryPrompt: "" })
-                        setSpSaved(true)
-                      } finally {
-                        setSpSaving(false)
-                      }
-                    }}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                    Reset to default
-                  </Button>
-                </div>
+            {/* ── Prompt sub-tabs ── */}
+            <div className="mt-4 flex items-center gap-1 rounded-lg bg-muted/50 p-1 w-fit">
+              <button
+                onClick={() => setPromptTab("summary")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  promptTab === "summary"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Summary Prompt
+              </button>
+              <button
+                onClick={() => setPromptTab("membership")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  promptTab === "membership"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Membership Pitch
+              </button>
+            </div>
 
-                <Collapsible open={previewOpen} onOpenChange={setPreviewOpen} className="mt-4">
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground px-0 hover:bg-transparent">
-                      <Eye className="h-3.5 w-3.5" />
-                      Preview full prompt
-                      <ChevronsUpDown className="h-3.5 w-3.5" />
+            {/* ── Summary Prompt tab ── */}
+            {promptTab === "summary" && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Summary Prompt
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[300px]">
+                          <p>Controls how the AI analyzes call transcripts and generates summaries. The CRM field schema is automatically appended and cannot be edited — this ensures extracted data always maps correctly to SmartMatch.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardTitle>
+                  <CardDescription>
+                    Customize the AI instructions for generating post-call summaries. CRM field mappings are locked and appended automatically.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={summaryPrompt || DEFAULT_INSTRUCTIONS_PROMPT}
+                    onChange={(e) => {
+                      setSummaryPrompt(e.target.value)
+                      setSpSaved(false)
+                    }}
+                    maxLength={10000}
+                    className="min-h-[300px] font-mono text-xs leading-relaxed"
+                  />
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      disabled={spSaving}
+                      onClick={async () => {
+                        setSpSaving(true)
+                        setSpSaved(false)
+                        try {
+                          const valueToSave = summaryPrompt === DEFAULT_INSTRUCTIONS_PROMPT ? "" : summaryPrompt
+                          await updateSettings({ summaryPrompt: valueToSave })
+                          setSpSaved(true)
+                        } finally {
+                          setSpSaving(false)
+                        }
+                      }}
+                    >
+                      {spSaving ? "Saving..." : spSaved ? "Saved" : "Save"}
                     </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="mt-2 rounded-md border bg-muted/50 p-4 max-h-[400px] overflow-y-auto">
-                      <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                        Full prompt sent to LLM (your instructions + locked CRM schema)
-                      </p>
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-words text-foreground/80">
-                        {(summaryPrompt || DEFAULT_INSTRUCTIONS_PROMPT) + "\n" + CRM_FIELD_SCHEMA}
-                      </pre>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={spSaving || !summaryPrompt || summaryPrompt === DEFAULT_INSTRUCTIONS_PROMPT}
+                      onClick={async () => {
+                        setSummaryPrompt("")
+                        setSpSaved(false)
+                        setSpSaving(true)
+                        try {
+                          await updateSettings({ summaryPrompt: "" })
+                          setSpSaved(true)
+                        } finally {
+                          setSpSaving(false)
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                      Reset to default
+                    </Button>
+                  </div>
+
+                  <Collapsible open={previewOpen} onOpenChange={setPreviewOpen} className="mt-4">
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground px-0 hover:bg-transparent">
+                        <Eye className="h-3.5 w-3.5" />
+                        Preview full prompt
+                        <ChevronsUpDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="mt-2 rounded-md border bg-muted/50 p-4 max-h-[400px] overflow-y-auto">
+                        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                          Full prompt sent to LLM (your instructions + locked CRM schema)
+                        </p>
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-words text-foreground/80">
+                          {(summaryPrompt || DEFAULT_INSTRUCTIONS_PROMPT) + "\n" + CRM_FIELD_SCHEMA}
+                        </pre>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ── Membership Pitch tab ── */}
+            {promptTab === "membership" && (
+              <>
+                <Card className="mt-4">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          Membership Pitch
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-[300px]">
+                                <p>When enabled, the voice agent includes a brief, low-pressure membership overview (Phase 3) after the deep dive conversation. The pitch presents Membership and VIP Matchmaking tiers and gauges interest before wrapping up.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </CardTitle>
+                        <CardDescription>
+                          Include a soft-sell membership overview after the deep dive phase of each call
+                        </CardDescription>
+                      </div>
+                      <Switch
+                        checked={settings && "membershipPitchEnabled" in settings ? settings.membershipPitchEnabled !== false : true}
+                        onCheckedChange={async (checked) => {
+                          await updateSettings({ membershipPitchEnabled: checked })
+                        }}
+                      />
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </CardContent>
-            </Card>
+                  </CardHeader>
+                </Card>
+
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      Membership Pitch Script
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[300px]">
+                            <p>Customize the script the voice agent follows when presenting membership options. Leave empty to use the default script. Only used when the Membership Pitch toggle is enabled.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </CardTitle>
+                    <CardDescription>
+                      Customize the voice agent&apos;s membership pitch script. Leave empty to use the default.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={membershipPitchPrompt || DEFAULT_MEMBERSHIP_PITCH_PROMPT}
+                      onChange={(e) => {
+                        setMembershipPitchPrompt(e.target.value)
+                        setMpSaved(false)
+                      }}
+                      maxLength={5000}
+                      className="min-h-[250px] font-mono text-xs leading-relaxed"
+                    />
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        disabled={mpSaving}
+                        onClick={async () => {
+                          setMpSaving(true)
+                          setMpSaved(false)
+                          try {
+                            const valueToSave = membershipPitchPrompt === DEFAULT_MEMBERSHIP_PITCH_PROMPT ? "" : membershipPitchPrompt
+                            await updateSettings({ membershipPitchPrompt: valueToSave })
+                            setMpSaved(true)
+                          } finally {
+                            setMpSaving(false)
+                          }
+                        }}
+                      >
+                        {mpSaving ? "Saving..." : mpSaved ? "Saved" : "Save"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={mpSaving || !membershipPitchPrompt || membershipPitchPrompt === DEFAULT_MEMBERSHIP_PITCH_PROMPT}
+                        onClick={async () => {
+                          setMembershipPitchPrompt("")
+                          setMpSaved(false)
+                          setMpSaving(true)
+                          try {
+                            await updateSettings({ membershipPitchPrompt: "" })
+                            setMpSaved(true)
+                          } finally {
+                            setMpSaving(false)
+                          }
+                        }}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                        Reset to default
+                      </Button>
+                    </div>
+
+                    <Collapsible open={mpPreviewOpen} onOpenChange={setMpPreviewOpen} className="mt-4">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground px-0 hover:bg-transparent">
+                          <Eye className="h-3.5 w-3.5" />
+                          Preview pitch script
+                          <ChevronsUpDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="mt-2 rounded-md border bg-muted/50 p-4 max-h-[400px] overflow-y-auto">
+                          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                            Script injected into the voice agent during Phase 3
+                          </p>
+                          <pre className="text-xs font-mono whitespace-pre-wrap break-words text-foreground/80">
+                            {membershipPitchPrompt || DEFAULT_MEMBERSHIP_PITCH_PROMPT}
+                          </pre>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         )}
 

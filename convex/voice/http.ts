@@ -72,10 +72,20 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
       memberContext?.smaId, Object.keys(memberContext?.smaProfile || {}).length);
   }
 
+  // Fetch membership pitch settings for the voice agent
+  const pitchSettings = await ctx.runQuery(
+    internal.settings.getMembershipPitchSettings,
+    {}
+  );
+
   return new Response(
     JSON.stringify({
       callId,
       member: memberContext,
+      settings: {
+        membershipPitchEnabled: pitchSettings.enabled,
+        membershipPitchPrompt: pitchSettings.prompt,
+      },
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );

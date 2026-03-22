@@ -103,6 +103,7 @@ import type * as utils_validators from "../utils/validators.js";
 import type * as voice_actions from "../voice/actions.js";
 import type * as voice_http from "../voice/http.js";
 import type * as voice_mutations from "../voice/mutations.js";
+import type * as voice_prompts from "../voice/prompts.js";
 import type * as voice_queries from "../voice/queries.js";
 import type * as voice_recovery from "../voice/recovery.js";
 import type * as workflows_followUp from "../workflows/followUp.js";
@@ -212,6 +213,7 @@ declare const fullApi: ApiFromModules<{
   "voice/actions": typeof voice_actions;
   "voice/http": typeof voice_http;
   "voice/mutations": typeof voice_mutations;
+  "voice/prompts": typeof voice_prompts;
   "voice/queries": typeof voice_queries;
   "voice/recovery": typeof voice_recovery;
   "workflows/followUp": typeof workflows_followUp;

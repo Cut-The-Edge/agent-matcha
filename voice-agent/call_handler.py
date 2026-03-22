@@ -41,6 +41,7 @@ class CallHandler:
         self._egress_id: str | None = None
         self._ended: bool = False
         self._llm_model: str | None = None  # Set by agent after session creation
+        self.settings: dict[str, Any] = {}  # Dashboard settings from call-started response
 
     async def on_call_start(
         self,
@@ -66,6 +67,7 @@ class CallHandler:
             )
             self.call_id = result.get("callId")
             self.member = result.get("member")
+            self.settings = result.get("settings") or {}
         except Exception as e:
             logger.warning("Failed to log call start to Convex (non-fatal): %s", e)
 

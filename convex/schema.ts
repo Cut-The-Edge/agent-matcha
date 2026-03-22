@@ -424,6 +424,8 @@ export default defineSchema({
     dataRequestAutoSendDelayDays: v.optional(v.number()),
     dataRequestAllowResubmit: v.optional(v.boolean()),
     summaryPrompt: v.optional(v.string()),
+    membershipPitchEnabled: v.optional(v.boolean()),
+    membershipPitchPrompt: v.optional(v.string()),
     updatedAt: v.number(),
   }),
 
