@@ -1363,6 +1363,7 @@ async def entrypoint(ctx: agents.JobContext):
             language="en",              # English only — faster than auto-detect
             voice="b7d50908-b17c-442d-ad8d-810c63997ed9",  # California Girl — casual, upbeat
             speed=1.05,
+            emotion=["calm"],           # lock vocal tone — prevents energy spikes
         ),
         vad=silero.VAD.load(
             min_speech_duration=0.05,     # 50ms — doc default, detect speech faster
