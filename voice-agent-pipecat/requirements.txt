@@ -1,6 +1,0 @@
-pipecat-ai[deepgram,google,cartesia,silero,webrtc]
-python-dotenv~=1.0.1
-httpx>=0.27.0
-aiohttp>=3.8.0
-fastapi
-uvicorn
