@@ -22,6 +22,10 @@ import {
   deleteClientFile,
 } from "../integrations/smartmatchapp/client";
 
+// ── Summary Prompt Constants ─────────────────────────────────────────
+// Imported from shared file so both backend and frontend can access them.
+import { DEFAULT_INSTRUCTIONS_PROMPT, CRM_FIELD_SCHEMA } from "./prompts";
+
 // ── Preference field map (SMA pref IDs → human-readable keys) ────────
 
 const PREF_FIELD_MAP: Record<string, string> = {
@@ -46,10 +50,6 @@ const PREF_FIELD_MAP: Record<string, string> = {
   pref_23: "partnerPersonality",
   pref_19: "physicalCharacteristics",
 };
-
-// ── Summary Prompt Constants ─────────────────────────────────────────
-// Imported from shared file so both backend and frontend can access them.
-import { DEFAULT_INSTRUCTIONS_PROMPT, CRM_FIELD_SCHEMA } from "./prompts";
 
 // ── Generate Summary ─────────────────────────────────────────────────
 
@@ -900,7 +900,6 @@ export const syncCallToSMA = internalAction({
       }
 
       // Upload voice notes via Files API
-      const dateStr = new Date().toISOString().split("T")[0];
       const callSummary = call.aiSummary?.summary || "Voice intake call completed.";
       let noteContent = `Voice Call Summary:\n${callSummary}`;
       if (noteLines.length > 0) {

@@ -186,6 +186,7 @@ export default function SettingsPage() {
                     setSummaryPrompt(e.target.value)
                     setSpSaved(false)
                   }}
+                  maxLength={10000}
                   className="min-h-[300px] font-mono text-xs leading-relaxed"
                 />
                 <div className="flex items-center gap-2 mt-3">
