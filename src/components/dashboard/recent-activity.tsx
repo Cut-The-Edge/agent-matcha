@@ -42,7 +42,58 @@ type ActivityItem = {
   data: Record<string, any>
 }
 
-function getActivityLabel(activity: ActivityItem) {
+type GroupedActivityItem = ActivityItem & {
+  count?: number
+}
+
+function groupActivitiesByMember(activities: ActivityItem[]): GroupedActivityItem[] {
+  const callGroups = new Map<
+    string,
+    { latest: ActivityItem; count: number; statuses: Record<string, number> }
+  >()
+  const nonCalls: ActivityItem[] = []
+
+  for (const activity of activities) {
+    if (activity.type === "phone_call") {
+      const key = activity.data.memberName as string
+      const existing = callGroups.get(key)
+      if (existing) {
+        existing.count++
+        const status = activity.data.status as string
+        existing.statuses[status] = (existing.statuses[status] ?? 0) + 1
+        if (activity.timestamp > existing.latest.timestamp) {
+          existing.latest = activity
+        }
+      } else {
+        callGroups.set(key, {
+          latest: activity,
+          count: 1,
+          statuses: { [activity.data.status as string]: 1 },
+        })
+      }
+    } else {
+      nonCalls.push(activity)
+    }
+  }
+
+  const grouped: GroupedActivityItem[] = [...nonCalls]
+
+  for (const [, group] of callGroups) {
+    grouped.push({
+      ...group.latest,
+      count: group.count,
+      data: {
+        ...group.latest.data,
+        statuses: group.statuses,
+      },
+    })
+  }
+
+  grouped.sort((a, b) => b.timestamp - a.timestamp)
+  return grouped
+}
+
+function getActivityLabel(activity: GroupedActivityItem) {
   if (activity.type === "match_update") {
     const { status, memberAName, memberBName } = activity.data
     return `${memberAName} & ${memberBName} — ${status}`
@@ -54,14 +105,23 @@ function getActivityLabel(activity: ActivityItem) {
       : `Message sent to ${memberName}`
   }
   if (activity.type === "phone_call") {
-    const { direction, memberName, status } = activity.data
-    const dir = direction === "inbound" ? "Inbound" : "Outbound"
-    return `${dir} call — ${memberName} (${status})`
+    const { memberName } = activity.data
+    const count = activity.count ?? 1
+    if (count === 1) {
+      const { direction, status } = activity.data
+      const dir = direction === "inbound" ? "Inbound" : "Outbound"
+      return `${dir} call — ${memberName} (${status})`
+    }
+    const statuses = activity.data.statuses as Record<string, number>
+    const parts = Object.entries(statuses)
+      .sort(([, a], [, b]) => b - a)
+      .map(([s, n]) => `${n} ${s}`)
+    return `${memberName} — ${count} calls (${parts.join(", ")})`
   }
   return "Unknown activity"
 }
 
-function getActivityIcon(activity: ActivityItem) {
+function getActivityIcon(activity: GroupedActivityItem) {
   if (activity.type === "match_update") return RefreshCcw
   if (activity.type === "whatsapp_message") return MessageSquare
   if (activity.type === "phone_call") return Phone
@@ -71,7 +131,7 @@ function getActivityIcon(activity: ActivityItem) {
 export function RecentActivity() {
   const router = useRouter()
   const activities = useAuthQuery(api.analytics.queries.getRecentActivity, {
-    limit: 8,
+    limit: 20,
   })
 
   return (
@@ -104,7 +164,7 @@ export function RecentActivity() {
             </div>
           ) : (
             <div className="space-y-1">
-              {activities.slice(0, 6).map((activity: ActivityItem, i: number) => {
+              {groupActivitiesByMember(activities).slice(0, 6).map((activity, i) => {
                 const Icon = getActivityIcon(activity)
                 return (
                   <div
