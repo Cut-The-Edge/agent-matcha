@@ -746,5 +746,5 @@ After the brief overview, ask ONE soft question:
   → warm goodbye → save any remaining data → end_call.
 """
 
-# OpenRouter model — Claude Haiku 4.5 via OpenAI-compatible API
-LLM_MODEL = "anthropic/claude-haiku-4.5"
+# Direct Gemini API — Gemini 3 Flash, fast and capable for real-time voice
+LLM_MODEL = "gemini-3.0-flash"
