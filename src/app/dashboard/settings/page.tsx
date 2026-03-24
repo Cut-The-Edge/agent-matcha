@@ -41,7 +41,7 @@ import { useWorkspace } from "@/hooks/use-workspace"
 import { cn } from "@/lib/utils"
 
 type SettingsTab = "global" | "workspace"
-type PromptTab = "summary" | "membership"
+type PromptTab = "voice" | "summary" | "membership"
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
@@ -60,12 +60,15 @@ export default function SettingsPage() {
   const [spSaving, setSpSaving] = useState(false)
   const [spSaved, setSpSaved] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [voiceAgentPrompt, setVoiceAgentPrompt] = useState<string>("")
+  const [vapSaving, setVapSaving] = useState(false)
+  const [vapSaved, setVapSaved] = useState(false)
   const [membershipPitchPrompt, setMembershipPitchPrompt] = useState<string>("")
   const [mpSaving, setMpSaving] = useState(false)
   const [mpSaved, setMpSaved] = useState(false)
   const [mpPreviewOpen, setMpPreviewOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<SettingsTab>("workspace")
-  const [promptTab, setPromptTab] = useState<PromptTab>("summary")
+  const [promptTab, setPromptTab] = useState<PromptTab>("voice")
 
   useEffect(() => {
     setMounted(true)
@@ -83,6 +86,9 @@ export default function SettingsPage() {
     }
     if (settings && "summaryPrompt" in settings) {
       setSummaryPrompt((settings.summaryPrompt as string) ?? "")
+    }
+    if (settings && "voiceAgentPrompt" in settings) {
+      setVoiceAgentPrompt((settings.voiceAgentPrompt as string) ?? "")
     }
     if (settings && "membershipPitchPrompt" in settings) {
       setMembershipPitchPrompt((settings.membershipPitchPrompt as string) ?? "")
@@ -172,6 +178,17 @@ export default function SettingsPage() {
             {/* ── Prompt sub-tabs ── */}
             <div className="mt-4 flex items-center gap-1 rounded-lg bg-muted/50 p-1 w-fit">
               <button
+                onClick={() => setPromptTab("voice")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  promptTab === "voice"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Voice Prompt
+              </button>
+              <button
                 onClick={() => setPromptTab("summary")}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -194,6 +211,82 @@ export default function SettingsPage() {
                 Membership Pitch
               </button>
             </div>
+
+            {/* ── Voice Agent Prompt tab ── */}
+            {promptTab === "voice" && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Voice Agent System Prompt
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[300px]">
+                          <p>The system prompt that controls how the voice agent conducts intake calls. Edit here to change behavior without redeploying. Leave empty to use the built-in default from the agent code.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </CardTitle>
+                  <CardDescription>
+                    Customize the voice agent&apos;s persona, tone, and conversation flow. Changes take effect on the next call.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={voiceAgentPrompt}
+                    onChange={(e) => {
+                      setVoiceAgentPrompt(e.target.value)
+                      setVapSaved(false)
+                    }}
+                    placeholder="Leave empty to use the built-in default prompt from the agent code."
+                    maxLength={30000}
+                    className="min-h-[400px] font-mono text-xs leading-relaxed"
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {voiceAgentPrompt.length.toLocaleString()} / 30,000 characters
+                  </p>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      disabled={vapSaving}
+                      onClick={async () => {
+                        setVapSaving(true)
+                        setVapSaved(false)
+                        try {
+                          await updateSettings({ voiceAgentPrompt })
+                          setVapSaved(true)
+                        } finally {
+                          setVapSaving(false)
+                        }
+                      }}
+                    >
+                      {vapSaving ? "Saving..." : vapSaved ? "Saved" : "Save"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={vapSaving || !voiceAgentPrompt}
+                      onClick={async () => {
+                        setVoiceAgentPrompt("")
+                        setVapSaved(false)
+                        setVapSaving(true)
+                        try {
+                          await updateSettings({ voiceAgentPrompt: "" })
+                          setVapSaved(true)
+                        } finally {
+                          setVapSaving(false)
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                      Reset to default
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── Summary Prompt tab ── */}
             {promptTab === "summary" && (

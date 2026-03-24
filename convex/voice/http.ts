@@ -72,9 +72,13 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
       memberContext?.smaId, Object.keys(memberContext?.smaProfile || {}).length);
   }
 
-  // Fetch membership pitch settings for the voice agent
+  // Fetch voice agent settings from dashboard
   const pitchSettings = await ctx.runQuery(
     internal.settings.getMembershipPitchSettings,
+    {}
+  );
+  const voiceAgentPrompt = await ctx.runQuery(
+    internal.settings.getVoiceAgentPrompt,
     {}
   );
 
@@ -83,6 +87,7 @@ export const callStartedHandler = httpAction(async (ctx, request) => {
       callId,
       member: memberContext,
       settings: {
+        voiceAgentPrompt,
         membershipPitchEnabled: pitchSettings.enabled,
         membershipPitchPrompt: pitchSettings.prompt,
       },

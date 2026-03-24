@@ -1336,6 +1336,12 @@ async def entrypoint(ctx: agents.JobContext):
     # Build the agent
     agent = MatchaAgent(convex=convex, call_handler=call_handler)
 
+    # Override system prompt from dashboard if set (allows editing without redeploying)
+    custom_prompt = call_handler.settings.get("voiceAgentPrompt", "")
+    if custom_prompt:
+        agent._instructions = custom_prompt
+        logger.info("[entrypoint] Using custom voice agent prompt from dashboard (%d chars)", len(custom_prompt))
+
     # Wire membership pitch settings from dashboard
     agent._membership_pitch_enabled = call_handler.settings.get("membershipPitchEnabled", True)
     agent._membership_pitch_prompt = call_handler.settings.get("membershipPitchPrompt", "")

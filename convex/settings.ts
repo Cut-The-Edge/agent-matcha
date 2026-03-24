@@ -10,6 +10,7 @@ const DEFAULTS = {
   dataRequestAutoSendDelayDays: 3,
   dataRequestAllowResubmit: true,
   summaryPrompt: "",
+  voiceAgentPrompt: "",
   membershipPitchEnabled: true,
   membershipPitchPrompt: "",
 };
@@ -27,6 +28,7 @@ export const get = query({
       dataRequestAutoSendDelayDays: DEFAULTS.dataRequestAutoSendDelayDays,
       dataRequestAllowResubmit: DEFAULTS.dataRequestAllowResubmit,
       summaryPrompt: DEFAULTS.summaryPrompt,
+      voiceAgentPrompt: DEFAULTS.voiceAgentPrompt,
       membershipPitchEnabled: DEFAULTS.membershipPitchEnabled,
       membershipPitchPrompt: DEFAULTS.membershipPitchPrompt,
     };
@@ -43,6 +45,7 @@ export const update = mutation({
     dataRequestAutoSendDelayDays: v.optional(v.number()),
     dataRequestAllowResubmit: v.optional(v.boolean()),
     summaryPrompt: v.optional(v.string()),
+    voiceAgentPrompt: v.optional(v.string()),
     membershipPitchEnabled: v.optional(v.boolean()),
     membershipPitchPrompt: v.optional(v.string()),
   },
@@ -73,6 +76,9 @@ export const update = mutation({
     if (args.summaryPrompt !== undefined) {
       updates.summaryPrompt = args.summaryPrompt;
     }
+    if (args.voiceAgentPrompt !== undefined) {
+      updates.voiceAgentPrompt = args.voiceAgentPrompt;
+    }
     if (args.membershipPitchEnabled !== undefined) {
       updates.membershipPitchEnabled = args.membershipPitchEnabled;
     }
@@ -91,6 +97,7 @@ export const update = mutation({
         dataRequestAutoSendDelayDays: args.dataRequestAutoSendDelayDays ?? DEFAULTS.dataRequestAutoSendDelayDays,
         dataRequestAllowResubmit: args.dataRequestAllowResubmit ?? DEFAULTS.dataRequestAllowResubmit,
         summaryPrompt: args.summaryPrompt ?? DEFAULTS.summaryPrompt,
+        voiceAgentPrompt: args.voiceAgentPrompt ?? DEFAULTS.voiceAgentPrompt,
         membershipPitchEnabled: args.membershipPitchEnabled ?? DEFAULTS.membershipPitchEnabled,
         membershipPitchPrompt: args.membershipPitchPrompt ?? DEFAULTS.membershipPitchPrompt,
         updatedAt: now,
@@ -120,6 +127,14 @@ export const getSummaryPrompt = internalQuery({
   handler: async (ctx) => {
     const doc = await ctx.db.query("appSettings").first();
     return doc?.summaryPrompt || "";
+  },
+});
+
+export const getVoiceAgentPrompt = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const doc = await ctx.db.query("appSettings").first();
+    return doc?.voiceAgentPrompt || "";
   },
 });
 
