@@ -757,4 +757,4 @@ After the brief overview, ask ONE soft question:
 """
 
 # Direct Gemini API — Gemini 3 Flash, fast and capable for real-time voice
-LLM_MODEL = "gemini-3.0-flash"
+LLM_MODEL = "gemini-3.0-flash-preview"
