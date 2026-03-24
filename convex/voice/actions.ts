@@ -899,81 +899,6 @@ export const syncCallToSMA = internalAction({
         catch (e: any) { console.error("[syncCallToSMA] Preferences sync failed (non-fatal):", e.message); }
       }
 
-      // ── Step 7: Append to Matchmaker Notes (prof_235) ──
-      // Read existing notes, use LLM to intelligently merge new call insights,
-      // then write back. This preserves manually written notes while adding
-      // structured call data.
-      try {
-        const existingNotes = (() => {
-          const f = currentFields["prof_235"];
-          if (!f) return "";
-          // SMA field objects have a "value" property (text fields)
-          if (typeof f === "object" && f.value != null) return String(f.value);
-          if (typeof f === "string") return f;
-          return "";
-        })();
-
-        const callSummaryForNotes = call.aiSummary?.summary || "";
-        const callDate = new Date().toISOString().split("T")[0];
-        const callerName = data.firstName || member?.firstName || "Unknown";
-
-        // Build new insights from this call
-        const newInsights: string[] = [];
-        if (callSummaryForNotes) newInsights.push(callSummaryForNotes);
-        if (noteLines.length > 0) newInsights.push(noteLines.join(". "));
-        // Include deep dive matchmaker note if available
-        const deepDive = call.deepDiveData as Record<string, any> | undefined;
-        if (deepDive?.matchmakerNote) newInsights.push(deepDive.matchmakerNote);
-
-        if (newInsights.length > 0) {
-          const mergePrompt = `You are updating a matchmaker's private notes for a client profile in a Jewish matchmaking service (Club Allenby).
-
-EXISTING NOTES (may be empty):
-${existingNotes || "(no existing notes)"}
-
-NEW INFORMATION from a voice intake call on ${callDate} with ${callerName}:
-${newInsights.join("\n\n")}
-
-INSTRUCTIONS:
-- Produce the COMPLETE updated notes field. Keep ALL existing content intact.
-- Append the new call insights at the end under a dated header like "── Voice Call ${callDate} ──"
-- Be concise but preserve all meaningful details — personality observations, matchmaker-relevant insights, preferences nuances, red flags, and anything a matchmaker would want to know.
-- Do NOT duplicate information that already exists in the notes.
-- Do NOT add generic filler. Only include substantive observations.
-- Write in the voice of a matchmaker's private notes — brief, direct, insightful.
-- Output ONLY the updated notes text. No JSON, no markdown fences, no explanation.`;
-
-          const mergeResponse = await fetch(OPENROUTER_API_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${getOpenRouterApiKey()}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: OPENROUTER_MODEL,
-              messages: [
-                { role: "user", content: mergePrompt },
-              ],
-              temperature: 0.3,
-            }),
-          });
-
-          if (mergeResponse.ok) {
-            const mergeData = await mergeResponse.json();
-            const mergedNotes = mergeData.choices?.[0]?.message?.content?.trim();
-            if (mergedNotes && mergedNotes.length > 0) {
-              await resilientSmaPut(smaClientId, { prof_235: mergedNotes }, "profile");
-              console.log("[syncCallToSMA] Matchmaker notes (prof_235) updated — %d chars", mergedNotes.length);
-            }
-          } else {
-            console.warn("[syncCallToSMA] Matchmaker notes LLM merge failed: %d %s",
-              mergeResponse.status, mergeResponse.statusText);
-          }
-        }
-      } catch (noteErr: any) {
-        console.error("[syncCallToSMA] Matchmaker notes append failed (non-fatal):", noteErr.message);
-      }
-
       // Upload voice notes via Files API
       const callSummary = call.aiSummary?.summary || "Voice intake call completed.";
       let noteContent = `Voice Call Summary:\n${callSummary}`;
@@ -1000,6 +925,88 @@ INSTRUCTIONS:
 
       console.log("[syncCallToSMA] Uploading voice notes file");
       await voiceNoteAppendAndReplace(smaClientId, noteContent);
+
+      // ── Step 7: Append matchmaker notes to prof_235 ──
+      // Pull current notes, use LLM to intelligently merge new call insights,
+      // then update prof_235 without losing existing content.
+      try {
+        const currentNotesRaw = currentFields.prof_235
+          ? extractValue(currentFields.prof_235)
+          : null;
+        const existingNotes = typeof currentNotesRaw === "string" ? currentNotesRaw.trim() : "";
+
+        // Build new insights from this call
+        const newInsightParts: string[] = [];
+        if (callSummary && callSummary !== "Voice intake call completed.") {
+          newInsightParts.push(callSummary);
+        }
+        if (noteLines.length > 0) {
+          newInsightParts.push(noteLines.join(". "));
+        }
+        // Include deep dive matchmaker note if available
+        const deepDive = call.deepDiveData as Record<string, any> | undefined;
+        if (deepDive?.matchmakerNote) {
+          newInsightParts.push(deepDive.matchmakerNote);
+        }
+
+        if (newInsightParts.length > 0) {
+          const newInsights = newInsightParts.join("\n");
+          const dateStr = new Date().toISOString().slice(0, 10);
+
+          const mergePrompt = `You are updating the private matchmaker notes for a matchmaking client profile. These notes are read by the matchmaker (Dani) to understand the person beyond their profile fields.
+
+EXISTING MATCHMAKER NOTES:
+${existingNotes || "(empty — no existing notes)"}
+
+NEW INSIGHTS FROM VOICE CALL (${dateStr}):
+${newInsights}
+
+INSTRUCTIONS:
+- Append the new insights to the existing notes. Do NOT remove or rewrite any existing content.
+- Add a clear date header for the new section, e.g. "--- Voice Call ${dateStr} ---"
+- Keep the new section concise but include all meaningful details.
+- If existing notes already mention something that the new call UPDATES (e.g. they moved cities, changed jobs), note the update alongside the existing info rather than deleting the old entry.
+- Write in a professional but casual tone — these are internal notes for a matchmaker.
+- Return ONLY the final merged notes text. No JSON, no markdown formatting, no explanation.`;
+
+          const mergeResponse = await fetch(OPENROUTER_API_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${getOpenRouterApiKey()}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              messages: [
+                { role: "system", content: mergePrompt },
+                { role: "user", content: "Merge the notes and return the updated text." },
+              ],
+              temperature: 0.3,
+            }),
+          });
+
+          if (mergeResponse.ok) {
+            const mergeData = await mergeResponse.json();
+            const mergedNotes = mergeData.choices?.[0]?.message?.content?.trim();
+            if (mergedNotes) {
+              await resilientSmaPut(smaClientId, { prof_235: mergedNotes }, "profile");
+              console.log("[syncCallToSMA] Matchmaker notes (prof_235) updated (%d chars)", mergedNotes.length);
+            }
+          } else {
+            console.warn("[syncCallToSMA] Matchmaker notes LLM merge failed: %d", mergeResponse.status);
+            // Fallback: simple append
+            const fallback = existingNotes
+              ? `${existingNotes}\n\n--- Voice Call ${dateStr} ---\n${newInsights}`
+              : `--- Voice Call ${dateStr} ---\n${newInsights}`;
+            await resilientSmaPut(smaClientId, { prof_235: fallback }, "profile");
+            console.log("[syncCallToSMA] Matchmaker notes (prof_235) updated with fallback append");
+          }
+        } else {
+          console.log("[syncCallToSMA] No new insights to append to matchmaker notes");
+        }
+      } catch (e: any) {
+        console.error("[syncCallToSMA] Matchmaker notes update failed (non-fatal):", e.message);
+      }
 
       await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
         callId: args.callId,
