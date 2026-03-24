@@ -1396,8 +1396,10 @@ async def entrypoint(ctx: agents.JobContext):
                 "Shabbat", "Shabbos", "kosher",
             ],
         ),
-        llm=google_plugin.LLM(
+        llm=openai_plugin.LLM(
             model=LLM_MODEL,
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         ),
         tts=cartesia.TTS(
             model="sonic-3",            # upgraded from sonic-2 — ~90ms TTFA

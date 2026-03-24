@@ -228,7 +228,7 @@ class CallHandler:
                 call_id=self.call_id,
                 duration_secs=duration,
                 stt_model="deepgram/nova-3",
-                llm_model=self._llm_model or "google/unknown",
+                llm_model=self._llm_model or "openrouter/unknown",
                 tts_model="cartesia/sonic",
                 user_tokens=user_tokens,
                 agent_tokens=agent_tokens,
