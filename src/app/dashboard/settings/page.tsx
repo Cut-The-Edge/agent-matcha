@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
 import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
 import { api } from "../../../../convex/_generated/api"
-import { DEFAULT_INSTRUCTIONS_PROMPT, CRM_FIELD_SCHEMA, DEFAULT_MEMBERSHIP_PITCH_PROMPT } from "../../../../convex/voice/prompts"
+import { DEFAULT_VOICE_AGENT_PROMPT, DEFAULT_INSTRUCTIONS_PROMPT, CRM_FIELD_SCHEMA, DEFAULT_MEMBERSHIP_PITCH_PROMPT } from "../../../../convex/voice/prompts"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -235,17 +235,16 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <Textarea
-                    value={voiceAgentPrompt}
+                    value={voiceAgentPrompt || DEFAULT_VOICE_AGENT_PROMPT}
                     onChange={(e) => {
                       setVoiceAgentPrompt(e.target.value)
                       setVapSaved(false)
                     }}
-                    placeholder="Leave empty to use the built-in default prompt from the agent code."
                     maxLength={30000}
                     className="min-h-[400px] font-mono text-xs leading-relaxed"
                   />
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    {voiceAgentPrompt.length.toLocaleString()} / 30,000 characters
+                    {(voiceAgentPrompt || DEFAULT_VOICE_AGENT_PROMPT).length.toLocaleString()} / 30,000 characters
                   </p>
                   <div className="flex items-center gap-2 mt-3">
                     <Button
@@ -255,7 +254,8 @@ export default function SettingsPage() {
                         setVapSaving(true)
                         setVapSaved(false)
                         try {
-                          await updateSettings({ voiceAgentPrompt })
+                          const valueToSave = voiceAgentPrompt === DEFAULT_VOICE_AGENT_PROMPT ? "" : voiceAgentPrompt
+                          await updateSettings({ voiceAgentPrompt: valueToSave })
                           setVapSaved(true)
                         } finally {
                           setVapSaving(false)
@@ -267,7 +267,7 @@ export default function SettingsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={vapSaving || !voiceAgentPrompt}
+                      disabled={vapSaving || !voiceAgentPrompt || voiceAgentPrompt === DEFAULT_VOICE_AGENT_PROMPT}
                       onClick={async () => {
                         setVoiceAgentPrompt("")
                         setVapSaved(false)
