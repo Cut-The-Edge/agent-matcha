@@ -24,7 +24,6 @@ from livekit.agents import (
     WorkerOptions,
     function_tool,
     get_job_context,
-    TurnHandlingOptions,
 )
 from livekit.agents.metrics import LLMMetrics
 from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
@@ -1420,18 +1419,10 @@ async def entrypoint(ctx: agents.JobContext):
         ),
         # ── Speculative execution — start LLM+TTS before turn fully confirmed ──
         preemptive_generation=True,
-        # ── TurnHandlingOptions — correct API for v1.5+ ──
-        turn_handling=TurnHandlingOptions(
-            turn_detection=MultilingualModel(),
-            endpointing={
-                "mode": "dynamic",        # adapts delay based on conversation pace
-                "min_delay": 0.2,         # 200ms min — aggressive for speed
-                "max_delay": 1.5,         # 1.5s max cap
-            },
-            interruption={
-                "mode": "adaptive",       # LiveKit Cloud ML model — ignores backchanneling
-            },
-        ),
+        # ── Turn detection + endpointing (new API — replaces TurnHandlingOptions) ──
+        turn_detection=MultilingualModel(),
+        min_endpointing_delay=0.2,        # 200ms min — aggressive for speed
+        max_endpointing_delay=1.5,        # 1.5s max cap
     )
 
     # ── LLM Metrics — log TTFT so we can see actual latency ──
