@@ -15,6 +15,7 @@ import {
   UserCog,
   Settings,
   AlertTriangle,
+  HeartHandshake,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -82,6 +83,12 @@ const navMatchmaking = [
     url: "/dashboard/data-requests",
     icon: ClipboardList,
     description: "Send profile completion forms to members with missing data",
+  },
+  {
+    title: "Date Feedback",
+    url: "/dashboard/date-feedback",
+    icon: HeartHandshake,
+    description: "Post-date feedback and Compatibility Signal Scores",
   },
 ]
 

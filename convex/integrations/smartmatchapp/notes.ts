@@ -146,6 +146,8 @@ function formatDecision(decision: string): string {
     case "interested": return "Interested";
     case "passed": return "Passed";
     case "no_response": return "No Response";
+    case "date_feedback_css": return "Post-Date CSS Generated";
+    case "no_date_feedback": return "No Date Feedback Received";
     default: return decision.replace(/_/g, " ");
   }
 }
@@ -242,6 +244,7 @@ export const uploadNotesToSma = internalAction({
     categories: v.optional(v.array(v.string())),
     subCategories: v.optional(v.any()),
     freeText: v.optional(v.string()),
+    cssData: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     try {
@@ -296,16 +299,31 @@ export const uploadNotesToSma = internalAction({
         console.warn("[uploadNotesToSma] Failed to load conversation:", err?.message);
       }
 
-      // 3. Generate LLM note for THIS interaction
-      const noteEntry = await generateNoteEntry({
-        memberFirstName: member.firstName,
-        partnerFirstName,
-        decision: args.decision || "unknown",
-        categories: args.categories,
-        subCategories: args.subCategories,
-        freeText: args.freeText,
-        conversationExcerpts: conversationExcerpts || undefined,
-      });
+      // 3. Generate note — use CSS template if cssData provided, otherwise LLM
+      let noteEntry: string;
+      if (args.cssData && args.decision === "date_feedback_css") {
+        const css = args.cssData;
+        const lines: string[] = [];
+        lines.push(`Post-Date Feedback: ${member.firstName} + ${css.partnerName || partnerFirstName}`);
+        lines.push(`Compatibility Signal Score: ${css.score}/10`);
+        if (css.dimensions) {
+          lines.push(`Dimensions: Lifestyle ${css.dimensions.lifestyle}, Energy ${css.dimensions.energy}, Values ${css.dimensions.values}, Attraction ${css.dimensions.attraction}, Chemistry ${css.dimensions.chemistry}`);
+        }
+        if (css.summary) lines.push(`Summary: ${css.summary}`);
+        if (css.strengths?.length) lines.push(`Strengths: ${css.strengths.join(", ")}`);
+        if (css.weaknesses?.length) lines.push(`Weaknesses: ${css.weaknesses.join(", ")}`);
+        noteEntry = lines.join("\n");
+      } else {
+        noteEntry = await generateNoteEntry({
+          memberFirstName: member.firstName,
+          partnerFirstName,
+          decision: args.decision || "unknown",
+          categories: args.categories,
+          subCategories: args.subCategories,
+          freeText: args.freeText,
+          conversationExcerpts: conversationExcerpts || undefined,
+        });
+      }
 
       // 4. Download existing file (if any), append new entry, re-upload
       await appendAndReplaceNote(clientSmaId, noteEntry);

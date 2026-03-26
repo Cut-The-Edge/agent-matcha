@@ -739,6 +739,174 @@ export const executeActionNode = internalMutation({
         break;
       }
 
+      // ── Post-Date Feedback Actions ─────────────────────────────────
+      case "save_date_feedback": {
+        if (instance.memberId && instance.matchId) {
+          const responses = context.responses || {};
+
+          // Chemistry rating from pdf_decision_chemistry (Great/Good/Neutral/Not a match)
+          const chemistryAnswer = responses.pdf_decision_chemistry?.selectedOption
+            || responses.pdf_reask_chem?.selectedOption;
+
+          // Map flow options to dateFeedback overallRating values
+          let rating: string;
+          switch (chemistryAnswer) {
+            case "great": rating = "great_chemistry"; break;
+            case "good":
+            case "neutral": rating = "okay"; break;
+            case "not_a_match": rating = "not_a_match"; break;
+            default: rating = args.params?.rating || "okay";
+          }
+
+          // Would see again from pdf_decision_see_again (Yes/Maybe/No)
+          const seeAgainAnswer = responses.pdf_decision_see_again?.selectedOption
+            || responses.pdf_reask_see?.selectedOption;
+          const wouldSeeAgain = seeAgainAnswer === "yes" || seeAgainAnswer === "maybe";
+
+          // Positive signals derived from chemistry rating
+          const positiveSignals: string[] = [];
+          if (chemistryAnswer === "great") positiveSignals.push("great_chemistry");
+          if (chemistryAnswer === "good") positiveSignals.push("good_chemistry");
+
+          // Negative categories from misaligned question (collected downstream, but
+          // also check feedbackCategories which may be populated by AI fallback)
+          const negativeCategories: string[] = [...(context.feedbackCategories || [])];
+
+          // Free text from "Anything you'd adjust?" feedback_collect node
+          const freeText = responses.pdf_fb_adjust?.rawInput || context.feedbackFreeText || undefined;
+
+          const dateFeedbackId = await ctx.db.insert("dateFeedback", {
+            matchId: instance.matchId,
+            memberId: instance.memberId,
+            flowInstanceId: args.flowInstanceId,
+            overallRating: rating,
+            wouldSeeAgain,
+            positiveSignals: positiveSignals.length > 0 ? positiveSignals : undefined,
+            negativeCategories: negativeCategories.length > 0 ? negativeCategories : undefined,
+            freeText,
+            rawResponses: responses,
+            smaMatchNotesSynced: false,
+            cssGenerated: false,
+            createdAt: Date.now(),
+          });
+
+          // Set memberDecision on context so the downstream condition node
+          // ("memberDecision == not_a_match") can route correctly
+          const updatedCtx: FlowContext = {
+            ...context,
+            memberDecision: chemistryAnswer || "unknown",
+          };
+
+          // Update consecutive bad dates counter on member
+          if (rating === "not_a_match") {
+            const member = await ctx.db.get(instance.memberId);
+            const newCount = ((member as any)?.consecutiveBadDates || 0) + 1;
+            await ctx.db.patch(instance.memberId, {
+              consecutiveBadDates: newCount,
+              updatedAt: Date.now(),
+            });
+            updatedCtx.metadata = {
+              ...updatedCtx.metadata,
+              consecutiveBadDates: newCount,
+            };
+          } else {
+            // Reset consecutive bad dates on positive/neutral outcome
+            await ctx.db.patch(instance.memberId, {
+              consecutiveBadDates: 0,
+              updatedAt: Date.now(),
+            });
+          }
+
+          await ctx.db.patch(args.flowInstanceId, {
+            context: updatedCtx,
+            lastTransitionAt: Date.now(),
+          });
+
+          actionResult = {
+            type: "save_date_feedback",
+            dateFeedbackId,
+            rating,
+            wouldSeeAgain,
+            status: "completed",
+          };
+        }
+        break;
+      }
+
+      case "generate_css": {
+        // Check if both members have submitted date feedback for this match
+        if (instance.matchId && instance.memberId) {
+          const allFeedback = await ctx.db
+            .query("dateFeedback")
+            .withIndex("by_match", (q) => q.eq("matchId", instance.matchId!))
+            .collect();
+
+          if (allFeedback.length >= 2) {
+            // Both members have submitted — schedule CSS generation (action, calls LLM)
+            await ctx.scheduler.runAfter(
+              0,
+              internal.dateFeedback.actions.generateCompatibilityScore,
+              { matchId: instance.matchId }
+            );
+            actionResult = { type: "generate_css", status: "generation_scheduled" };
+          } else {
+            // Only one member so far — mark as pending, other member's flow will trigger
+            actionResult = { type: "generate_css", status: "waiting_for_other_member" };
+          }
+        }
+        break;
+      }
+
+      case "mark_active_relationship": {
+        if (instance.matchId) {
+          await ctx.db.patch(instance.matchId, {
+            status: "active_relationship",
+            updatedAt: Date.now(),
+          });
+          actionResult = { type: "mark_active_relationship", status: "completed" };
+        }
+        break;
+      }
+
+      case "trigger_human_review": {
+        if (instance.memberId) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.escalations.mutations.createEscalation,
+            {
+              memberId: instance.memberId,
+              matchId: instance.matchId || undefined,
+              flowInstanceId: args.flowInstanceId,
+              issueType: "manual",
+              issueDescription:
+                args.params?.notification ||
+                `Post-date recalibration needed: ${args.params?.reason || "consecutive bad dates"}`,
+              memberMessage: undefined,
+            },
+          );
+          actionResult = { type: "trigger_human_review", status: "queued" };
+        }
+        break;
+      }
+
+      case "close_feedback_loop": {
+        // No feedback received — log and move on
+        if (instance.matchId && instance.memberId) {
+          // Upload a note to SMA indicating no feedback
+          await ctx.scheduler.runAfter(
+            0,
+            internal.integrations.smartmatchapp.notes.uploadNotesToSma,
+            {
+              matchId: instance.matchId,
+              memberId: instance.memberId,
+              decision: "no_date_feedback",
+            }
+          );
+          actionResult = { type: "close_feedback_loop", status: "completed" };
+        }
+        break;
+      }
+
       default: {
         actionResult = {
           type: args.actionType,

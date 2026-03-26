@@ -222,6 +222,13 @@ export const getBySmaIdInternal = internalQuery({
   },
 });
 
+export const getByIdInternal = internalQuery({
+  args: { memberId: v.id("members") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.memberId);
+  },
+});
+
 /**
  * Lookup member by phone number (for WhatsApp matching).
  */

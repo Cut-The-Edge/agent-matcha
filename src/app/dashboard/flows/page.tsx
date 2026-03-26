@@ -30,26 +30,33 @@ import {
   MessageSquareText,
 } from "lucide-react"
 
+// Flow type metadata for display
+const FLOW_TYPE_META: Record<string, { label: string; description: string; trigger: string }> = {
+  match_feedback: {
+    label: "Match Introduction Flow",
+    description: "Sends match profile, collects structured feedback",
+    trigger: 'Match → "Automated Intro"',
+  },
+  post_date_feedback: {
+    label: "Post-Date Feedback Flow",
+    description: "Collects post-date feedback from both members, generates compatibility scores",
+    trigger: 'Match → "Successful Introductions"',
+  },
+}
+
 export default function FlowsPage() {
   const router = useRouter()
 
-  // Auto-load the active match_feedback flow
-  const activeFlow = useQuery(api.engine.queries.getActiveFlow, {
-    type: "match_feedback",
-  })
-
-  // If no active flow, check if any flow exists at all
   const allFlows = useQuery(api.engine.queries.listFlowDefinitions, {})
-
   const saveFlowDefinition = useMutation(api.engine.mutations.saveFlowDefinition)
 
+  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null)
   const [isSeeding, setIsSeeding] = useState(false)
 
   // Auto-seed flow if none exist
   const handleSeedDefault = async () => {
     setIsSeeding(true)
     try {
-      const store = useFlowEditorStore.getState()
       const convexNodes = daniFlowNodes.map((n) => ({
         nodeId: n.id,
         type: n.type || "unknown",
@@ -78,39 +85,40 @@ export default function FlowsPage() {
   }
 
   // Loading state
-  if (activeFlow === undefined) {
+  if (allFlows === undefined) {
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-4 border-b px-4 py-3">
           <Skeleton className="h-9 w-9" />
           <Skeleton className="h-6 w-48" />
-          <div className="ml-auto flex gap-2">
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-9 w-24" />
-          </div>
         </div>
-        <div className="flex-1">
-          <Skeleton className="h-full w-full" />
+        <div className="flex-1 p-6 space-y-4">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
         </div>
       </div>
     )
   }
 
-  // No active flow — prompt to seed
-  if (!activeFlow) {
-    // Check if there's an inactive flow to use
-    const existingFlow = allFlows?.find((f: any) => f.type === "match_feedback")
-    if (existingFlow) {
-      return <FlowEditorPage flowId={existingFlow._id} />
-    }
+  // If a flow is selected, show the editor
+  if (selectedFlowId) {
+    return (
+      <FlowEditorPage
+        flowId={selectedFlowId as Id<"flowDefinitions">}
+        onBack={() => setSelectedFlowId(null)}
+      />
+    )
+  }
 
+  // No flows at all — prompt to seed
+  if (!allFlows || allFlows.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-5 text-center animate-fade-in">
         <div className="rounded-2xl bg-muted/50 p-5">
           <Workflow className="size-10 text-muted-foreground" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">No Flow Configured</h2>
+          <h2 className="text-lg font-semibold tracking-tight">No Flows Configured</h2>
           <p className="text-sm text-muted-foreground mt-1.5 max-w-[280px]">
             Create the Match Introduction Flow to get started
           </p>
@@ -122,8 +130,64 @@ export default function FlowsPage() {
     )
   }
 
-  // Active flow found — render editor directly
-  return <FlowEditorPage flowId={activeFlow._id} />
+  // Show flow list
+  return (
+    <div className="flex h-[calc(100vh-var(--header-height))] flex-col">
+      <div className="flex items-center gap-3 border-b border-border/60 px-4 py-2.5">
+        <Workflow className="size-5 text-muted-foreground" />
+        <h3 className="text-sm font-semibold tracking-tight">Automation Flows</h3>
+        <Badge variant="secondary" className="text-[10px]">
+          {allFlows.length} flow{allFlows.length !== 1 ? "s" : ""}
+        </Badge>
+      </div>
+
+      <div className="flex-1 overflow-auto p-6">
+        <div className="mx-auto max-w-2xl space-y-3">
+          {allFlows.map((flow: any) => {
+            const meta = FLOW_TYPE_META[flow.type] || {
+              label: flow.name,
+              description: flow.description || "",
+              trigger: flow.type,
+            }
+            return (
+              <button
+                key={flow._id}
+                onClick={() => setSelectedFlowId(flow._id)}
+                className="w-full rounded-xl border border-border/60 bg-card p-4 text-left transition-all hover:border-border hover:shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Circle
+                        className={`size-2 fill-current ${
+                          flow.isActive ? "text-green-500" : "text-gray-300"
+                        }`}
+                      />
+                      <span className="text-sm font-semibold">{flow.name}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {meta.description}
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Badge variant="outline" className="text-[10px]">
+                        {flow.type}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        Trigger: {meta.trigger}
+                      </span>
+                    </div>
+                  </div>
+                  <Badge variant={flow.isActive ? "default" : "secondary"} className="text-[10px] shrink-0">
+                    {flow.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ============================================================================
@@ -132,8 +196,10 @@ export default function FlowsPage() {
 
 function FlowEditorPage({
   flowId,
+  onBack,
 }: {
   flowId: Id<"flowDefinitions">
+  onBack?: () => void
 }) {
   const router = useRouter()
   const flowData = useQuery(
@@ -304,7 +370,7 @@ function FlowEditorPage({
     <div className="flex h-[calc(100vh-var(--header-height))] flex-col">
       {/* Editor Header */}
       <div className="flex items-center gap-3 border-b border-border/60 px-4 py-2.5">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+        <Button variant="ghost" size="sm" onClick={onBack || (() => router.push("/dashboard"))}>
           <ArrowLeft className="mr-1 size-4" />
           Back
         </Button>

@@ -338,3 +338,105 @@ export const startFlowForMaleMember = internalMutation({
     return { started: true, flowInstanceId: instanceId };
   },
 });
+
+/**
+ * Start the Post-Date Feedback Flow for BOTH members of a match.
+ *
+ * Unlike the intro flow (male only), this creates two flow instances —
+ * one per member — so both sides provide post-date feedback independently.
+ */
+export const startFeedbackFlowForBothMembers = internalMutation({
+  args: {
+    matchId: v.id("matches"),
+  },
+  handler: async (ctx, args) => {
+    const match = await ctx.db.get(args.matchId);
+    if (!match) {
+      return { started: false, reason: "match_not_found" };
+    }
+
+    if (match.feedbackFlowTriggered) {
+      return { started: false, reason: "already_triggered" };
+    }
+
+    const memberA = await ctx.db.get(match.memberAId);
+    const memberB = await ctx.db.get(match.memberBId);
+
+    if (!memberA || !memberB) {
+      return { started: false, reason: "members_not_found" };
+    }
+
+    // Find the active post_date_feedback flow definition
+    const flowDef = await ctx.db
+      .query("flowDefinitions")
+      .withIndex("by_active", (q) =>
+        q.eq("type", "post_date_feedback").eq("isActive", true)
+      )
+      .first();
+
+    if (!flowDef) {
+      console.warn("startFeedbackFlowForBothMembers: no active post_date_feedback flow definition");
+      return { started: false, reason: "no_flow_def" };
+    }
+
+    const startNode = flowDef.nodes.find((n: any) => n.type === "start");
+    if (!startNode) {
+      console.warn("startFeedbackFlowForBothMembers: flow definition has no START node");
+      return { started: false, reason: "no_start_node" };
+    }
+
+    const instanceIds: string[] = [];
+
+    // Start a flow instance for each member
+    for (const member of [memberA, memberB]) {
+      const otherMember = member._id === memberA._id ? memberB : memberA;
+
+      const instanceId = await ctx.db.insert("flowInstances", {
+        flowDefinitionId: flowDef._id,
+        matchId: args.matchId,
+        memberId: member._id,
+        currentNodeId: startNode.nodeId,
+        status: "active",
+        context: {
+          responses: {},
+          feedbackCategories: [],
+          waitingForInput: false,
+          timestamps: { flowStarted: Date.now() },
+          metadata: {
+            memberFirstName: member.firstName,
+            matchFirstName: otherMember.firstName,
+            matchName: otherMember.firstName,
+            matchId: String(args.matchId),
+            side: member._id === memberA._id ? "A" : "B",
+            consecutiveBadDates: member.consecutiveBadDates || 0,
+          },
+        },
+        startedAt: Date.now(),
+        lastTransitionAt: Date.now(),
+      });
+
+      // Kick off the flow (START → delay → first message)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.engine.interpreter.advanceFlow,
+        { flowInstanceId: instanceId, input: undefined }
+      );
+
+      instanceIds.push(instanceId);
+    }
+
+    // Mark feedback flow as triggered + update match status
+    await ctx.db.patch(args.matchId, {
+      feedbackFlowTriggered: true,
+      status: "date_completed",
+      updatedAt: Date.now(),
+    });
+
+    console.log(
+      `Post-date feedback flow started for match ${args.matchId}: ` +
+      `${memberA.firstName} (${instanceIds[0]}), ${memberB.firstName} (${instanceIds[1]})`
+    );
+
+    return { started: true, flowInstanceIds: instanceIds };
+  },
+});

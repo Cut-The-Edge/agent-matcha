@@ -30,6 +30,7 @@ export type NodeType = (typeof NODE_TYPES)[keyof typeof NODE_TYPES];
 
 export const FLOW_TYPES = {
   MATCH_FEEDBACK: "match_feedback",
+  POST_DATE_FEEDBACK: "post_date_feedback",
   RECALIBRATION: "recalibration",
   FOLLOW_UP: "follow_up",
   PERSONAL_OUTREACH: "personal_outreach",
@@ -114,7 +115,13 @@ export interface ActionNodeConfig {
     | "schedule_recalibration"
     | "expire_match"
     | "send_wrapup"
-    | "create_escalation";
+    | "create_escalation"
+    | "save_date_feedback"
+    | "generate_css"
+    | "update_compatibility_profile"
+    | "mark_active_relationship"
+    | "trigger_human_review"
+    | "close_feedback_loop";
   params: Record<string, any>;
 }
 

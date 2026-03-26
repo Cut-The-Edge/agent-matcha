@@ -75,6 +75,16 @@ export default defineSchema({
       total: v.number(),
       lastFetchedAt: v.number(),
     })),
+    // Post-date compatibility insights (accumulated over all dates)
+    compatibilityProfile: v.optional(v.object({
+      bestSignals: v.array(v.string()),
+      weakSignals: v.array(v.string()),
+      averageCss: v.number(),
+      totalDates: v.number(),
+      lastUpdatedAt: v.number(),
+    })),
+    opennessScore: v.optional(v.number()),
+    consecutiveBadDates: v.optional(v.number()),
     lastSyncedAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -128,6 +138,8 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("completed"),
       v.literal("expired"),
+      v.literal("date_completed"),
+      v.literal("active_relationship"),
     ),
     // §7.2: what the member responded
     responseType: v.optional(v.union(
@@ -148,7 +160,11 @@ export default defineSchema({
     smaStatusName: v.optional(v.string()),
     groupChatId: v.optional(v.string()),
     flowTriggered: v.optional(v.boolean()),
+    feedbackFlowTriggered: v.optional(v.boolean()),
     introToken: v.optional(v.string()),
+    // Post-date compatibility signal score (0-10)
+    cssScore: v.optional(v.number()),
+    cssDimensions: v.optional(v.any()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -180,6 +196,55 @@ export default defineSchema({
     .index("by_match", ["matchId"])
     .index("by_member", ["memberId"])
     .index("by_flowInstance", ["flowInstanceId"]),
+
+  // -- Date Feedback (post-date experience data) --
+  dateFeedback: defineTable({
+    matchId: v.id("matches"),
+    memberId: v.id("members"),
+    flowInstanceId: v.optional(v.id("flowInstances")),
+    // Core rating
+    overallRating: v.union(
+      v.literal("great_chemistry"),
+      v.literal("okay"),
+      v.literal("not_a_match"),
+    ),
+    wouldSeeAgain: v.optional(v.boolean()),
+    // What clicked (positive signals)
+    positiveSignals: v.optional(v.array(v.string())),
+    // What didn't work (negative signals)
+    negativeCategories: v.optional(v.array(v.string())),
+    negativeSubCategories: v.optional(v.any()),
+    freeText: v.optional(v.string()),
+    rawResponses: v.optional(v.any()),
+    smaMatchNotesSynced: v.boolean(),
+    cssGenerated: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_match", ["matchId"])
+    .index("by_member", ["memberId"])
+    .index("by_match_member", ["matchId", "memberId"]),
+
+  // -- Compatibility Signal Scores (generated from bilateral date feedback) --
+  compatibilityScores: defineTable({
+    matchId: v.id("matches"),
+    memberAId: v.id("members"),
+    memberBId: v.id("members"),
+    overallScore: v.number(),
+    lifestyle: v.number(),
+    energy: v.number(),
+    values: v.number(),
+    attraction: v.number(),
+    chemistry: v.number(),
+    feedbackAId: v.optional(v.id("dateFeedback")),
+    feedbackBId: v.optional(v.id("dateFeedback")),
+    summary: v.optional(v.string()),
+    strengths: v.optional(v.array(v.string())),
+    weaknesses: v.optional(v.array(v.string())),
+    generatedAt: v.number(),
+  })
+    .index("by_match", ["matchId"])
+    .index("by_memberA", ["memberAId"])
+    .index("by_memberB", ["memberBId"]),
 
   // -- Conversations (WhatsApp message log) --
   whatsappMessages: defineTable({

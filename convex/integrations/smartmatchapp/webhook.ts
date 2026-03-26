@@ -222,6 +222,16 @@ export const smaWebhookHandler = httpAction(async (ctx, request) => {
           { smaIntroId: String(smaIntroId) }
         );
       }
+
+      // Trigger post-date feedback flow when moved to "Successful Introductions".
+      // Starts feedback collection for BOTH members.
+      if (payload?.group?.name === "Successful Introductions") {
+        await ctx.scheduler.runAfter(
+          5000,
+          internal.integrations.smartmatchapp.actions.triggerPostDateFeedbackFlow,
+          { smaIntroId: String(smaIntroId) }
+        );
+      }
     }
     return new Response(
       JSON.stringify({ ok: true, event: "match_group_changed", scheduled: true }),

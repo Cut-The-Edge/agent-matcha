@@ -159,6 +159,60 @@ export const WA_TEMPLATES = {
     contentSid: "HXd9dad6fcb3c4996b87ba019ca979a38e",
     variables: ["memberName", "formLink"],
   },
+
+  // ── Post-Date Feedback Templates ───────────────────────────────────
+
+  // post_date_connect_check — "Hey {{1}}! Were you able to connect with {{2}}?"
+  // Variables: {{1}} = member name, {{2}} = match name
+  // Quick reply buttons: "Yes we connected" / "Not yet"
+  // TODO: Create in Twilio and replace contentSid
+  POST_DATE_CONNECT_CHECK: {
+    contentSid: "REPLACE_ME",
+    variables: ["memberFirstName", "matchFirstName"],
+  },
+
+  // Kept for backward compatibility — original "How did it go?" template
+  POST_DATE_CHECKIN: {
+    contentSid: "HXd97dc0700a132bfeb1c1345d41aeec36",
+    variables: ["memberFirstName", "matchFirstName"],
+  },
+
+  // post_date_reminder — "Hey {{1}}, just checking in — quick feedback
+  // helps us refine future matches for you. No rush! 😊"
+  // Variables: {{1}} = member name. No buttons.
+  POST_DATE_REMINDER: {
+    contentSid: "HX38f00abe7af336081846d87d160a74c0",
+    variables: ["memberFirstName"],
+  },
+
+  // post_date_reask — "How did your date with {{1}} go?"
+  // Variables: {{1}} = match name
+  // Quick reply buttons: "Great chemistry!" / "It was okay" / "Not a match"
+  POST_DATE_REASK: {
+    contentSid: "HX06c782412f94ff923aa8022e92006a91",
+    variables: ["matchFirstName"],
+  },
+
+  // post_date_close_loop — "No worries {{1}} — we'll log this match..."
+  // Variables: {{1}} = member name. No buttons.
+  POST_DATE_CLOSE_LOOP: {
+    contentSid: "HXce7631a9a776474a47d35b3610033590",
+    variables: ["memberFirstName"],
+  },
+
+  // post_date_nudge — "Hey {{1}}, take your time — no pressure at all!..."
+  // Variables: {{1}} = member name. No buttons.
+  POST_DATE_NUDGE: {
+    contentSid: "HXdc7b0b4e0fea5fd83e39335ca09185bb",
+    variables: ["memberFirstName"],
+  },
+
+  // post_date_midflow_expire — "No worries {{1}} — since I haven't heard back..."
+  // Variables: {{1}} = member name. No buttons.
+  POST_DATE_MIDFLOW_EXPIRE: {
+    contentSid: "HX998bca430f6539f7c8aded78e47b298e",
+    variables: ["memberFirstName"],
+  },
 } as const;
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;

@@ -962,3 +962,46 @@ export const triggerFlowForActiveIntro = internalAction({
     );
   },
 });
+
+/**
+ * Trigger the Post-Date Feedback Flow for both members when a match
+ * moves to "Successful Introductions" in SMA.
+ */
+export const triggerPostDateFeedbackFlow = internalAction({
+  args: { smaIntroId: v.string() },
+  handler: async (ctx, args) => {
+    // Safety filter: only process if test client filtering is active
+    const testClientId = process.env.SMA_TEST_CLIENT_ID;
+    if (testClientId) {
+      const match = await ctx.runQuery(internal.matches.queries.getBySmaIntroId, { smaIntroId: args.smaIntroId });
+      if (match) {
+        const memberA = await ctx.runQuery(internal.members.queries.getByIdInternal, { memberId: match.memberAId });
+        const memberB = await ctx.runQuery(internal.members.queries.getByIdInternal, { memberId: match.memberBId });
+        const testIds = new Set(testClientId.split(",").map((id) => parseInt(id.trim(), 10)));
+        const smaIdA = memberA?.smaId ? parseInt(memberA.smaId, 10) : NaN;
+        const smaIdB = memberB?.smaId ? parseInt(memberB.smaId, 10) : NaN;
+        if (!testIds.has(smaIdA) && !testIds.has(smaIdB)) {
+          console.log(`triggerPostDateFeedbackFlow skipped: neither member is in test clients [${[...testIds]}]`);
+          return { triggered: false, reason: "test_filter" };
+        }
+      }
+    }
+
+    const match = await ctx.runQuery(internal.matches.queries.getBySmaIntroId, { smaIntroId: args.smaIntroId });
+    if (!match) {
+      console.warn(`triggerPostDateFeedbackFlow: no match found for smaIntroId=${args.smaIntroId}`);
+      return { triggered: false, reason: "match_not_found" };
+    }
+
+    if (match.feedbackFlowTriggered) {
+      return { triggered: false, reason: "already_triggered" };
+    }
+
+    const result = await ctx.runMutation(
+      internal.integrations.crm.mutations.startFeedbackFlowForBothMembers,
+      { matchId: match._id }
+    );
+
+    return { triggered: result.started ?? false, ...result };
+  },
+});
