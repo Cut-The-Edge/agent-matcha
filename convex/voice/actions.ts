@@ -1008,6 +1008,15 @@ INSTRUCTIONS:
         console.error("[syncCallToSMA] Matchmaker notes update failed (non-fatal):", e.message);
       }
 
+      // Sync conversation log to SMA (3s delay to let notes land first)
+      if (call.memberId) {
+        await ctx.scheduler.runAfter(
+          3000,
+          internal.integrations.smartmatchapp.actions.syncConversationLogToSma,
+          { memberId: call.memberId },
+        );
+      }
+
       await ctx.runMutation(internal.voice.mutations.updateSmaSyncStatus, {
         callId: args.callId,
         status: "synced",

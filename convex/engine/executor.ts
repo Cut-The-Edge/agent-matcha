@@ -1227,6 +1227,15 @@ export const executeEndNode = internalMutation({
       lastTransitionAt: Date.now(),
     });
 
+    // Sync conversation log to SMA when flow completes successfully
+    if (instance.memberId && finalStatus === INSTANCE_STATUS.COMPLETED) {
+      await ctx.scheduler.runAfter(
+        3000,
+        internal.integrations.smartmatchapp.actions.syncConversationLogToSma,
+        { memberId: instance.memberId },
+      );
+    }
+
     const duration = Date.now() - startTime;
 
     await ctx.db.insert("flowExecutionLogs", {
