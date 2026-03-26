@@ -124,12 +124,14 @@ export function OutreachSandbox() {
 
   // ── Step 3: Record outcome ──
   const handleRecordOutcome = async () => {
+    console.log("[sandbox] handleRecordOutcome called, createdItemId:", createdItemId, "outcome:", outcome)
     if (!createdItemId) {
       toast.error("No action item found — did Step 1 complete? Try starting over.")
       return
     }
     setIsRecording(true)
     try {
+      console.log("[sandbox] Calling recordOutcome mutation...")
       await recordOutcome({
         actionItemId: createdItemId,
         outreachOutcome: outcome,
