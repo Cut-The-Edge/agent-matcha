@@ -1173,6 +1173,7 @@ async def entrypoint(ctx: agents.JobContext):
     call_direction = "inbound"
     call_context: str | None = None
     agent_notes: str | None = None
+    agent_mode = "full"  # "full" or "transcription_only"
     logger.info("[entrypoint] Connected to room: %s", ctx.room.name)
     if ctx.job.metadata:
         try:
@@ -1182,8 +1183,9 @@ async def entrypoint(ctx: agents.JobContext):
             call_direction = meta.get("direction", "inbound")
             call_context = meta.get("context")
             agent_notes = meta.get("agent_notes")
-            logger.info("[entrypoint] Dispatch metadata: phone=%s sandbox=%s direction=%s context=%s",
-                        phone_number, is_sandbox, call_direction, call_context)
+            agent_mode = meta.get("mode", "full")  # "full" or "transcription_only"
+            logger.info("[entrypoint] Dispatch metadata: phone=%s sandbox=%s direction=%s context=%s mode=%s",
+                        phone_number, is_sandbox, call_direction, call_context, agent_mode)
         except (json.JSONDecodeError, AttributeError):
             logger.warning("[entrypoint] Failed to parse dispatch metadata: %s", ctx.job.metadata)
 
@@ -1249,6 +1251,61 @@ async def entrypoint(ctx: agents.JobContext):
         lk_api=ctx.api,
         sandbox=is_sandbox,
     )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TRANSCRIPTION-ONLY MODE (Pitch Arena)
+    # Joins the room silently, transcribes both sides, streams to Convex.
+    # No LLM, no TTS, no greeting — just ears.
+    # ══════════════════════════════════════════════════════════════════════
+    if agent_mode == "transcription_only":
+        logger.info("[entrypoint] Running in TRANSCRIPTION-ONLY mode")
+
+        session = AgentSession(
+            stt=deepgram.STT(
+                model="nova-3",
+                language="en-US",
+                detect_language=False,
+                smart_format=True,
+                punctuate=True,
+                filler_words=False,
+                endpointing_ms=25,
+                no_delay=True,
+                profanity_filter=False,
+            ),
+            vad=silero.VAD.load(
+                min_speech_duration=0.05,
+                min_silence_duration=0.3,
+                activation_threshold=0.5,
+                force_cpu=True,
+            ),
+        )
+
+        # Wire transcript streaming (same pipeline as full mode)
+        setup_transcript_listeners(session, call_handler)
+
+        session_closed = asyncio.Event()
+
+        @session.on("close")
+        def on_close_transcription(*args):
+            logger.info("[transcription] Session closed")
+            session_closed.set()
+
+        try:
+            await session.start(room=ctx.room)
+        except Exception as e:
+            logger.error("[transcription] session.start() failed: %s", e)
+            await call_handler.on_call_end(status="failed")
+            await convex.close()
+            return
+
+        logger.info("[transcription] Listening and transcribing...")
+        await session_closed.wait()
+
+        logger.info("[transcription] Session ended — cleanup")
+        await call_handler.on_call_end()
+        await convex.close()
+        logger.info("[transcription] Cleanup complete")
+        return
 
     # ── Identity Check: Phone Lookup → Branching Logic ─────────────────
     #

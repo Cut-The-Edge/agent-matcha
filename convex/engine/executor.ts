@@ -865,6 +865,13 @@ export const executeActionNode = internalMutation({
             lastTransitionAt: Date.now(),
           });
 
+          // Recalculate openness score after date feedback
+          await ctx.scheduler.runAfter(
+            0,
+            internal.members.mutations.recalculateOpennessScore,
+            { memberId: instance.memberId }
+          );
+
           actionResult = {
             type: "save_date_feedback",
             dateFeedbackId,
@@ -962,6 +969,42 @@ export const executeActionNode = internalMutation({
               decision: "no_date_feedback",
             }
           );
+
+          // Ghosting detection: member confirmed connection but never provided
+          // feedback (timed out on meeting/feedback questions).
+          // Only trigger on the mid-flow timeout path — not when the member
+          // actively said "not yet" to connect/meet (those carry a reason param).
+          const closeReason = args.params?.reason;
+          const responses = context.responses || {};
+          const confirmedConnection =
+            responses.pdf_decision_connected?.selectedOption === "yes_connected" ||
+            responses.pdf_decision_reconnect?.selectedOption === "yes_connected" ||
+            responses.pdf_decision_reask_connected?.selectedOption === "yes_connected";
+
+          if (confirmedConnection && !closeReason) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.actionQueue.mutations.createActionItem,
+              {
+                memberId: instance.memberId,
+                matchId: instance.matchId,
+                flowInstanceId: args.flowInstanceId,
+                type: "ghosting_detected" as const,
+                priority: "medium" as const,
+                context: {
+                  reason: "confirmed_connection_no_feedback",
+                },
+              },
+            );
+
+            // Recalculate openness score after ghosting
+            await ctx.scheduler.runAfter(
+              0,
+              internal.members.mutations.recalculateOpennessScore,
+              { memberId: instance.memberId }
+            );
+          }
+
           actionResult = { type: "close_feedback_loop", status: "completed" };
         }
         break;

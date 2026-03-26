@@ -21,6 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
   follow_up_reminder: "Follow-up Reminder",
   payment_pending: "Payment Pending",
   recalibration_due: "Recalibration Due",
+  ghosting_detected: "Ghosting Detected",
   unrecognized_response: "Unrecognized Response",
   frustrated_member: "Frustrated Member",
 };

@@ -27,6 +27,7 @@ export const createActionItem = internalMutation({
       v.literal("follow_up_reminder"),
       v.literal("payment_pending"),
       v.literal("recalibration_due"),
+      v.literal("ghosting_detected"),
       v.literal("unrecognized_response"),
       v.literal("frustrated_member"),
     ),
@@ -111,6 +112,7 @@ export const createActionItem = internalMutation({
       follow_up_reminder: "Follow-up Reminder",
       payment_pending: "Payment Pending",
       recalibration_due: "Recalibration Due",
+      ghosting_detected: "Ghosting Detected",
       unrecognized_response: "Unrecognized Response",
       frustrated_member: "Frustrated Member",
     };
@@ -121,6 +123,7 @@ export const createActionItem = internalMutation({
       follow_up_reminder: "warning",
       payment_pending: "info",
       recalibration_due: "warning",
+      ghosting_detected: "warning",
       unrecognized_response: "warning",
       frustrated_member: "urgent",
     };

@@ -224,7 +224,74 @@ export const incrementRejectionCount = internalMutation({
       });
     }
 
+    // Recalculate openness score after rejection
+    await ctx.scheduler.runAfter(0, internal.members.mutations.recalculateOpennessScore, {
+      memberId: args.memberId,
+    });
+
     return { memberId: args.memberId, rejectionCount: newCount, recalibrating: newCount >= 3 };
+  },
+});
+
+/**
+ * Recalculate a member's openness score (0-100).
+ *
+ * Signals:
+ *   - rejectionCount: each match rejection costs points
+ *   - consecutiveBadDates: streak of "not a match" dates (heavily penalized)
+ *   - ghosting incidents: action queue items of type "ghosting_detected"
+ *   - positive dates: date feedback with "great" or "good" chemistry
+ *   - completed feedback loops: responsive behavior earns back points
+ *
+ * A new member starts at 100 and decays with negative signals.
+ */
+export const recalculateOpennessScore = internalMutation({
+  args: {
+    memberId: v.id("members"),
+  },
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) return;
+
+    let score = 100;
+
+    // --- Penalty: match rejections (-5 each, max -30) ---
+    const rejections = member.rejectionCount || 0;
+    score -= Math.min(rejections * 5, 30);
+
+    // --- Penalty: consecutive bad dates (-10 each, max -30) ---
+    const badDates = (member as any).consecutiveBadDates || 0;
+    score -= Math.min(badDates * 10, 30);
+
+    // --- Penalty: ghosting incidents (-15 each, max -30) ---
+    const ghostingItems = await ctx.db
+      .query("actionQueue")
+      .withIndex("by_memberId", (q) => q.eq("memberId", args.memberId))
+      .filter((q) => q.eq(q.field("type"), "ghosting_detected"))
+      .collect();
+    score -= Math.min(ghostingItems.length * 15, 30);
+
+    // --- Bonus: positive date feedback (+5 each, max +15) ---
+    const allFeedback = await ctx.db
+      .query("dateFeedback")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    const positiveDates = allFeedback.filter(
+      (f: any) => f.overallRating === "great_chemistry" || f.overallRating === "good"
+    ).length;
+    score += Math.min(positiveDates * 5, 15);
+
+    // --- Bonus: completed feedback (+3 each, max +10) ---
+    // Any feedback record = member completed the loop
+    score += Math.min(allFeedback.length * 3, 10);
+
+    // Clamp 0-100
+    score = Math.max(0, Math.min(100, score));
+
+    await ctx.db.patch(args.memberId, {
+      opennessScore: score,
+      updatedAt: Date.now(),
+    });
   },
 });
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, Clock, Play, CheckCircle } from "lucide-react"
+import { ArrowRight, Clock, Play, CheckCircle, Phone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +14,7 @@ import { useAuthQuery, useAuthMutation } from "@/hooks/use-auth-query"
 import { api } from "../../../convex/_generated/api"
 import type { Id } from "../../../convex/_generated/dataModel"
 import { RecordOutcomeDialog } from "./record-outcome-dialog"
+import { PitchArenaSheet } from "@/components/pitch-arena/pitch-arena-sheet"
 import { toast } from "sonner"
 
 type StatusFilter = "pending" | "in_progress" | "resolved" | undefined
@@ -24,6 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
   follow_up_reminder: "Follow-up Reminder",
   payment_pending: "Payment Pending",
   recalibration_due: "Recalibration Due",
+  ghosting_detected: "Ghosting Detected",
   unrecognized_response: "Unrecognized Response",
   frustrated_member: "Frustrated Member",
 }
@@ -57,6 +59,7 @@ function timeAgo(timestamp: number): string {
 export function ActionList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(undefined)
   const [outcomeItemId, setOutcomeItemId] = useState<Id<"actionQueue"> | null>(null)
+  const [pitchArenaItem, setPitchArenaItem] = useState<any>(null)
 
   const items = useAuthQuery(api.actionQueue.queries.list, {
     status: statusFilter,
@@ -179,10 +182,33 @@ export function ActionList() {
               <div className="mt-3 flex items-center gap-2">
                 <span className="font-medium">{item.memberName}</span>
                 <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                {item.matchPartnerProfilePictureUrl ? (
+                  <img
+                    src={item.matchPartnerProfilePictureUrl}
+                    alt=""
+                    className="size-6 rounded-full object-cover"
+                  />
+                ) : null}
                 <span className="font-medium">
                   {item.matchPartnerName || "—"}
                 </span>
+                {item.matchStatus && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {item.matchStatus}
+                  </Badge>
+                )}
               </div>
+              {/* Match partner details */}
+              {(item.matchPartnerPhone || item.matchPartnerLocation) && (
+                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                  {item.matchPartnerPhone && (
+                    <span>{item.matchPartnerPhone}</span>
+                  )}
+                  {item.matchPartnerLocation && (
+                    <span>{item.matchPartnerLocation}</span>
+                  )}
+                </div>
+              )}
 
               {/* Payment + additional context */}
               <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
@@ -245,6 +271,19 @@ export function ActionList() {
                     Record Outcome
                   </Button>
                 )}
+                {(item.status === "pending" || item.status === "in_progress") &&
+                  item.matchPartnerPhone &&
+                  (item.type === "outreach_needed" || item.type === "outreach_pending") && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => setPitchArenaItem(item)}
+                  >
+                    <Phone className="h-3 w-3" />
+                    Call + Pitch
+                  </Button>
+                )}
                 {item.status === "in_progress" && !item.outreachOutcome && (
                   <Button
                     size="sm"
@@ -267,6 +306,21 @@ export function ActionList() {
         actionItemId={outcomeItemId}
         onClose={() => setOutcomeItemId(null)}
       />
+
+      {/* Pitch Arena Sheet */}
+      {pitchArenaItem && (
+        <PitchArenaSheet
+          open={!!pitchArenaItem}
+          onOpenChange={(open) => { if (!open) setPitchArenaItem(null) }}
+          memberId={pitchArenaItem.memberId}
+          matchMemberId={pitchArenaItem.matchPartnerId}
+          matchId={pitchArenaItem.matchId}
+          actionItemId={pitchArenaItem._id}
+          memberName={pitchArenaItem.memberName}
+          matchName={pitchArenaItem.matchPartnerName}
+          matchPhone={pitchArenaItem.matchPartnerPhone}
+        />
+      )}
     </div>
   )
 }

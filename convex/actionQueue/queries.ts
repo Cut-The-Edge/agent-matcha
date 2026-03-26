@@ -72,8 +72,15 @@ export const list = query({
           ? `${member.firstName}${member.lastName ? ` ${member.lastName}` : ""}`
           : "Unknown";
 
+        // Single match + partner lookup (consolidated)
         let matchPartnerName = "";
+        let matchPartnerPhone = "";
+        let matchPartnerProfilePictureUrl = "";
+        let matchPartnerLocation = "";
+        let matchPartnerId: any = null;
         let matchStatus = "";
+        let paymentAmount: number | null = null;
+
         if (item.matchId) {
           const match = await ctx.db.get(item.matchId);
           if (match) {
@@ -83,15 +90,21 @@ export const list = query({
                 ? match.memberBId
                 : match.memberAId;
             const partner = await ctx.db.get(partnerId);
-            matchPartnerName = partner
-              ? `${partner.firstName}${partner.lastName ? ` ${partner.lastName}` : ""}`
-              : "Unknown";
+            if (partner) {
+              matchPartnerName = `${partner.firstName}${partner.lastName ? ` ${partner.lastName}` : ""}`;
+              matchPartnerPhone = partner.phone ?? "";
+              matchPartnerProfilePictureUrl = partner.profilePictureUrl ?? "";
+              matchPartnerId = partner._id;
+              // Location from CRM profile
+              const loc = partner.location;
+              if (loc) {
+                matchPartnerLocation = [loc.city, loc.state, loc.country]
+                  .filter(Boolean)
+                  .join(", ");
+              }
+            }
           }
-        }
 
-        // Look up payment amount
-        let paymentAmount: number | null = null;
-        if (item.matchId) {
           const payment = await ctx.db
             .query("payments")
             .withIndex("by_match", (q) => q.eq("matchId", item.matchId))
@@ -106,6 +119,10 @@ export const list = query({
           memberName,
           memberPhone: member?.phone ?? null,
           matchPartnerName,
+          matchPartnerPhone,
+          matchPartnerProfilePictureUrl,
+          matchPartnerLocation,
+          matchPartnerId,
           matchStatus,
           paymentAmount,
         };

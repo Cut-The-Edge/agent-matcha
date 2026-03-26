@@ -386,7 +386,7 @@ export const nodes = [
     type: "action",
     label: "Close Loop (No Connect)",
     position: { x: 400, y: 2900 },
-    config: { actionType: "close_feedback_loop", params: {} },
+    config: { actionType: "close_feedback_loop", params: { reason: "no_connect" } },
   },
   {
     nodeId: "pdf_end_no_connect",
@@ -413,7 +413,7 @@ export const nodes = [
     type: "action",
     label: "Close Loop (No Meet)",
     position: { x: 1000, y: 3500 },
-    config: { actionType: "close_feedback_loop", params: {} },
+    config: { actionType: "close_feedback_loop", params: { reason: "no_meet" } },
   },
   {
     nodeId: "pdf_end_no_meet",

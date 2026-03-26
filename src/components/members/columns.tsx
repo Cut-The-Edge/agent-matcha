@@ -250,6 +250,30 @@ export const columns: ColumnDef<Member>[] = [
     ),
   },
   {
+    accessorKey: "opennessScore",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="-ml-3"
+      >
+        Openness
+        <ArrowUpDown className="ml-2 size-4" />
+      </Button>
+    ),
+    cell: ({ row }) => {
+      const score = row.original.opennessScore as number | undefined
+      if (score == null) return <span className="text-muted-foreground">—</span>
+      const color =
+        score >= 70
+          ? "text-green-600 dark:text-green-400"
+          : score >= 40
+            ? "text-yellow-600 dark:text-yellow-400"
+            : "text-red-600 dark:text-red-400"
+      return <span className={`tabular-nums font-medium ${color}`}>{score}</span>
+    },
+  },
+  {
     accessorKey: "profileComplete",
     header: "Profile",
     cell: ({ row }) =>

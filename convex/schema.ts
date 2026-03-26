@@ -650,6 +650,7 @@ export default defineSchema({
       v.literal("follow_up_reminder"),
       v.literal("payment_pending"),
       v.literal("recalibration_due"),
+      v.literal("ghosting_detected"),
       v.literal("unrecognized_response"),
       v.literal("frustrated_member"),
     ),
@@ -686,6 +687,31 @@ export default defineSchema({
     .index("by_matchId", ["matchId"])
     .index("by_memberId", ["memberId"])
     .index("by_createdAt", ["createdAt"]),
+
+  // -- Pitch Arena Sessions (CUT-345) --
+  pitchArenaSessions: defineTable({
+    callId: v.optional(v.id("phoneCalls")),
+    memberId: v.id("members"),
+    matchId: v.optional(v.id("matches")),
+    matchMemberId: v.id("members"),
+    actionItemId: v.optional(v.id("actionQueue")),
+    livekitRoomName: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("cancelled"),
+    ),
+    generatedPitches: v.optional(v.array(v.object({
+      pitch: v.string(),
+      generatedAt: v.number(),
+      transcriptSnapshotLength: v.number(),
+    }))),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_callId", ["callId"])
+    .index("by_actionItemId", ["actionItemId"])
+    .index("by_status", ["status"]),
 
   // -- Flow Engine: Execution Logs --
   flowExecutionLogs: defineTable({

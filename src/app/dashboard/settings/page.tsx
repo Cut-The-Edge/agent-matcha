@@ -208,7 +208,7 @@ export default function SettingsPage() {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                Membership Pitch
+                Pitch Arena
               </button>
             </div>
 
@@ -381,7 +381,7 @@ export default function SettingsPage() {
               </Card>
             )}
 
-            {/* ── Membership Pitch tab ── */}
+            {/* ── Pitch Arena tab ── */}
             {promptTab === "membership" && (
               <>
                 <Card className="mt-4">
@@ -389,7 +389,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <CardTitle className="text-base flex items-center gap-2">
-                          Membership Pitch
+                          Pitch Arena
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -418,14 +418,14 @@ export default function SettingsPage() {
                 <Card className="mt-4">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
-                      Membership Pitch Script
+                      Pitch Arena Script
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent side="right" className="max-w-[300px]">
-                            <p>Customize the script the voice agent follows when presenting membership options. Leave empty to use the default script. Only used when the Membership Pitch toggle is enabled.</p>
+                            <p>Customize the prompt used to generate real-time sales pitches in the Pitch Arena. Leave empty to use the default prompt. The system combines this with member data and live call transcript.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -691,6 +691,50 @@ export default function SettingsPage() {
                   />
                 </div>
               </CardHeader>
+            </Card>
+
+            {/* ── Pitch Arena Prompt (also accessible from matchmaking workspace) ── */}
+            <h3 className="text-base font-semibold mt-8 mb-4 flex items-center gap-2.5 tracking-tight">
+              <Phone className="h-4.5 w-4.5" />
+              Pitch Arena
+            </h3>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Pitch Arena Prompt</CardTitle>
+                <CardDescription>
+                  Customize the prompt used to generate real-time sales pitches when calling matches. Leave empty for the default prompt.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={membershipPitchPrompt || ""}
+                  onChange={(e) => {
+                    setMembershipPitchPrompt(e.target.value)
+                    setMpSaved(false)
+                  }}
+                  rows={8}
+                  placeholder="Enter your custom pitch generation prompt..."
+                  className="font-mono text-xs"
+                />
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={mpSaving}
+                    onClick={async () => {
+                      setMpSaving(true)
+                      setMpSaved(false)
+                      try {
+                        await updateSettings({ membershipPitchPrompt: membershipPitchPrompt })
+                        setMpSaved(true)
+                      } finally {
+                        setMpSaving(false)
+                      }
+                    }}
+                  >
+                    {mpSaving ? "Saving..." : mpSaved ? "Saved" : "Save Prompt"}
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
           </div>
         )}

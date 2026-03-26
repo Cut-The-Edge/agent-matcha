@@ -211,6 +211,14 @@ Return ONLY valid JSON:
         );
       }
 
+      // Aggregate compatibility profile for both members
+      for (const memberId of [match.memberAId, match.memberBId]) {
+        await ctx.runMutation(
+          internal.dateFeedback.mutations.updateMemberCompatibilityProfile,
+          { memberId }
+        );
+      }
+
       // Check for mutual positive → mark active relationship
       if (
         feedbackA.overallRating === "great_chemistry" &&
