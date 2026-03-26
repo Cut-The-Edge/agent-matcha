@@ -318,7 +318,7 @@ These are ALL the fields in the CRM. Extract data for as many as the transcript 
 |-----|-----------|------|------------------------|
 | occupation | prof_163 | Short Text | job title e.g. "software engineer", "attorney" |
 | careerOverview | prof_184 | Long Text | 1-3 sentences about career trajectory |
-| income | prof_158 | Select | "under $50k", "$50k-$100k", "$100k-$150k", "$150k-$250k", "$250k-$500k", "$500k+" |
+| income | prof_158 | Select | "less than $50k", "$50k-$100k", "$100k-$150k", "$150k-$250k", "$250k-$500k", "$500k-$1m", "$1m-$5m", "$5m+", "would rather not share" |
 
 ### GROUP: Background & Education
 | Key | CRM Field | Type | Allowed values / format |

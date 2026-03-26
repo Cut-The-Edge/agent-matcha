@@ -1268,7 +1268,7 @@ const SMA_CHOICES: Record<string, string> = {
   // Profile select fields
   prof_132: "1:Male, 2:Female, 3:Non-binary",
   prof_133: "4:Asian, 11:Black, 10:Caucasian, 8:East Indian, 12:Hispanic/Latino, 9:Indian American, 5:Middle Eastern, 13:Multiracial, 6:Pacific Islander, 14:Other, 15:No Preference",
-  prof_158: "1:Under $50k, 4:$50k-$100k, 3:$100k-$150k, 5:$150k-$250k, 6:$250k-$500k, 7:$500k+",
+  prof_158: "1:Less than $50k, 4:$50k - $100k, 3:$100k - $150k, 5:$150k - $250k, 6:$250k - $500k, 7:$500k - $1m, 8:$1m - $5m, 9:$5m +, 10:Would rather not share",
   prof_144: "4:Jewish, 25:Christian, 3:Muslim, 5:Hindu, 6:Buddhist, 7:Agnostic, 8:Atheist, 9:Spiritual, 10:Other",
   prof_142: "1:Single, 2:It's Complicated, 3:Taken, 4:Here for Friends",
   prof_165: "1:Conservative, 2:Liberal, 3:Middle of the Road, 4:Independent, 5:Not Political",

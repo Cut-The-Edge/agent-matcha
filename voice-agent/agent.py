@@ -1448,7 +1448,10 @@ async def entrypoint(ctx: agents.JobContext):
             smart_format=False,          # DISABLED — can add up to 3s delay
             punctuate=False,             # DISABLED — LLM handles raw text fine, saves processing
             filler_words=True,           # keep "um", "uh" for natural feel
-            vad_events=False,            # DISABLED — prevents Deepgram finalize latency spikes
+            vad_events=True,             # ENABLED — Deepgram uses LiveKit's VAD (which has BVC
+                                         # noise cancellation in front). Without this, Deepgram
+                                         # runs its OWN VAD on raw audio, picks up echo, and
+                                         # produces false transcripts that trigger responses.
             endpointing_ms=200,          # 200ms — gives echo cancellation time to filter
                                          # agent's own TTS audio before STT finalizes.
                                          # 25ms was too fast — echo leaked through as
