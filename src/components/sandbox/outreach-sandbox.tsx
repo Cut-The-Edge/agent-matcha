@@ -56,8 +56,8 @@ export function OutreachSandbox() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [memberAId, setMemberAId] = useState("")
   const [memberBId, setMemberBId] = useState("")
-  const [createdItemId, setCreatedItemId] = useState<string | null>(null)
-  const [createdMatchId, setCreatedMatchId] = useState<string | null>(null)
+  const [createdItemId, setCreatedItemId] = useState<Id<"actionQueue"> | null>(null)
+  const [createdMatchId, setCreatedMatchId] = useState<Id<"matches"> | null>(null)
   const [outcome, setOutcome] = useState<Outcome>("match_interested")
   const [notes, setNotes] = useState("")
   const [brief, setBrief] = useState(
@@ -90,6 +90,7 @@ export function OutreachSandbox() {
         payingMemberId: memberAId as Id<"members">,
         matchPartnerId: memberBId as Id<"members">,
       })
+      console.log("[sandbox] Created scenario:", result)
       setCreatedItemId(result.actionItemId)
       setCreatedMatchId(result.matchId)
       setStep(2)
@@ -105,10 +106,13 @@ export function OutreachSandbox() {
 
   // ── Step 2: Mark in progress ──
   const handleStartWorking = async () => {
-    if (!createdItemId) return
+    if (!createdItemId) {
+      toast.error("No action item found — try Step 1 again")
+      return
+    }
     try {
       await updateStatus({
-        actionItemId: createdItemId as Id<"actionQueue">,
+        actionItemId: createdItemId,
         status: "in_progress",
       })
       toast.success("Item marked as in progress — Dani is doing outreach")
@@ -120,11 +124,14 @@ export function OutreachSandbox() {
 
   // ── Step 3: Record outcome ──
   const handleRecordOutcome = async () => {
-    if (!createdItemId) return
+    if (!createdItemId) {
+      toast.error("No action item found — did Step 1 complete? Try starting over.")
+      return
+    }
     setIsRecording(true)
     try {
       await recordOutcome({
-        actionItemId: createdItemId as Id<"actionQueue">,
+        actionItemId: createdItemId,
         outreachOutcome: outcome,
         outreachNotes: notes || "Sandbox test",
         matchIntelligenceBrief:
