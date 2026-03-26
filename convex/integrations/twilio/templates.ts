@@ -167,7 +167,7 @@ export const WA_TEMPLATES = {
   // Quick reply buttons: "Yes we connected" / "Not yet"
   // TODO: Create in Twilio and replace contentSid
   POST_DATE_CONNECT_CHECK: {
-    contentSid: "REPLACE_ME",
+    contentSid: "HX53e8dd4fdc3206bc7a939a39d1b18562",
     variables: ["memberFirstName", "matchFirstName"],
   },
 
