@@ -259,6 +259,7 @@ def setup_transcript_listeners(
     session: AgentSession,
     call_handler: CallHandler,
     on_user_message=None,
+    on_agent_message=None,
 ):
     """Wire up AgentSession events to stream transcripts to Convex in real-time.
 
@@ -269,6 +270,9 @@ def setup_transcript_listeners(
         on_user_message: Optional async callback(text: str) invoked for each
             user (caller) message — used by guardrails to detect hostile
             language and reset silence timers.
+        on_agent_message: Optional callback() invoked when the agent finishes
+            speaking — used to reset the silence timer so it counts from
+            when the agent STOPS talking, not when the user last spoke.
     """
 
     @session.on("conversation_item_added")
@@ -287,3 +291,9 @@ def setup_transcript_listeners(
         # Fire guardrail callback for user messages
         if speaker == "caller" and on_user_message:
             asyncio.create_task(on_user_message(text))
+        # Reset silence timer when agent finishes speaking — the user
+        # can't respond while the agent is talking, so the silence
+        # countdown should start from when the agent STOPS, not from
+        # when the user last spoke.
+        if speaker == "agent" and on_agent_message:
+            on_agent_message()

@@ -91,6 +91,9 @@ const FALLBACK_PRICING: Record<
   "gpt-4o-realtime-preview": { input: 5000, output: 20000 },
   "google/gemini-3-flash-preview": { input: 150, output: 600 },
   "gemini-3-flash-preview": { input: 150, output: 600 },
+  "google/gemini-2.5-pro": { input: 1250, output: 10000 },
+  "google/gemini-3.1-pro-preview": { input: 2000, output: 12000 },
+  "gemini-2.0-flash": { input: 75, output: 300 },
   "claude-sonnet-4-20250514": { input: 3000, output: 15000 },
 };
 

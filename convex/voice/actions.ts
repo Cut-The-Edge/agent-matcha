@@ -6,6 +6,7 @@ import { internal } from "../_generated/api";
 import {
   OPENROUTER_API_URL,
   OPENROUTER_MODEL,
+  OPENROUTER_EXTRACTION_MODEL,
   getOpenRouterApiKey,
 } from "../integrations/openrouter/config";
 import { fetchAndMapClient, extractValue } from "../integrations/smartmatchapp/contacts";
@@ -122,6 +123,7 @@ export const generateSummary = internalAction({
     const systemPrompt = instructions + "\n" + CRM_FIELD_SCHEMA;
     console.log("[generateSummary] Using %s summary instructions", customInstructions ? "custom" : "default");
 
+    console.log("[generateSummary] Using extraction model: %s", OPENROUTER_EXTRACTION_MODEL);
     const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
       headers: {
@@ -129,7 +131,11 @@ export const generateSummary = internalAction({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        // Gemini 2.5 Pro — thinking model that reasons through the transcript
+        // to extract 2-3x more fields than flash models. The built-in reasoning
+        // catches implied data, connects dots across scattered mentions, and
+        // properly breaks rich descriptions into multiple CRM fields.
+        model: OPENROUTER_EXTRACTION_MODEL,
         messages: [
           {
             role: "system",
@@ -137,10 +143,11 @@ export const generateSummary = internalAction({
           },
           {
             role: "user",
-            content: `Transcript:\n\n${transcript}`,
+            content: `Today's date: ${new Date().toISOString().split("T")[0]}\n\nUse this date to calculate birth years from age. For example, if someone is 21 and says "third in april" and today is 2026-03-27, they were born 2004-04-03 (they haven't turned 22 yet). Always output birthdate as a full YYYY-MM-DD.\n\nTranscript:\n\n${transcript}`,
           },
         ],
-        temperature: 0.4,
+        // Low temperature for deterministic extraction — reduces hallucination
+        temperature: 0.2,
       }),
     });
 
@@ -150,8 +157,13 @@ export const generateSummary = internalAction({
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    let content = data.choices?.[0]?.message?.content;
     console.log("[generateSummary] LLM response received (%d chars)", content?.length || 0);
+
+    // Strip markdown code fences — thinking models often wrap JSON in ```json ... ```
+    if (content) {
+      content = content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    }
 
     let summary;
     try {
@@ -296,7 +308,7 @@ export const generateSummary = internalAction({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: OPENROUTER_EXTRACTION_MODEL,
             messages: [
               {
                 role: "system",
@@ -313,7 +325,7 @@ Return ONLY valid JSON.`,
               },
               { role: "user", content: `Transcript:\n\n${transcript}` },
             ],
-            temperature: 0.4,
+            temperature: 0.2,
           }),
         });
 
@@ -976,7 +988,7 @@ INSTRUCTIONS:
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-3-flash-preview",
+              model: OPENROUTER_MODEL,
               messages: [
                 { role: "system", content: mergePrompt },
                 { role: "user", content: "Merge the notes and return the updated text." },

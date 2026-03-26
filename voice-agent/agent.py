@@ -24,8 +24,9 @@ from livekit.agents import (
     WorkerOptions,
     function_tool,
     get_job_context,
+    room_io,
 )
-from livekit.agents.metrics import LLMMetrics
+from livekit.agents.metrics import LLMMetrics, STTMetrics, TTSMetrics, VADMetrics
 from livekit.plugins import noise_cancellation, silero, deepgram, cartesia
 from livekit.plugins import google as google_plugin
 from livekit.plugins import openai as openai_plugin
@@ -87,7 +88,7 @@ _HOSTILE_PATTERNS: list[re.Pattern] = [
 ]
 
 # Seconds of silence before prompting "are you still there?"
-_SILENCE_THRESHOLD_SECS = 10.0
+_SILENCE_THRESHOLD_SECS = 15.0  # 15s after agent stops speaking (timer resets on agent message)
 
 # Seconds of silence after the "are you still there?" prompt
 # before concluding the caller is gone.
@@ -1448,7 +1449,10 @@ async def entrypoint(ctx: agents.JobContext):
             punctuate=False,             # DISABLED — LLM handles raw text fine, saves processing
             filler_words=True,           # keep "um", "uh" for natural feel
             vad_events=False,            # DISABLED — prevents Deepgram finalize latency spikes
-            endpointing_ms=25,           # 25ms — fastest possible (already default)
+            endpointing_ms=200,          # 200ms — gives echo cancellation time to filter
+                                         # agent's own TTS audio before STT finalizes.
+                                         # 25ms was too fast — echo leaked through as
+                                         # false transcripts triggering duplicate responses
             no_delay=True,               # immediate results, no batching
             profanity_filter=False,      # no filtering overhead
             keyterm=[
@@ -1462,34 +1466,58 @@ async def entrypoint(ctx: agents.JobContext):
             model=LLM_MODEL,
         ),
         tts=cartesia.TTS(
-            model="sonic-3",            # upgraded from sonic-2 — ~90ms TTFA
-            language="en",              # English only — faster than auto-detect
-            voice="b7d50908-b17c-442d-ad8d-810c63997ed9",  # California Girl — casual, upbeat
+            model="sonic-3",            # sonic-turbo had plugin issues (flush_done warnings,
+                                        # actual TTFB was 160ms not 40ms). sonic-3 is stable.
+            language="en",
+            voice="b7d50908-b17c-442d-ad8d-810c63997ed9",  # California Girl
             speed=1.05,
-            emotion=["calm"],           # lock vocal tone — prevents energy spikes
+            emotion=["calm"],
         ),
         vad=silero.VAD.load(
-            min_speech_duration=0.05,     # 50ms — doc default, detect speech faster
-            min_silence_duration=0.3,     # 300ms — match Pipecat (doc default is 0.55)
-            activation_threshold=0.5,
+            min_speech_duration=0.05,     # 50ms — SDK default, detect speech fast
+            min_silence_duration=0.55,    # 550ms — SDK default
+            activation_threshold=0.5,     # SDK default — don't fight echo at VAD level
             force_cpu=True,
         ),
-        # ── Speculative execution — start LLM+TTS before turn fully confirmed ──
-        preemptive_generation=True,
-        # ── Turn detection + endpointing (new API — replaces TurnHandlingOptions) ──
+        # ── Speculative execution DISABLED ──
+        # preemptive_generation causes DUPLICATE LLM requests per turn
+        # (GitHub issue #4219, #3414). Both requests complete and get spoken,
+        # which is the #1 cause of the agent repeating itself. Disable until
+        # the bug is fixed upstream in livekit-agents.
+        preemptive_generation=False,
+        # ── Turn detection + endpointing ──
         turn_detection=MultilingualModel(),
-        min_endpointing_delay=0.2,        # 200ms min — aggressive for speed
-        max_endpointing_delay=1.5,        # 1.5s max cap
+        min_endpointing_delay=0.8,        # 800ms — gives echo ~300ms to fade after
+                                          # VAD detects silence. 500ms wasn't enough.
+        max_endpointing_delay=1.5,        # 1.5s max cap — this is fine
     )
 
-    # ── LLM Metrics — log TTFT so we can see actual latency ──
+    # ── Pipeline Metrics — log ALL components so we see where latency lives ──
     def _on_llm_metrics(metrics: LLMMetrics):
         logger.info(
-            "[metrics] TTFT=%.3fs duration=%.3fs tokens=%d tok/s=%.1f prompt_tokens=%d",
+            "[metrics:llm] TTFT=%.3fs duration=%.3fs tokens=%d tok/s=%.1f "
+            "prompt_tokens=%d cached=%d cancelled=%s",
             metrics.ttft, metrics.duration, metrics.completion_tokens,
             metrics.tokens_per_second, metrics.prompt_tokens,
+            metrics.prompt_cached_tokens or 0, metrics.cancelled,
         )
+
+    def _on_tts_metrics(metrics: TTSMetrics):
+        logger.info(
+            "[metrics:tts] TTFB=%.3fs duration=%.3fs audio=%.3fs chars=%d cancelled=%s",
+            metrics.ttfb, metrics.duration, metrics.audio_duration,
+            metrics.characters_count, metrics.cancelled,
+        )
+
+    def _on_stt_metrics(metrics: STTMetrics):
+        logger.info(
+            "[metrics:stt] duration=%.3fs audio=%.3fs streamed=%s",
+            metrics.duration, metrics.audio_duration, metrics.streamed,
+        )
+
     session.llm.on("metrics_collected", _on_llm_metrics)
+    session.tts.on("metrics_collected", _on_tts_metrics)
+    session.stt.on("metrics_collected", _on_stt_metrics)
 
     # Track the LLM model name for usage analytics
     call_handler._llm_model = LLM_MODEL
@@ -1543,7 +1571,17 @@ async def entrypoint(ctx: agents.JobContext):
         agent._off_topic_count = 0
 
     # Wire up transcript streaming with guardrail callback
-    setup_transcript_listeners(session, call_handler, on_user_message=_on_user_message)
+    def _on_agent_message():
+        """Reset silence timer when agent finishes speaking.
+        The user can't respond while the agent is talking, so the
+        silence countdown must start from when the agent STOPS."""
+        agent._reset_silence_timer(session)
+
+    setup_transcript_listeners(
+        session, call_handler,
+        on_user_message=_on_user_message,
+        on_agent_message=_on_agent_message,
+    )
 
     # Use an event to keep entrypoint alive until session closes
     session_closed = asyncio.Event()
@@ -1557,6 +1595,13 @@ async def entrypoint(ctx: agents.JobContext):
         await session.start(
             agent=agent,
             room=ctx.room,
+            room_options=room_io.RoomOptions(
+                audio_input=room_io.AudioInputOptions(
+                    # BVC: Background Voice Cancellation — removes echo of
+                    # agent's own TTS being picked up by the caller's mic.
+                    noise_cancellation=noise_cancellation.BVC(),
+                ),
+            ),
         )
     except Exception as e:
         logger.error("[entrypoint] session.start() FAILED — caller will hear silence: %s", e)
@@ -1595,11 +1640,13 @@ async def entrypoint(ctx: agents.JobContext):
                 f"You believe this is {member_name} based on phone number lookup. "
                 f"Confirm their identity by saying: 'Hey, is this {member_name}?' "
                 f"Keep it casual and warm. Wait for their response. "
-                f"If they confirm, say: 'Great! So this call is basically an intake "
-                f"— I'm going to go through your profile with you, ask you some "
-                f"questions so we can find you the best matches. It usually takes "
-                f"about 20-25 minutes. Just so you know, this call is recorded and "
-                f"I have a note taker on. Sound good?' Then proceed to the opening question. "
+                f"If they confirm, say: 'Great! So just a quick heads up — I'm an "
+                f"AI assistant, so I might be a little slow sometimes or need you "
+                f"to repeat something, so bear with me! So this call is basically "
+                f"an intake — I'm going to go through your profile with you, ask "
+                f"you some questions so we can find you the best matches. It usually "
+                f"takes about 20-25 minutes. Just so you know, this call is recorded "
+                f"and I have a note taker on. Sound good?' Then proceed to the opening question. "
                 f"If they say it's not them, ask who you're speaking with."
             )
         else:
@@ -1615,7 +1662,9 @@ async def entrypoint(ctx: agents.JobContext):
             "This is a new caller — their phone number wasn't found in our system. "
             "Greet them warmly: 'Hey there! I'm Matcha from Club Allenby. What's "
             "your name?' Wait for their answer. After they tell you their name, say: "
-            "'Nice to meet you, [Name]! So this call is an intake — I'm going to "
+            "'Nice to meet you, [Name]! So just a quick heads up — I'm an AI "
+            "assistant, so I might be a little slow sometimes or need you to repeat "
+            "something, so bear with me! So this call is an intake — I'm going to "
             "ask you some questions to build your matchmaking profile. It usually "
             "takes about 20-25 minutes. Just so you know, this call is recorded and "
             "I have a note taker on. Sound good?' Then proceed to the opening question."
