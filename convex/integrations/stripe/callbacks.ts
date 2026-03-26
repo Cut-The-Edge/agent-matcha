@@ -115,12 +115,12 @@ export const handleCheckoutCompleted = internalMutation({
           0,
           internal.notifications.mutations.createNotification,
           {
-            type: "system",
+            type: "action_queue" as const,
             title: "Upsell purchase completed",
             message: `A member completed a personal outreach payment ($${(payment.amount / 100).toFixed(2)}).`,
             severity: "info",
-            actionUrl: `/dashboard/matches`,
-            relatedEntityType: "flowInstance",
+            actionUrl: `/dashboard/actions`,
+            relatedEntityType: "flowInstance" as const,
             relatedEntityId: String(payment.flowInstanceId),
           }
         );
@@ -135,19 +135,24 @@ export const handleCheckoutCompleted = internalMutation({
           }
         );
 
-        // Create escalation to notify Dani of the upsell purchase
-        if (instance.memberId) {
+        // Create action queue item for Dani to initiate outreach (initial payments only)
+        // Completion payments (second $125) are part of the continuation flow — no new action item needed
+        if (instance.memberId && payment.phase === "initial") {
           await ctx.scheduler.runAfter(
             0,
-            internal.escalations.mutations.createEscalation,
+            internal.actionQueue.mutations.createActionItem,
             {
               memberId: instance.memberId,
               matchId: instance.matchId || undefined,
               flowInstanceId: payment.flowInstanceId,
-              issueType: "upsell_purchase",
-              issueDescription:
-                `Member purchased personal outreach ($${(payment.amount / 100).toFixed(2)}). ` +
-                `Dani should initiate outreach to the match partner.`,
+              type: "outreach_needed" as const,
+              priority: "high" as const,
+              context: {
+                paymentAmount: payment.amount,
+                paymentId: String(payment._id),
+                stripeSessionId: args.stripeSessionId,
+                paidAt: Date.now(),
+              },
             },
           );
         }

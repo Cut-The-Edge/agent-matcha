@@ -167,7 +167,7 @@ export const WA_TEMPLATES = {
   // Quick reply buttons: "Yes we connected" / "Not yet"
   // TODO: Create in Twilio and replace contentSid
   POST_DATE_CONNECT_CHECK: {
-    contentSid: "HX53e8dd4fdc3206bc7a939a39d1b18562",
+    contentSid: "HX77d451aa7e4c2cd0bb08baa8b925b5e1",
     variables: ["memberFirstName", "matchFirstName"],
   },
 
@@ -212,6 +212,37 @@ export const WA_TEMPLATES = {
   POST_DATE_MIDFLOW_EXPIRE: {
     contentSid: "HX998bca430f6539f7c8aded78e47b298e",
     variables: ["memberFirstName"],
+  },
+  // ── Outreach Continuation Templates ─────────────────────────────────
+  // These are sent after Dani records an outreach outcome in the Action Queue.
+  // All need Meta approval since they'll be sent outside the 24h session window.
+
+  // outreach_match_interested — Intelligence brief + "Yes – Connect Us" / "No – I'll Pass"
+  // Variables: {{1}} = matchFirstName, {{2}} = intelligenceBrief
+  OUTREACH_MATCH_INTERESTED: {
+    contentSid: "HX45a3bde924021a26b6cccb8394d2830d",
+    variables: ["matchFirstName", "intelligenceBrief"],
+  },
+
+  // outreach_match_declined — "They've decided not to move forward..."
+  // Variables: {{1}} = matchFirstName
+  OUTREACH_MATCH_DECLINED: {
+    contentSid: "HX59e7501806ce387f289eacb58d1624cb",
+    variables: ["matchFirstName"],
+  },
+
+  // outreach_no_response — "We've tried reaching {{1}}..." + "Keep trying" / "Find the next match"
+  // Variables: {{1}} = matchFirstName
+  OUTREACH_NO_RESPONSE: {
+    contentSid: "HX79606a9a56a71885dd1271a1b89d196a",
+    variables: ["matchFirstName"],
+  },
+
+  // outreach_contact_shared — Contact info + suggested intro text
+  // Variables: {{1}} = matchFirstName, {{2}} = matchPhone, {{3}} = memberFirstName
+  OUTREACH_CONTACT_SHARED: {
+    contentSid: "HXd293fc790ee59406e79ae53139c51a5d",
+    variables: ["matchFirstName", "matchPhone", "memberFirstName"],
   },
 } as const;
 

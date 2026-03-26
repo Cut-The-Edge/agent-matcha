@@ -33,6 +33,12 @@ function EscalationsBadge() {
   return <SidebarMenuBadge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{pending}</SidebarMenuBadge>
 }
 
+function ActionQueueBadge() {
+  const count = useAuthQuery(api.actionQueue.queries.countPending, {})
+  if (!count) return null
+  return <SidebarMenuBadge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{count}</SidebarMenuBadge>
+}
+
 function ComingSoonBadge() {
   return (
     <SidebarMenuBadge className="text-[10px] text-muted-foreground/70">
@@ -51,6 +57,7 @@ export function NavMain({
     icon?: LucideIcon
     hasBadge?: boolean
     escalationBadge?: boolean
+    actionQueueBadge?: boolean
     comingSoon?: boolean
     description?: string
   }[]
@@ -95,6 +102,7 @@ export function NavMain({
                 )}
                 {item.hasBadge && <LeadsBadge />}
                 {item.escalationBadge && <EscalationsBadge />}
+                {item.actionQueueBadge && <ActionQueueBadge />}
                 {item.comingSoon && <ComingSoonBadge />}
               </SidebarMenuItem>
             )

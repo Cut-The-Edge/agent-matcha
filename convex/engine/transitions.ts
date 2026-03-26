@@ -378,6 +378,23 @@ export const handleMemberResponse = internalMutation({
             memberMessage: args.response,
           },
         );
+
+        // Also create action queue item for frustrated_member type
+        if (specialRequestDetected.issueType === "frustrated_member") {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.actionQueue.mutations.createActionItem,
+            {
+              memberId: args.memberId,
+              type: "frustrated_member" as const,
+              priority: "urgent" as const,
+              context: {
+                memberMessage: args.response,
+                description: specialRequestDetected.description,
+              },
+            },
+          );
+        }
       }
       return { handled: false, reason: "no_active_flow" };
     }
@@ -514,6 +531,25 @@ export const handleMemberResponse = internalMutation({
           memberMessage: args.response,
         },
       );
+
+      // Also create action queue item for frustrated_member type
+      if (specialRequest.issueType === "frustrated_member") {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.actionQueue.mutations.createActionItem,
+          {
+            memberId: args.memberId,
+            matchId: bestMatchId,
+            flowInstanceId: waitingInstance._id,
+            type: "frustrated_member" as const,
+            priority: "urgent" as const,
+            context: {
+              memberMessage: args.response,
+              description: specialRequest.description,
+            },
+          },
+        );
+      }
     }
 
     if (resolvedInput && isFeedbackCollectNode) {

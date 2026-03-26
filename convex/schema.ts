@@ -613,6 +613,7 @@ export default defineSchema({
       v.literal("lead"),
       v.literal("flow_action"),
       v.literal("system"),
+      v.literal("action_queue"),
     ),
     title: v.string(),
     message: v.string(),
@@ -629,6 +630,7 @@ export default defineSchema({
         v.literal("membershipLead"),
         v.literal("flowInstance"),
         v.literal("phoneCall"),
+        v.literal("actionItem"),
       )
     ),
     relatedEntityId: v.optional(v.string()),
@@ -636,6 +638,54 @@ export default defineSchema({
   })
     .index("by_read", ["read"])
     .index("by_created", ["createdAt"]),
+
+  // -- Action Queue (outreach tasks & admin work items) --
+  actionQueue: defineTable({
+    memberId: v.id("members"),
+    matchId: v.optional(v.id("matches")),
+    flowInstanceId: v.optional(v.id("flowInstances")),
+    type: v.union(
+      v.literal("outreach_needed"),
+      v.literal("outreach_pending"),
+      v.literal("follow_up_reminder"),
+      v.literal("payment_pending"),
+      v.literal("recalibration_due"),
+      v.literal("unrecognized_response"),
+      v.literal("frustrated_member"),
+    ),
+    priority: v.union(
+      v.literal("urgent"),
+      v.literal("high"),
+      v.literal("medium"),
+      v.literal("low"),
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("resolved"),
+      v.literal("expired"),
+    ),
+    context: v.optional(v.any()),
+    outreachOutcome: v.optional(v.union(
+      v.literal("match_interested"),
+      v.literal("match_not_interested"),
+      v.literal("match_no_response"),
+    )),
+    outreachNotes: v.optional(v.string()),
+    matchIntelligenceBrief: v.optional(v.string()),
+    outreachContactedAt: v.optional(v.number()),
+    followUpDate: v.optional(v.number()),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.id("admins")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_type", ["type"])
+    .index("by_status_priority", ["status", "priority"])
+    .index("by_matchId", ["matchId"])
+    .index("by_memberId", ["memberId"])
+    .index("by_createdAt", ["createdAt"]),
 
   // -- Flow Engine: Execution Logs --
   flowExecutionLogs: defineTable({

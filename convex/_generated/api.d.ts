@@ -8,6 +8,14 @@
  * @module
  */
 
+import type * as actionQueue_actions from "../actionQueue/actions.js";
+import type * as actionQueue_cron from "../actionQueue/cron.js";
+import type * as actionQueue_mutations from "../actionQueue/mutations.js";
+import type * as actionQueue_notify from "../actionQueue/notify.js";
+import type * as actionQueue_queries from "../actionQueue/queries.js";
+import type * as actionQueue_sandboxMutations from "../actionQueue/sandboxMutations.js";
+import type * as actionQueue_seed from "../actionQueue/seed.js";
+import type * as actionQueue_seedPublic from "../actionQueue/seedPublic.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_flowBridge from "../agents/flowBridge.js";
 import type * as agents_introFacilitator from "../agents/introFacilitator.js";
@@ -44,12 +52,14 @@ import type * as engine_interpreter from "../engine/interpreter.js";
 import type * as engine_matchIntroFlowData from "../engine/matchIntroFlowData.js";
 import type * as engine_monitor from "../engine/monitor.js";
 import type * as engine_mutations from "../engine/mutations.js";
+import type * as engine_outreachContinuationFlowData from "../engine/outreachContinuationFlowData.js";
 import type * as engine_postDateFeedbackFlowData from "../engine/postDateFeedbackFlowData.js";
 import type * as engine_queries from "../engine/queries.js";
 import type * as engine_reseedPostDateFeedback from "../engine/reseedPostDateFeedback.js";
 import type * as engine_resolveInput from "../engine/resolveInput.js";
 import type * as engine_sandbox from "../engine/sandbox.js";
 import type * as engine_seed from "../engine/seed.js";
+import type * as engine_seedOutreachContinuationFlow from "../engine/seedOutreachContinuationFlow.js";
 import type * as engine_seedPostDateFeedback from "../engine/seedPostDateFeedback.js";
 import type * as engine_transitions from "../engine/transitions.js";
 import type * as engine_types from "../engine/types.js";
@@ -124,6 +134,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "actionQueue/actions": typeof actionQueue_actions;
+  "actionQueue/cron": typeof actionQueue_cron;
+  "actionQueue/mutations": typeof actionQueue_mutations;
+  "actionQueue/notify": typeof actionQueue_notify;
+  "actionQueue/queries": typeof actionQueue_queries;
+  "actionQueue/sandboxMutations": typeof actionQueue_sandboxMutations;
+  "actionQueue/seed": typeof actionQueue_seed;
+  "actionQueue/seedPublic": typeof actionQueue_seedPublic;
   "agents/config": typeof agents_config;
   "agents/flowBridge": typeof agents_flowBridge;
   "agents/introFacilitator": typeof agents_introFacilitator;
@@ -160,12 +178,14 @@ declare const fullApi: ApiFromModules<{
   "engine/matchIntroFlowData": typeof engine_matchIntroFlowData;
   "engine/monitor": typeof engine_monitor;
   "engine/mutations": typeof engine_mutations;
+  "engine/outreachContinuationFlowData": typeof engine_outreachContinuationFlowData;
   "engine/postDateFeedbackFlowData": typeof engine_postDateFeedbackFlowData;
   "engine/queries": typeof engine_queries;
   "engine/reseedPostDateFeedback": typeof engine_reseedPostDateFeedback;
   "engine/resolveInput": typeof engine_resolveInput;
   "engine/sandbox": typeof engine_sandbox;
   "engine/seed": typeof engine_seed;
+  "engine/seedOutreachContinuationFlow": typeof engine_seedOutreachContinuationFlow;
   "engine/seedPostDateFeedback": typeof engine_seedPostDateFeedback;
   "engine/transitions": typeof engine_transitions;
   "engine/types": typeof engine_types;

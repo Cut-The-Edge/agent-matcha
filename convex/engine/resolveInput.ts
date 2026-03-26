@@ -263,6 +263,22 @@ export const resolveInputWithLLM = internalAction({
               memberMessage: args.rawInput,
             },
           );
+
+          // Also create action queue item for tracking
+          await ctx.runMutation(
+            internal.actionQueue.mutations.createActionItem,
+            {
+              memberId: args.memberId,
+              matchId: args.matchId,
+              flowInstanceId: args.flowInstanceId,
+              type: "unrecognized_response" as const,
+              priority: "medium" as const,
+              context: {
+                question: (args.question || "").slice(0, 200),
+                memberMessage: args.rawInput,
+              },
+            },
+          );
         }
       }
       // Don't advance flow — keep waiting for valid input

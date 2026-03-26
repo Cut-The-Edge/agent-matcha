@@ -12,6 +12,7 @@ export const createNotification = internalMutation({
       v.literal("lead"),
       v.literal("flow_action"),
       v.literal("system"),
+      v.literal("action_queue"),
     ),
     title: v.string(),
     message: v.string(),
@@ -27,6 +28,7 @@ export const createNotification = internalMutation({
         v.literal("membershipLead"),
         v.literal("flowInstance"),
         v.literal("phoneCall"),
+        v.literal("actionItem"),
       )
     ),
     relatedEntityId: v.optional(v.string()),

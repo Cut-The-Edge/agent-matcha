@@ -547,7 +547,7 @@ export const executeActionNode = internalMutation({
             memberId: instance.memberId,
             type: "personal_outreach",
             amount: args.params?.amount || 12500, // $125 in cents
-            phase: "initial",
+            phase: args.params?.phase || "initial",
             flowInstanceId: args.flowInstanceId,
             status: "pending",
             createdAt: Date.now(),
@@ -620,6 +620,23 @@ export const executeActionNode = internalMutation({
             status: "recalibrating",
             updatedAt: Date.now(),
           });
+
+          // Create action queue item for recalibration
+          await ctx.scheduler.runAfter(
+            0,
+            internal.actionQueue.mutations.createActionItem,
+            {
+              memberId: instance.memberId,
+              matchId: instance.matchId || undefined,
+              flowInstanceId: args.flowInstanceId,
+              type: "recalibration_due" as const,
+              priority: "medium" as const,
+              context: {
+                reason: "rejection_threshold",
+              },
+            },
+          );
+
           actionResult = {
             type: "schedule_recalibration",
             memberId: instance.memberId,
@@ -717,6 +734,8 @@ export const executeActionNode = internalMutation({
       case "create_escalation": {
         // Create an escalation queue item and notify Dani
         if (instance.memberId) {
+          const issueType = args.params?.issue_type || "manual";
+
           await ctx.scheduler.runAfter(
             0,
             internal.escalations.mutations.createEscalation,
@@ -724,15 +743,39 @@ export const executeActionNode = internalMutation({
               memberId: instance.memberId,
               matchId: instance.matchId || undefined,
               flowInstanceId: args.flowInstanceId,
-              issueType: args.params?.issue_type || "manual",
+              issueType,
               issueDescription: args.params?.description || "Flow-triggered escalation",
               memberMessage: args.params?.member_message,
             },
           );
 
+          // Also create action queue item for trackable types
+          const ACTION_QUEUE_TYPES: Record<string, string> = {
+            frustrated_member: "frustrated_member",
+            unrecognized_response: "unrecognized_response",
+          };
+          const aqType = ACTION_QUEUE_TYPES[issueType];
+          if (aqType) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.actionQueue.mutations.createActionItem,
+              {
+                memberId: instance.memberId,
+                matchId: instance.matchId || undefined,
+                flowInstanceId: args.flowInstanceId,
+                type: aqType as any,
+                priority: issueType === "frustrated_member" ? "urgent" as const : "medium" as const,
+                context: {
+                  description: args.params?.description || "Flow-triggered",
+                  memberMessage: args.params?.member_message,
+                },
+              },
+            );
+          }
+
           actionResult = {
             type: "create_escalation",
-            issueType: args.params?.issue_type || "manual",
+            issueType,
             status: "queued",
           };
         }
@@ -884,6 +927,23 @@ export const executeActionNode = internalMutation({
               memberMessage: undefined,
             },
           );
+
+          // Also create action queue item for recalibration
+          await ctx.scheduler.runAfter(
+            0,
+            internal.actionQueue.mutations.createActionItem,
+            {
+              memberId: instance.memberId,
+              matchId: instance.matchId || undefined,
+              flowInstanceId: args.flowInstanceId,
+              type: "recalibration_due" as const,
+              priority: "high" as const,
+              context: {
+                reason: args.params?.reason || "consecutive bad dates",
+              },
+            },
+          );
+
           actionResult = { type: "trigger_human_review", status: "queued" };
         }
         break;

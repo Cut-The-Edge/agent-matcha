@@ -27,4 +27,22 @@ crons.interval(
   internal.dataRequests.cron.checkAndAutoSend
 );
 
+crons.interval(
+  "bump aging action items",
+  { hours: 2 },
+  internal.actionQueue.cron.bumpAgingItems
+);
+
+crons.interval(
+  "expire stale action items",
+  { hours: 6 },
+  internal.actionQueue.cron.expireStaleItems
+);
+
+crons.interval(
+  "check action queue follow-up reminders",
+  { hours: 1 },
+  internal.actionQueue.cron.checkFollowUpReminders
+);
+
 export default crons;

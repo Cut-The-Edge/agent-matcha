@@ -16,6 +16,7 @@ import {
   Settings,
   AlertTriangle,
   HeartHandshake,
+  ListTodo,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -64,6 +65,13 @@ const navMatchmaking = [
     icon: UserPlus,
     hasBadge: true,
     description: "Track and manage incoming leads from your matchmaking pipeline",
+  },
+  {
+    title: "Action Queue",
+    url: "/dashboard/actions",
+    icon: ListTodo,
+    actionQueueBadge: true,
+    description: "Outreach tasks, follow-ups, and items needing manual action",
   },
   {
     title: "Escalations",
