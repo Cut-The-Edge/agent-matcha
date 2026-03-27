@@ -1635,42 +1635,35 @@ async def entrypoint(ctx: agents.JobContext):
             f"and then call end_call."
         )
     elif caller_status == "existing" and call_handler.member:
-        # Existing member — confirm identity, explain intake purpose + duration
+        # Existing member — just confirm identity. Keep it SHORT.
+        # The system prompt Step 1 handles housekeeping through natural conversation.
         _raw = call_handler.member.get("firstName", "")
         member_name = "" if _raw in ("", "Unknown") else _raw
         if member_name:
             greeting = (
                 f"You believe this is {member_name} based on phone number lookup. "
-                f"Confirm their identity by saying: 'Hey, is this {member_name}?' "
-                f"Keep it casual and warm. Wait for their response. "
-                f"If they confirm, say: 'Great! So just a quick heads up — I'm an "
-                f"AI assistant, so I might be a little slow sometimes or need you "
-                f"to repeat something, so bear with me! So this call is basically "
-                f"an intake — I'm going to go through your profile with you, ask "
-                f"you some questions so we can find you the best matches. It usually "
-                f"takes about 20-25 minutes. Just so you know, this call is recorded "
-                f"and I have a note taker on. Sound good?' Then proceed to the opening question. "
-                f"If they say it's not them, ask who you're speaking with."
+                f"Say ONLY: 'Hey, is this {member_name}?' "
+                f"Nothing else. Wait for their response. "
+                f"If they confirm, do the Step 1 housekeeping from your system prompt "
+                f"but deliver each item ONE AT A TIME — say 1-2 sentences, then STOP "
+                f"and wait for their response before continuing. Never dump everything "
+                f"in one long speech. If they say it's not them, ask who you're speaking with."
             )
         else:
-            # Existing member but no name — fall back to generic warm greeting
             greeting = (
-                "Greet the caller casually and warmly. Say something like "
-                "'Hey! Thanks for calling Club Allenby, I'm Matcha. Who am I speaking with?' "
-                "Wait for their response."
+                "Say ONLY: 'Hey! Thanks for calling Club Allenby, I'm Matcha. "
+                "Who am I speaking with?' Nothing else. Wait for their response."
             )
     elif caller_status == "new":
-        # New caller — warm greeting, explain intake purpose + duration
+        # New caller — just ask their name. Keep it SHORT.
         greeting = (
-            "This is a new caller — their phone number wasn't found in our system. "
-            "Greet them warmly: 'Hey there! I'm Matcha from Club Allenby. What's "
-            "your name?' Wait for their answer. After they tell you their name, say: "
-            "'Nice to meet you, [Name]! So just a quick heads up — I'm an AI "
-            "assistant, so I might be a little slow sometimes or need you to repeat "
-            "something, so bear with me! So this call is an intake — I'm going to "
-            "ask you some questions to build your matchmaking profile. It usually "
-            "takes about 20-25 minutes. Just so you know, this call is recorded and "
-            "I have a note taker on. Sound good?' Then proceed to the opening question."
+            "This is a new caller. Say ONLY: 'Hey there! I'm Matcha from Club "
+            "Allenby. What's your name?' Nothing else. Wait for their answer. "
+            "After they tell you their name, say ONLY: 'Nice to meet you, [Name]! "
+            "Just a heads up, I'm an AI assistant so I might need you to repeat "
+            "something sometimes.' Then STOP and wait. Do the rest of the Step 1 "
+            "housekeeping from your system prompt ONE ITEM AT A TIME — 1-2 sentences "
+            "per turn, wait for acknowledgment before the next item."
         )
     elif caller_status == "lookup_failed":
         # Lookup failed — treat as potentially new
