@@ -1,0 +1,133 @@
+{
+  "tools": [
+    {
+      "name": "save_intake_data",
+      "description": "Save NEW profile information gathered during THIS intake call. Call this ONCE at the end of the conversation after saying goodbye. CRITICAL: Only save information the caller EXPLICITLY told you during THIS conversation.",
+      "type": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "first_name": { "type": "string", "description": "The caller's first name" },
+          "last_name": { "type": "string", "description": "The caller's last name" },
+          "age": { "type": "number", "description": "The caller's age" },
+          "location": { "type": "string", "description": "Where the caller currently lives" },
+          "hometown": { "type": "string", "description": "Where the caller grew up" },
+          "willing_to_relocate": { "type": "boolean", "description": "Whether they'd relocate" },
+          "ethnicity": { "type": "string", "description": "Jewish ethnic background" },
+          "occupation": { "type": "string", "description": "What the caller does for work" },
+          "family_info": { "type": "string", "description": "Family details" },
+          "jewish_observance": { "type": "string", "description": "Level of observance" },
+          "kosher_level": { "type": "string", "description": "Kosher details" },
+          "shabbat_observance": { "type": "string", "description": "How they observe Shabbat" },
+          "relationship_history": { "type": "string", "description": "Previous relationships" },
+          "looking_for": { "type": "string", "description": "Ideal partner description" },
+          "physical_preferences": { "type": "string", "description": "Physical type preferences" },
+          "age_range_preference": { "type": "string", "description": "Age range for dating" },
+          "must_haves": { "type": "string", "description": "Must-haves in a partner" },
+          "dealbreakers": { "type": "string", "description": "Absolute deal breakers" },
+          "marriage_timeline": { "type": "string", "description": "When they want to get married" },
+          "kids_preference": { "type": "string", "description": "Whether they want kids" },
+          "day_in_life": { "type": "string", "description": "Typical day" },
+          "hobbies": { "type": "string", "description": "Interests and hobbies" },
+          "additional_notes": { "type": "string", "description": "Anything else noteworthy" },
+          "height": { "type": "string", "description": "Height" },
+          "hair_color": { "type": "string", "description": "Hair color" },
+          "eye_color": { "type": "string", "description": "Eye color" },
+          "smoke": { "type": "string", "description": "Smoking habits" },
+          "drink_alcohol": { "type": "string", "description": "Drinking habits" },
+          "pets": { "type": "string", "description": "Pets" },
+          "languages": { "type": "string", "description": "Languages spoken" },
+          "political_affiliation": { "type": "string", "description": "Political leaning" },
+          "education_level": { "type": "string", "description": "Education level" },
+          "college_details": { "type": "string", "description": "College details" },
+          "weekend_preferences": { "type": "string", "description": "Weekend activities" },
+          "friends_describe": { "type": "string", "description": "How friends describe them" },
+          "organizations": { "type": "string", "description": "Organizations" },
+          "personal_growth": { "type": "string", "description": "Personal growth journey" },
+          "what_you_notice": { "type": "string", "description": "What they notice first" },
+          "instagram": { "type": "string", "description": "Instagram handle" },
+          "children_details": { "type": "string", "description": "Children details" },
+          "long_distance": { "type": "string", "description": "Long distance willingness" },
+          "nationality": { "type": "string", "description": "Nationality" },
+          "sexual_orientation": { "type": "string", "description": "Sexual orientation" },
+          "birthdate": { "type": "string", "description": "Date of birth" },
+          "career_overview": { "type": "string", "description": "Career overview" },
+          "relationship_status": { "type": "string", "description": "Current status" },
+          "income": { "type": "string", "description": "Income level" },
+          "upbringing": { "type": "string", "description": "Upbringing background" },
+          "pref_seeking": { "type": "string", "description": "Gender seeking" },
+          "pref_ethnicity": { "type": "string", "description": "Preferred ethnicity" },
+          "pref_religion": { "type": "string", "description": "Preferred religion" },
+          "pref_education": { "type": "string", "description": "Preferred education" },
+          "pref_income": { "type": "string", "description": "Preferred income" },
+          "pref_height_range": { "type": "string", "description": "Preferred height range" },
+          "pref_political": { "type": "string", "description": "Preferred political alignment" },
+          "pref_smoking": { "type": "string", "description": "Smoker preference" },
+          "pref_drinking": { "type": "string", "description": "Drinker preference" },
+          "pref_children": { "type": "string", "description": "Children preference" },
+          "pref_relocating": { "type": "string", "description": "Open to relocating" },
+          "pref_partner_values": { "type": "string", "description": "Partner values" },
+          "pref_partner_interests": { "type": "string", "description": "Partner interests" },
+          "membership_interest": { "type": "string", "description": "Tier interest: 'member' or 'vip'" }
+        }
+      }
+    },
+    {
+      "name": "save_deep_dive_data",
+      "description": "Save the deep dive insights from Phase 2 of the conversation. Call this at the end of Phase 2, before ending the call.",
+      "type": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "matchmaker_note": { "type": "string", "description": "Rich free-form paragraph summarizing who this person really is" },
+          "attachment_style": { "type": "string", "description": "Attachment/relationship style" },
+          "communication_style": { "type": "string", "description": "How they communicate" },
+          "energy_level": { "type": "string", "description": "Energy and activity level" },
+          "life_stage": { "type": "string", "description": "Where they are in life" },
+          "emotional_maturity": { "type": "string", "description": "Self-awareness level" },
+          "social_style": { "type": "string", "description": "How they engage socially" },
+          "love_language": { "type": "string", "description": "How they give/receive love" },
+          "conflict_style": { "type": "string", "description": "How they handle disagreements" },
+          "conversation_summary": { "type": "string", "description": "Detailed summary of Phase 2 discussion" }
+        },
+        "required": ["matchmaker_note"]
+      }
+    },
+    {
+      "name": "send_data_request_link",
+      "description": "Send a profile completion form link to the member via WhatsApp. Call this when the member has missing profile data (photo, email, Instagram) or wants to update those. Tell them: 'I just sent you a link on WhatsApp.'",
+      "type": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "start_deep_dive",
+      "description": "Signal transition to Phase 2 — the deep dive personal conversation. Call this AFTER you have discussed all the CRM profile fields. This shifts focus to deeper personal questions.",
+      "type": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "start_membership_pitch",
+      "description": "Signal transition to Phase 3 — the membership soft-sell pitch. Call this AFTER Phase 2 deep dive. If the pitch is disabled, skip to wrap-up.",
+      "type": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "end_call",
+      "description": "End the call ONLY after the conversation is naturally wrapping up. NEVER call this at the start. Only call AFTER: 1) saying a warm goodbye, 2) calling save_intake_data.",
+      "type": "client",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

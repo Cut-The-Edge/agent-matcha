@@ -24,7 +24,7 @@ export function CallQualityFlags({ flags }: CallQualityFlagsProps) {
 
   return (
     <div className="flex flex-wrap gap-1">
-      {flags.map((flag) => {
+      {[...new Set(flags)].map((flag) => {
         const config = FLAG_CONFIG[flag] ?? {
           label: flag,
           variant: "outline" as const,

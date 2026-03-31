@@ -16,21 +16,12 @@ import { Badge } from "@/components/ui/badge"
 import {
   Phone,
   PhoneOff,
-  Mic,
-  MicOff,
   Loader2,
   Sparkles,
   Copy,
   Check,
   User,
 } from "lucide-react"
-import {
-  LiveKitRoom,
-  RoomAudioRenderer,
-  useRoomContext,
-} from "@livekit/components-react"
-
-const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -51,41 +42,16 @@ interface PitchArenaProps {
 type CallState = "idle" | "connecting" | "active" | "ended"
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Active Call Controls (inside LiveKitRoom context)
+// Active Call Controls (no LiveKit — simple end-call button)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CallControls({ onEndCall }: { onEndCall: () => void }) {
-  const room = useRoomContext()
-  const [micEnabled, setMicEnabled] = useState(true)
-
-  // Auto-detect when SIP participant disconnects
-  useEffect(() => {
-    const handler = () => {
-      if (room.remoteParticipants.size === 0) {
-        onEndCall()
-      }
-    }
-    room.on("participantDisconnected", handler)
-    return () => { room.off("participantDisconnected", handler) }
-  }, [room, onEndCall])
-
-  async function toggleMic() {
-    await room.localParticipant.setMicrophoneEnabled(!micEnabled)
-    setMicEnabled(!micEnabled)
-  }
-
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="icon" onClick={toggleMic}>
-        {micEnabled ? <Mic className="size-4" /> : <MicOff className="size-4 text-red-500" />}
-      </Button>
       <Button
         variant="destructive"
         size="sm"
-        onClick={() => {
-          room.disconnect()
-          onEndCall()
-        }}
+        onClick={onEndCall}
         className="gap-1.5"
       >
         <PhoneOff className="size-3.5" />
@@ -139,7 +105,6 @@ export function PitchArenaSheet({
   matchPhone,
 }: PitchArenaProps) {
   const [callState, setCallState] = useState<CallState>("idle")
-  const [token, setToken] = useState("")
   const [roomName, setRoomName] = useState("")
   const [sessionId, setSessionId] = useState<Id<"pitchArenaSessions"> | null>(null)
   const [callId, setCallId] = useState<Id<"phoneCalls"> | null>(null)
@@ -186,7 +151,7 @@ export function PitchArenaSheet({
     setError(null)
 
     try {
-      // 1. Place the SIP call and get a browser token
+      // 1. Place the outbound call via bridge
       const res = await fetch("/api/pitch-arena-call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -210,7 +175,6 @@ export function PitchArenaSheet({
         phone: data.phone,
       })
 
-      setToken(data.token)
       setRoomName(data.roomName)
       setSessionId(result.sessionId)
       setCallId(result.callId)
@@ -226,7 +190,6 @@ export function PitchArenaSheet({
   const handleEndCall = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current)
     setCallState("ended")
-    setToken("")
 
     if (sessionId) {
       await endSessionMut({ sessionId })
@@ -256,7 +219,6 @@ export function PitchArenaSheet({
       cancelSessionMut({ sessionId })
     }
     setCallState("idle")
-    setToken("")
     setSessionId(null)
     setCallId(null)
     setError(null)
@@ -344,19 +306,9 @@ export function PitchArenaSheet({
           {(callState === "active" || callState === "ended") && (
             <>
               {/* Call controls */}
-              {callState === "active" && token && (
+              {callState === "active" && (
                 <div className="border-b px-4 py-2">
-                  <LiveKitRoom
-                    serverUrl={LIVEKIT_URL}
-                    token={token}
-                    connect={true}
-                    audio={true}
-                    video={false}
-                    onDisconnected={handleEndCall}
-                  >
-                    <CallControls onEndCall={handleEndCall} />
-                    <RoomAudioRenderer />
-                  </LiveKitRoom>
+                  <CallControls onEndCall={handleEndCall} />
                 </div>
               )}
 
