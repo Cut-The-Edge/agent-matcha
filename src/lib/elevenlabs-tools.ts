@@ -156,4 +156,21 @@ export async function notifyCallEnded(
     transcript,
     status,
   });
+
+  // Log ElevenLabs cost estimate for sandbox calls
+  // Sandbox calls are billed at half price: $0.05/min instead of $0.10/min
+  const durationMinutes = duration / 60;
+  const estimatedCost = durationMinutes * 0.05; // half price for testing
+  await convexViaProxy("/voice/log-usage", {
+    callId,
+    durationSecs: duration,
+    sttModel: "elevenlabs/scribe",
+    llmModel: "elevenlabs/gpt-4.1-mini",
+    ttsModel: "elevenlabs/flash-v2",
+    userTokens: 0,
+    agentTokens: 0,
+    transcriptSegments: transcript.length,
+    elevenlabsCostUsd: estimatedCost,
+    elevenlabsMinutes: durationMinutes,
+  }).catch(() => {});
 }
