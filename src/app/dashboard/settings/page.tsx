@@ -256,6 +256,12 @@ export default function SettingsPage() {
                         try {
                           const valueToSave = voiceAgentPrompt === DEFAULT_VOICE_AGENT_PROMPT ? "" : voiceAgentPrompt
                           await updateSettings({ voiceAgentPrompt: valueToSave })
+                          // Sync to ElevenLabs agent so phone calls use the updated prompt
+                          fetch("/api/elevenlabs-sync-prompt", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ prompt: voiceAgentPrompt || DEFAULT_VOICE_AGENT_PROMPT }),
+                          }).catch(() => {})
                           setVapSaved(true)
                         } finally {
                           setVapSaving(false)
@@ -274,6 +280,12 @@ export default function SettingsPage() {
                         setVapSaving(true)
                         try {
                           await updateSettings({ voiceAgentPrompt: "" })
+                          // Reset ElevenLabs agent to default prompt too
+                          fetch("/api/elevenlabs-sync-prompt", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ prompt: DEFAULT_VOICE_AGENT_PROMPT }),
+                          }).catch(() => {})
                           setVapSaved(true)
                         } finally {
                           setVapSaving(false)
