@@ -90,11 +90,13 @@ async function handlePostCallTranscription(data: {
 
   // Send call-ended to trigger AI summary generation
   const duration = data.metadata.call_duration_secs || 0;
+  const costUsd = data.metadata.cost || 0;
   console.log(
-    "[elevenlabs-webhook] Sending call-ended: callId=%s duration=%ds segments=%d",
+    "[elevenlabs-webhook] Sending call-ended: callId=%s duration=%ds segments=%d cost=$%s",
     callId,
     duration,
     transcript.length,
+    costUsd.toFixed(4),
   );
 
   await fetch(`${convexUrl}/voice/call-ended`, {
@@ -107,6 +109,28 @@ async function handlePostCallTranscription(data: {
       status: "completed",
     }),
   });
+
+  // Log ElevenLabs usage cost for analytics tracking
+  if (costUsd > 0 || duration > 0) {
+    const durationMinutes = duration / 60;
+    await fetch(`${convexUrl}/voice/log-usage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callId,
+        durationSecs: duration,
+        sttModel: "elevenlabs/scribe",
+        llmModel: "elevenlabs/gpt-4.1-mini",
+        ttsModel: "elevenlabs/flash-v2",
+        userTokens: 0,
+        agentTokens: 0,
+        transcriptSegments: transcript.length,
+        // Pass actual ElevenLabs cost as metadata
+        elevenlabsCostUsd: costUsd,
+        elevenlabsMinutes: durationMinutes,
+      }),
+    }).catch((e) => console.warn("[elevenlabs-webhook] Failed to log usage:", e));
+  }
 }
 
 async function handleCallFailure(data: {

@@ -343,73 +343,100 @@ export const logVoiceUsageHandler = httpAction(async (ctx, request) => {
     userTokens,
     agentTokens,
     transcriptSegments,
+    // ElevenLabs actual cost (from post-call webhook)
+    elevenlabsCostUsd,
+    elevenlabsMinutes,
   } = body;
 
-  const now = Date.now();
+  const durationMinutes = (durationSecs || 0) / 60;
 
-  // Pricing estimates (per million tokens / per minute for audio services)
-  // These approximate rates for Deepgram Nova-3, OpenRouter LLM, ElevenLabs TTS
-  const DEEPGRAM_COST_PER_MIN = 0.0043;   // ~$0.0043/min for Nova-3
-  const ELEVENLABS_COST_PER_CHAR = 0.00003; // ~$0.30 per 10K chars
+  // If we have actual ElevenLabs cost from the webhook, use that
+  // Otherwise fall back to per-component estimates
+  if (elevenlabsCostUsd !== undefined) {
+    // Single log entry with actual ElevenLabs bundled cost
+    await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
+      processType: "voice-intake",
+      provider: "other",
+      model: "elevenlabs/conversational-ai",
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      costUsd: Math.round((elevenlabsCostUsd || 0) * 1_000_000) / 1_000_000,
+      latencyMs: (durationSecs || 0) * 1000,
+      entityType: "call",
+      entityId: callId,
+      metadata: {
+        service: "elevenlabs",
+        durationSecs,
+        durationMinutes: Math.round(durationMinutes * 100) / 100,
+        transcriptSegments,
+        llmModel: llmModel || "gpt-4.1-mini",
+        ttsModel: ttsModel || "eleven_flash_v2",
+        sttModel: sttModel || "elevenlabs/scribe",
+        actualCostUsd: elevenlabsCostUsd,
+      },
+    });
+    console.log("[logUsage] ElevenLabs: $%s for %s min | callId=%s",
+      (elevenlabsCostUsd || 0).toFixed(4), durationMinutes.toFixed(1), callId);
+  } else {
+    // Legacy: per-component cost estimates (for old LiveKit calls)
+    const DEEPGRAM_COST_PER_MIN = 0.0043;
+    const ELEVENLABS_COST_PER_CHAR = 0.00003;
 
-  // Log STT usage (Deepgram — billed by audio duration)
-  const sttCost = (durationSecs / 60) * DEEPGRAM_COST_PER_MIN;
-  await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
-    processType: "voice-intake",
-    provider: "other",
-    model: sttModel || "deepgram/nova-3",
-    inputTokens: userTokens || 0,
-    outputTokens: 0,
-    totalTokens: userTokens || 0,
-    costUsd: Math.round(sttCost * 1_000_000) / 1_000_000,
-    latencyMs: durationSecs * 1000,
-    entityType: "call",
-    entityId: callId,
-    metadata: { service: "stt", durationSecs, transcriptSegments },
-  });
+    const sttCost = durationMinutes * DEEPGRAM_COST_PER_MIN;
+    await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
+      processType: "voice-intake",
+      provider: "other",
+      model: sttModel || "deepgram/nova-3",
+      inputTokens: userTokens || 0,
+      outputTokens: 0,
+      totalTokens: userTokens || 0,
+      costUsd: Math.round(sttCost * 1_000_000) / 1_000_000,
+      latencyMs: (durationSecs || 0) * 1000,
+      entityType: "call",
+      entityId: callId,
+      metadata: { service: "stt", durationSecs, transcriptSegments },
+    });
 
-  // Log LLM usage (OpenRouter — billed by tokens)
-  // Look up pricing from the modelPricing table
-  const pricing = await ctx.runQuery(
-    internal.analytics.pricingSync.getPricingForModel,
-    { model: llmModel?.replace("openrouter/", "") || "unknown" }
-  );
-  const totalLlmTokens = (userTokens || 0) + (agentTokens || 0);
-  const llmCost = pricing
-    ? calculateCostUsd(userTokens || 0, agentTokens || 0, pricing.inputPricePerMillion, pricing.outputPricePerMillion)
-    : totalLlmTokens * 0.000003; // fallback ~$3/1M tokens
+    const pricing = await ctx.runQuery(
+      internal.analytics.pricingSync.getPricingForModel,
+      { model: llmModel?.replace("openrouter/", "") || "unknown" }
+    );
+    const totalLlmTokens = (userTokens || 0) + (agentTokens || 0);
+    const llmCost = pricing
+      ? calculateCostUsd(userTokens || 0, agentTokens || 0, pricing.inputPricePerMillion, pricing.outputPricePerMillion)
+      : totalLlmTokens * 0.000003;
 
-  await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
-    processType: "voice-intake",
-    provider: "openrouter",
-    model: llmModel || "unknown",
-    inputTokens: userTokens || 0,
-    outputTokens: agentTokens || 0,
-    totalTokens: totalLlmTokens,
-    costUsd: Math.round(llmCost * 1_000_000) / 1_000_000,
-    latencyMs: durationSecs * 1000,
-    entityType: "call",
-    entityId: callId,
-    metadata: { service: "llm", durationSecs },
-  });
+    await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
+      processType: "voice-intake",
+      provider: "openrouter",
+      model: llmModel || "unknown",
+      inputTokens: userTokens || 0,
+      outputTokens: agentTokens || 0,
+      totalTokens: totalLlmTokens,
+      costUsd: Math.round(llmCost * 1_000_000) / 1_000_000,
+      latencyMs: (durationSecs || 0) * 1000,
+      entityType: "call",
+      entityId: callId,
+      metadata: { service: "llm", durationSecs },
+    });
 
-  // Log TTS usage (ElevenLabs — billed by characters)
-  // Rough estimate: agent_tokens * 4 chars per token
-  const ttsChars = (agentTokens || 0) * 4;
-  const ttsCost = ttsChars * ELEVENLABS_COST_PER_CHAR;
-  await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
-    processType: "voice-intake",
-    provider: "other",
-    model: ttsModel || "elevenlabs/unknown",
-    inputTokens: agentTokens || 0,
-    outputTokens: 0,
-    totalTokens: agentTokens || 0,
-    costUsd: Math.round(ttsCost * 1_000_000) / 1_000_000,
-    latencyMs: durationSecs * 1000,
-    entityType: "call",
-    entityId: callId,
-    metadata: { service: "tts", durationSecs, estimatedChars: ttsChars },
-  });
+    const ttsChars = (agentTokens || 0) * 4;
+    const ttsCost = ttsChars * ELEVENLABS_COST_PER_CHAR;
+    await ctx.runMutation(internal.analytics.tokenTracking.logTokenUsage, {
+      processType: "voice-intake",
+      provider: "other",
+      model: ttsModel || "elevenlabs/unknown",
+      inputTokens: agentTokens || 0,
+      outputTokens: 0,
+      totalTokens: agentTokens || 0,
+      costUsd: Math.round(ttsCost * 1_000_000) / 1_000_000,
+      latencyMs: (durationSecs || 0) * 1000,
+      entityType: "call",
+      entityId: callId,
+      metadata: { service: "tts", durationSecs, estimatedChars: ttsChars },
+    });
+  }
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
