@@ -271,3 +271,23 @@ export const updateSmaSyncStatus = internalMutation({
     });
   },
 });
+
+/**
+ * Close all stuck in_progress calls. One-off cleanup utility.
+ */
+export const closeStuckCalls = internalMutation({
+  handler: async (ctx) => {
+    const calls = await ctx.db
+      .query("phoneCalls")
+      .withIndex("by_status", (q) => q.eq("status", "in_progress"))
+      .collect();
+
+    for (const call of calls) {
+      await ctx.db.patch(call._id, {
+        status: "failed",
+        endedAt: Date.now(),
+      });
+    }
+    return calls.length;
+  },
+});
